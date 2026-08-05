@@ -67,11 +67,13 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('docs', app, document);
 
-  const port = parseInt(process.env.API_PORT || '4000', 10);
-  await app.listen(port);
+  // Bind the platform-provided PORT (Compute/containers set this) on all
+  // interfaces so public ingress can reach it; fall back to API_PORT locally.
+  const port = parseInt(process.env.PORT || process.env.API_PORT || '4000', 10);
+  await app.listen(port, '0.0.0.0');
   const log = new Logger('Bootstrap');
   log.log(`Env loaded from ${envPath ?? 'process environment'}`);
-  log.log(`Kynren API listening on http://localhost:${port} (docs at /docs)`);
+  log.log(`Kynren API listening on 0.0.0.0:${port} (docs at /docs)`);
 }
 
 bootstrap();

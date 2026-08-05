@@ -46,3 +46,4 @@ coverage/
 *.mobileprovision
 apps/mobile/ios/
 apps/mobile/android/
+.prisma/

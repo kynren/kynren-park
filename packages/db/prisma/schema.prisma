@@ -3,6 +3,9 @@
 
 generator client {
   provider = "prisma-client-js"
+  // "native" for local dev; the debian/musl targets are for the Linux runtime
+  // on Prisma Compute (the custom build runs locally and ships the artifact).
+  binaryTargets = ["native", "debian-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
