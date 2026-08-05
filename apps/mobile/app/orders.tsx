@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, View, Text, StyleSheet, RefreshControl } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { io, type Socket } from 'socket.io-client';
-import { REALTIME_EVENTS } from '@kynren/shared';
+import { REALTIME_EVENTS } from '../lib/shared';
 import { api, API_URL } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { fmtTime, poundsFromCents } from '../lib/format';

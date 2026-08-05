@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { io, type Socket } from 'socket.io-client';
-import { REALTIME_EVENTS, type SessionUpdatedEvent } from '@kynren/shared';
+import { REALTIME_EVENTS, type SessionUpdatedEvent } from './shared';
 import { API_URL } from './api';
 
 // --- Bundle shape (mirrors GET /api/sync/bundle) ---------------------------

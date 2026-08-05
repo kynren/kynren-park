@@ -67,5 +67,8 @@ jobs:
       - name: API tests (e2e + unit)
         run: npm run test --workspace @kynren/api
 
+      # The mobile app is standalone (not a workspace) — install + typecheck on its own.
+      - name: Install mobile app
+        run: npm ci --prefix apps/mobile
       - name: Mobile typecheck
-        run: npm run typecheck --workspace @kynren/mobile
+        run: npm run typecheck --prefix apps/mobile

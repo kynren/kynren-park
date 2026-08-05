@@ -5,7 +5,7 @@ import { api } from '../../lib/api';
 import { fmtTime } from '../../lib/format';
 import { useI18n } from '../../lib/i18n';
 import { theme, categoryColor } from '../../lib/theme';
-import type { OptimizedItinerary } from '@kynren/shared';
+import type { OptimizedItinerary } from '../../lib/shared';
 
 export default function PlanScreen() {
   const { bundle, date } = useSync();

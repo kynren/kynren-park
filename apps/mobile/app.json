@@ -23,6 +23,7 @@
       "buildNumber": "1",
       "infoPlist": {
         "UIBackgroundModes": [
+          "remote-notification",
           "remote-notification"
         ],
         "NSLocationWhenInUseUsageDescription": "Kynren uses your location to show where you are on the park map and time your show reminders."
@@ -36,6 +37,9 @@
         "backgroundColor": "#8f1d21"
       },
       "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "POST_NOTIFICATIONS",
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "POST_NOTIFICATIONS"
@@ -66,6 +70,12 @@
         "projectId": "1b178732-f66c-47e9-a8e0-02dd45a080db"
       }
     },
-    "owner": "kynrenadmins-team"
+    "owner": "kynrenadmins-team",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/1b178732-f66c-47e9-a8e0-02dd45a080db"
+    }
   }
 }

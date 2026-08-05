@@ -3,9 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "description": "Kynren – The Storied Lands: offline-first visitor app, backend API, and staff dashboard.",
+  "//workspaces": "apps/mobile is intentionally excluded: as an Expo/React Native app it needs a standalone (non-hoisted) node_modules so Metro and EAS Gradle resolve react-native and its native modules consistently. Install it with `cd apps/mobile && npm install`.",
   "workspaces": [
     "packages/*",
-    "apps/*"
+    "apps/api",
+    "apps/admin"
   ],
   "engines": {
     "node": ">=20"
@@ -20,7 +22,8 @@
     "db:studio": "npm run studio --workspace @kynren/db",
     "dev:api": "npm run dev --workspace @kynren/api",
     "dev:admin": "npm run dev --workspace @kynren/admin",
-    "dev:mobile": "npm run start --workspace @kynren/mobile",
+    "dev:mobile": "npm run start --prefix apps/mobile",
+    "install:mobile": "npm install --prefix apps/mobile",
     "build": "npm run build --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present"
@@ -31,12 +34,6 @@
     "@types/node": "^22.10.0",
     "prettier": "^3.4.2",
     "typescript": "^5.7.2"
-  },
-  "//": "react-native/react are declared here so npm hoists a single copy to the root node_modules, where the hoisted `expo` package can resolve it (required for Metro in this monorepo).",
-  "dependencies": {
-    "react": "18.2.0",
-    "react-dom": "18.2.0",
-    "react-native": "0.74.5"
   },
   "overrides": {
     "react-native": "0.74.5",
