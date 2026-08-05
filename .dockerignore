@@ -1,0 +1,15 @@
+**/node_modules
+**/dist
+**/.next
+**/.expo
+**/web-build
+apps/mobile
+.git
+.github
+**/*.log
+**/.env
+**/.env.*
+!**/.env.example
+**/coverage
+**/.turbo
+scratchpad

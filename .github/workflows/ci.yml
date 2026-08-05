@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: kynren
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d kynren"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/kynren?schema=public
+      JWT_ACCESS_SECRET: ci-access-secret
+      JWT_REFRESH_SECRET: ci-refresh-secret
+      TICKET_QR_SECRET: ci-ticket-secret
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+      EXPO_PUBLIC_API_URL: http://localhost:4000
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared packages + generate Prisma client
+        run: npm run setup
+
+      - name: Apply migrations + seed
+        run: |
+          npm run db:migrate:deploy
+          npx tsx packages/db/prisma/seed.ts
+
+      - name: Typecheck all workspaces
+        run: npm run typecheck
+
+      - name: Build API
+        run: npm run build --workspace @kynren/api
+
+      - name: Build admin
+        run: npm run build --workspace @kynren/admin
+
+      - name: API tests (e2e + unit)
+        run: npm run test --workspace @kynren/api
+
+      - name: Mobile typecheck
+        run: npm run typecheck --workspace @kynren/mobile

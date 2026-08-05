@@ -1,0 +1,47 @@
+{
+  "name": "kynren-park",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Kynren – The Storied Lands: offline-first visitor app, backend API, and staff dashboard.",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "setup": "npm run build:packages && npm run db:generate",
+    "build:packages": "npm run build --workspace @kynren/shared && npm run build --workspace @kynren/db",
+    "db:generate": "npm run generate --workspace @kynren/db",
+    "db:migrate": "npm run migrate --workspace @kynren/db",
+    "db:migrate:deploy": "npm run migrate:deploy --workspace @kynren/db",
+    "db:seed": "npm run seed --workspace @kynren/db",
+    "db:studio": "npm run studio --workspace @kynren/db",
+    "dev:api": "npm run dev --workspace @kynren/api",
+    "dev:admin": "npm run dev --workspace @kynren/admin",
+    "dev:mobile": "npm run start --workspace @kynren/mobile",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "@swc/cli": "^0.4.0",
+    "@swc/core": "^1.7.42",
+    "@types/node": "^22.10.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2"
+  },
+  "//": "react-native/react are declared here so npm hoists a single copy to the root node_modules, where the hoisted `expo` package can resolve it (required for Metro in this monorepo).",
+  "dependencies": {
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "react-native": "0.74.5"
+  },
+  "overrides": {
+    "react-native": "0.74.5",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "@types/react": "~18.2.79"
+  }
+}

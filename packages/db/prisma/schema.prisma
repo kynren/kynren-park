@@ -1,0 +1,424 @@
+// Kynren – The Storied Lands data model.
+// Provider: PostgreSQL. Generate the client with `npm run db:generate`.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum AttractionCategory {
+  BIRDS // The Lost Feather
+  HORSE // medieval horsemanship tale
+  LAKE // Legend of the Wear (Lambton Worm)
+  VIKINGS // Land of the Vikings
+  MAZE // Victorian Imaginariums
+  EVENING_SHOW // Kynren – An Epic Tale of England
+  OTHER
+}
+
+enum SessionStatus {
+  SCHEDULED
+  DELAYED
+  CANCELLED
+  FULL
+  FINISHED
+}
+
+enum PoiType {
+  ATTRACTION
+  RESTAURANT
+  RESTROOM
+  SHOP
+  FIRST_AID
+  ENTRANCE
+  PARKING
+  ACCESSIBILITY
+  BABY_CHANGING
+  PICNIC
+  INFO
+}
+
+enum StaffRole {
+  ADMIN
+  OPS
+  FNB
+  CONTENT
+}
+
+enum OrderStatus {
+  PENDING
+  PREPARING
+  READY
+  COLLECTED
+  CANCELLED
+}
+
+enum TicketCategory {
+  ADULT
+  CHILD
+  CONCESSION
+  FAMILY
+  INFANT
+}
+
+enum TicketStatus {
+  VALID
+  USED
+  CANCELLED
+  REFUNDED
+}
+
+enum PriceRange {
+  BUDGET
+  MODERATE
+  PREMIUM
+}
+
+enum AnnouncementAudience {
+  ALL
+  DATE // everyone visiting a given date
+  TICKET_HOLDERS
+}
+
+// ---------------------------------------------------------------------------
+// Users & auth
+// ---------------------------------------------------------------------------
+
+model User {
+  id                 String   @id @default(cuid())
+  email              String?  @unique
+  name               String?
+  passwordHash       String?
+  locale             String   @default("en-GB")
+  // Accessibility preferences kept as a flexible JSON blob.
+  accessibilityPrefs Json?
+  pushTokens         PushToken[]
+  refreshTokens      RefreshToken[]
+  bookings           Booking[]
+  itineraries        Itinerary[]
+  favorites          Favorite[]
+  seen               AttractionSeen[]
+  orders             Order[]
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model PushToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  platform  String // ios | android
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model StaffUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  passwordHash String
+  role         StaffRole @default(OPS)
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Attractions, sessions & map
+// ---------------------------------------------------------------------------
+
+model Attraction {
+  id             String             @id @default(cuid())
+  slug           String             @unique
+  name           String
+  category       AttractionCategory
+  tagline        String?
+  synopsis       String
+  durationMins   Int
+  capacity       Int?
+  heroImage      String?
+  media          String[] // additional image / video URLs
+  // Accessibility flags surfaced in the app.
+  wheelchairAccessible Boolean @default(true)
+  hasAudioDescription  Boolean @default(false)
+  hasCaptioning        Boolean @default(false)
+  hasBSL               Boolean @default(false)
+  sensoryNotes         String?
+  minAge               Int?
+  // Location on the park map.
+  poi            PointOfInterest?   @relation(fields: [poiId], references: [id])
+  poiId          String?            @unique
+  sessions       ShowSession[]
+  favorites      Favorite[]
+  seen           AttractionSeen[]
+  sortOrder      Int                @default(0)
+  active         Boolean            @default(true)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+}
+
+model ShowSession {
+  id           String        @id @default(cuid())
+  attraction   Attraction    @relation(fields: [attractionId], references: [id], onDelete: Cascade)
+  attractionId String
+  date         DateTime      @db.Date
+  startTime    DateTime
+  endTime      DateTime
+  status       SessionStatus @default(SCHEDULED)
+  // When DELAYED, the revised start; when CANCELLED, an optional reason.
+  revisedStart DateTime?
+  note         String?
+  capacity     Int?
+  itineraryItems ItineraryItem[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([date])
+  @@index([attractionId, date])
+}
+
+model PointOfInterest {
+  id         String      @id @default(cuid())
+  type       PoiType
+  name       String
+  description String?
+  lat        Float
+  lng        Float
+  mapZone    String?
+  icon       String?
+  attraction Attraction?
+  restaurant Restaurant?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@index([type])
+}
+
+// Pre-computed walking times (seconds) between POIs, used by the planner.
+model WalkEdge {
+  id         String          @id @default(cuid())
+  fromPoiId  String
+  toPoiId    String
+  seconds    Int
+
+  @@unique([fromPoiId, toPoiId])
+}
+
+// ---------------------------------------------------------------------------
+// Food & beverage / Click & Collect
+// ---------------------------------------------------------------------------
+
+model Restaurant {
+  id           String     @id @default(cuid())
+  slug         String     @unique
+  name         String
+  cuisine      String?
+  description  String?
+  priceRange   PriceRange @default(MODERATE)
+  openingHours String?
+  heroImage    String?
+  clickCollect Boolean    @default(true)
+  poi          PointOfInterest? @relation(fields: [poiId], references: [id])
+  poiId        String?    @unique
+  menuItems    MenuItem[]
+  orders       Order[]
+  active       Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model MenuItem {
+  id           String   @id @default(cuid())
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  restaurantId String
+  name         String
+  description  String?
+  priceCents   Int
+  dietaryTags  String[] // e.g. ["vegan","gf"]
+  image        String?
+  available    Boolean  @default(true)
+  orderItems   OrderItem[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([restaurantId])
+}
+
+model Order {
+  id           String      @id @default(cuid())
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id])
+  restaurantId String
+  status       OrderStatus @default(PENDING)
+  pickupSlot   DateTime
+  totalCents   Int
+  items        OrderItem[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([userId])
+  @@index([restaurantId, status])
+}
+
+model OrderItem {
+  id         String   @id @default(cuid())
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId    String
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
+  menuItemId String
+  quantity   Int
+  priceCents Int // snapshot at order time
+}
+
+// ---------------------------------------------------------------------------
+// Tickets & bookings
+// ---------------------------------------------------------------------------
+
+model TicketType {
+  id          String         @id @default(cuid())
+  name        String
+  category    TicketCategory
+  priceCents  Int
+  description String?
+  onSale      Boolean        @default(true)
+  tickets     Ticket[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model Booking {
+  id         String   @id @default(cuid())
+  reference  String   @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  visitDate  DateTime @db.Date
+  totalCents Int
+  tickets    Ticket[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Ticket {
+  id           String       @id @default(cuid())
+  booking      Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  bookingId    String
+  ticketType   TicketType   @relation(fields: [ticketTypeId], references: [id])
+  ticketTypeId String
+  holderName   String?
+  // Signed token encoded into the offline QR code.
+  qrToken      String       @unique
+  status       TicketStatus @default(VALID)
+  usedAt       DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([bookingId])
+}
+
+// ---------------------------------------------------------------------------
+// Itinerary planner
+// ---------------------------------------------------------------------------
+
+model Itinerary {
+  id        String          @id @default(cuid())
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  date      DateTime        @db.Date
+  items     ItineraryItem[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@unique([userId, date])
+}
+
+model ItineraryItem {
+  id            String      @id @default(cuid())
+  itinerary     Itinerary   @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
+  itineraryId   String
+  showSession   ShowSession @relation(fields: [showSessionId], references: [id], onDelete: Cascade)
+  showSessionId String
+  order         Int
+  reminderMins  Int         @default(20)
+
+  @@unique([itineraryId, showSessionId])
+  @@index([itineraryId])
+}
+
+model Favorite {
+  id           String     @id @default(cuid())
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+  attraction   Attraction @relation(fields: [attractionId], references: [id], onDelete: Cascade)
+  attractionId String
+  createdAt    DateTime   @default(now())
+
+  @@unique([userId, attractionId])
+}
+
+model AttractionSeen {
+  id           String     @id @default(cuid())
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+  attraction   Attraction @relation(fields: [attractionId], references: [id], onDelete: Cascade)
+  attractionId String
+  seenAt       DateTime   @default(now())
+
+  @@unique([userId, attractionId])
+}
+
+// ---------------------------------------------------------------------------
+// Announcements / notifications & CMS content
+// ---------------------------------------------------------------------------
+
+model Announcement {
+  id          String               @id @default(cuid())
+  title       String
+  body        String
+  audience    AnnouncementAudience @default(ALL)
+  targetDate  DateTime?            @db.Date
+  deepLink    String?
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  createdBy   String?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@index([targetDate])
+}
+
+model ContentPage {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  title     String
+  body      String // markdown
+  category  String? // faq | info | safety | accessibility
+  sortOrder Int      @default(0)
+  published Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}

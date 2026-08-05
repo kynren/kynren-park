@@ -1,0 +1,71 @@
+{
+  "expo": {
+    "name": "Kynren",
+    "slug": "kynren-storied-lands",
+    "scheme": "kynren",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "primaryColor": "#8f1d21",
+    "description": "Your offline-first companion for Kynren – The Storied Lands: live show times, a smart itinerary planner, an offline park map, digital tickets and Click & Collect.",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#8f1d21"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.kynren.storiedlands",
+      "buildNumber": "1",
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "remote-notification"
+        ],
+        "NSLocationWhenInUseUsageDescription": "Kynren uses your location to show where you are on the park map and time your show reminders."
+      }
+    },
+    "android": {
+      "package": "com.kynren.storiedlands",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#8f1d21"
+      },
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "POST_NOTIFICATIONS"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#8f1d21"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": false
+    },
+    "extra": {
+      "apiUrl": "http://localhost:4000",
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "1b178732-f66c-47e9-a8e0-02dd45a080db"
+      }
+    },
+    "owner": "kynrenadmins-team"
+  }
+}
