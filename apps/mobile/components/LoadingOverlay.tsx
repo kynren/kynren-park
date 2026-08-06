@@ -6,7 +6,7 @@ import { useSync } from '../lib/sync';
 import { SplashSequence } from './SplashSequence';
 
 const CACHE = 'kynren_splash';
-const MIN_MS = 2600; // long enough for the branded splash sequence to play out
+const MIN_MS = 3400; // long enough for the crest montage + mark reveal to play out
 const MAX_MS = 6000; // hard cap so a slow video/network never traps the user
 
 type SplashCfg = { type: 'none' | 'photo' | 'gif' | 'video'; url?: string | null };
