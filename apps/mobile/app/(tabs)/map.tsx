@@ -49,6 +49,7 @@ interface Pin {
   lng?: number;
   slug?: string;
   color?: string;
+  image?: string | null;
   kind: 'show' | 'evening' | 'restaurant' | 'facility';
   number?: number;
   emoji?: string;
@@ -86,6 +87,7 @@ export default function MapScreen() {
   const [selected, setSelected] = useState<Pin | null>(null);
   const [search, setSearch] = useState('');
   const [pendingSelect, setPendingSelect] = useState<string | null>(null);
+  const [hintDismissed, setHintDismissed] = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const appliedFocus = useRef<string | null>(null);
   const [favs, setFavs] = useState<Set<string>>(new Set());
@@ -242,7 +244,7 @@ export default function MapScreen() {
         const poi = poiById.get(r.poiId);
         if (!poi) continue;
         const { x, y } = project.toXY(poi.lat, poi.lng);
-        out.push({ id: r.id, x, y, lat: poi.lat, lng: poi.lng, slug: r.slug, kind: 'restaurant', emoji: '🍴', title: r.name, subtitle: r.cuisine ?? undefined, zone: poi.mapZone });
+        out.push({ id: r.id, x, y, lat: poi.lat, lng: poi.lng, slug: r.slug, image: poi.image, kind: 'restaurant', emoji: '🍴', title: r.name, subtitle: r.cuisine ?? undefined, zone: poi.mapZone });
       }
       return out;
     }
@@ -251,7 +253,7 @@ export default function MapScreen() {
         const def = FACILITY_TYPES[poi.type];
         if (!def) continue; // attractions & restaurants have their own filters
         const { x, y } = project.toXY(poi.lat, poi.lng);
-        out.push({ id: poi.id, x, y, lat: poi.lat, lng: poi.lng, kind: 'facility', emoji: poi.icon ?? def.emoji, color: poi.color ?? def.color, title: poi.name, subtitle: poi.type.replace('_', ' ').toLowerCase(), zone: poi.mapZone });
+        out.push({ id: poi.id, x, y, lat: poi.lat, lng: poi.lng, image: poi.image, kind: 'facility', emoji: poi.icon ?? def.emoji, color: poi.color ?? def.color, title: poi.name, subtitle: poi.type.replace('_', ' ').toLowerCase(), zone: poi.mapZone });
       }
       return out;
     }
@@ -262,7 +264,7 @@ export default function MapScreen() {
       const poi = poiById.get(a.poiId);
       if (!poi) return;
       const { x, y } = project.toXY(poi.lat, poi.lng);
-      out.push({ id: a.id, attractionId: a.id, x, y, lat: poi.lat, lng: poi.lng, slug: a.slug, kind: 'show', number: i + 1, title: a.name, subtitle: a.tagline ?? undefined, nextTime: nextByAttraction.get(a.id), zone: poi.mapZone });
+      out.push({ id: a.id, attractionId: a.id, x, y, lat: poi.lat, lng: poi.lng, slug: a.slug, image: poi.image, kind: 'show', number: i + 1, title: a.name, subtitle: a.tagline ?? undefined, nextTime: nextByAttraction.get(a.id), zone: poi.mapZone });
     });
     if (cat === 'shows') {
       const evening = (bundle?.attractions ?? []).find((a) => a.category === 'EVENING_SHOW');
@@ -270,7 +272,7 @@ export default function MapScreen() {
         const poi = poiById.get(evening.poiId);
         if (poi) {
           const { x, y } = project.toXY(poi.lat, poi.lng);
-          out.push({ id: evening.id, attractionId: evening.id, x, y, lat: poi.lat, lng: poi.lng, slug: evening.slug, kind: 'evening', emoji: '🌙', title: evening.name, subtitle: evening.tagline ?? undefined, nextTime: nextByAttraction.get(evening.id), zone: poi.mapZone });
+          out.push({ id: evening.id, attractionId: evening.id, x, y, lat: poi.lat, lng: poi.lng, slug: evening.slug, image: poi.image, kind: 'evening', emoji: '🌙', title: evening.name, subtitle: evening.tagline ?? undefined, nextTime: nextByAttraction.get(evening.id), zone: poi.mapZone });
         }
       }
     }
@@ -309,6 +311,9 @@ export default function MapScreen() {
     setPendingSelect(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingSelect, pins, vw, vh]);
+
+  // Hide the "tap to explore" hint once the guest opens a place.
+  useEffect(() => { if (selected) setHintDismissed(true); }, [selected]);
 
   const entrance = pois.find((p) => p.type === 'ENTRANCE');
   const locationReal = !!(gps && project && project.inBounds(gps.lat, gps.lng));
@@ -379,10 +384,11 @@ export default function MapScreen() {
             <ParkBasemap vw={vw} vh={vh} />
           )}
 
-          {/* Proximity line from the guest to the selected place */}
+          {/* Walking route from the guest to the selected place (map-style casing). */}
           {selected && selectedDist != null && (
             <Svg style={StyleSheet.absoluteFill} width={vw} height={vh} pointerEvents="none">
-              <Line x1={youAreHere.x} y1={youAreHere.y} x2={selected.x} y2={selected.y} stroke="#1a73e8" strokeWidth={2.5} strokeDasharray="6 5" strokeLinecap="round" />
+              <Line x1={youAreHere.x} y1={youAreHere.y} x2={selected.x} y2={selected.y} stroke="#ffffff" strokeWidth={8} strokeLinecap="round" strokeLinejoin="round" />
+              <Line x1={youAreHere.x} y1={youAreHere.y} x2={selected.x} y2={selected.y} stroke="#2b7fff" strokeWidth={5} strokeLinecap="round" strokeLinejoin="round" />
             </Svg>
           )}
 
@@ -392,7 +398,7 @@ export default function MapScreen() {
               return (
                 <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => setSelected(pin)}>
                   <View style={[styles.pinHead, styles.pinEvening, isSel && styles.pinSel]}>
-                    <Text style={styles.pinEmoji}>🌙</Text>
+                    {pin.image ? <Image source={{ uri: pin.image }} style={styles.pinImg} /> : <Text style={styles.pinEmoji}>🌙</Text>}
                   </View>
                   <View style={[styles.pinTail, { borderTopColor: '#2c3e70' }]} />
                   {pin.nextTime && (
@@ -405,7 +411,7 @@ export default function MapScreen() {
               return (
                 <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => setSelected(pin)}>
                   <View style={[styles.pinHead, isSel && styles.pinSel]}>
-                    <Text style={styles.pinEmoji}>🍴</Text>
+                    {pin.image ? <Image source={{ uri: pin.image }} style={styles.pinImg} /> : <Text style={styles.pinEmoji}>🍴</Text>}
                   </View>
                   <View style={styles.pinTail} />
                 </Pressable>
@@ -415,7 +421,7 @@ export default function MapScreen() {
               return (
                 <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => setSelected(pin)}>
                   <View style={[styles.pinHead, { backgroundColor: pin.color ?? '#6b6460' }, isSel && styles.pinSel]}>
-                    <Text style={styles.pinEmoji}>{pin.emoji}</Text>
+                    {pin.image ? <Image source={{ uri: pin.image }} style={styles.pinImg} /> : <Text style={styles.pinEmoji}>{pin.emoji}</Text>}
                   </View>
                   <View style={[styles.pinTail, { borderTopColor: pin.color ?? '#6b6460' }]} />
                 </Pressable>
@@ -424,7 +430,7 @@ export default function MapScreen() {
             return (
               <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => setSelected(pin)}>
                 <View style={[styles.pinHead, isSel && styles.pinSel]}>
-                  <Text style={styles.pinNum}>{pin.number}</Text>
+                  {pin.image ? <Image source={{ uri: pin.image }} style={styles.pinImg} /> : <Text style={styles.pinNum}>{pin.number}</Text>}
                 </View>
                 <View style={styles.pinTail} />
                 {pin.nextTime && (
@@ -434,8 +440,9 @@ export default function MapScreen() {
             );
           })}
 
-          {/* You are here */}
+          {/* You are here — glowing location beacon */}
           <View style={[styles.meWrap, { left: youAreHere.x, top: youAreHere.y }]} pointerEvents="none">
+            <View style={[styles.meGlow, { backgroundColor: markerColor }]} />
             <Animated.View
               style={[
                 styles.mePulse,
@@ -561,6 +568,22 @@ export default function MapScreen() {
           </Pressable>
         </View>
 
+        {/* "Tap the map to explore" hint, until the guest opens something */}
+        {!selected && !hintDismissed && (
+          <View style={styles.hintWrap} pointerEvents="box-none">
+            <Pressable style={styles.hintChip} onPress={() => setHintDismissed(true)}>
+              <Text style={styles.hintChipTxt}>TAP THE MAP TO EXPLORE</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* Walk-time pill when a destination is selected */}
+        {selected && selectedDist != null && (
+          <View style={styles.walkPill} pointerEvents="none">
+            <Text style={styles.walkPillTxt}>🚶 {walkMins(selectedDist)} min walk</Text>
+          </View>
+        )}
+
         {/* Bottom category pills (Puy du Fou style) */}
         <View style={styles.pills}>
           {PILLS.map((p) => {
@@ -671,7 +694,8 @@ const styles = StyleSheet.create({
   viewport: { flex: 1, overflow: 'hidden', backgroundColor: GRASS },
   canvas: { position: 'absolute', left: 0, top: 0 },
   pinWrap: { position: 'absolute', alignItems: 'center', width: 40, marginLeft: -20, marginTop: -46 },
-  pinHead: { width: 36, height: 36, borderRadius: 18, backgroundColor: theme.brand, alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3, shadowOffset: { width: 0, height: 2 }, elevation: 5 },
+  pinHead: { width: 36, height: 36, borderRadius: 18, backgroundColor: theme.brand, alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: '#fff', overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3, shadowOffset: { width: 0, height: 2 }, elevation: 5 },
+  pinImg: { width: '100%', height: '100%' },
   pinEvening: { backgroundColor: '#2c3e70' },
   pinSel: { transform: [{ scale: 1.2 }] },
   pinNum: { color: '#fff', fontWeight: '800', fontSize: 16 },
@@ -680,8 +704,14 @@ const styles = StyleSheet.create({
   pinTime: { marginTop: 1, backgroundColor: '#fff', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 2, shadowOffset: { width: 0, height: 1 }, elevation: 3 },
   pinTimeTxt: { color: theme.ink, fontWeight: '800', fontSize: 11 },
   meWrap: { position: 'absolute', width: 60, height: 60, marginLeft: -30, marginTop: -30, alignItems: 'center', justifyContent: 'center', zIndex: 5 },
-  meDot: { width: 18, height: 18, borderRadius: 9, backgroundColor: '#1a73e8', borderWidth: 3, borderColor: '#fff', shadowColor: '#1a73e8', shadowOpacity: 0.5, shadowRadius: 4, elevation: 5 },
+  meGlow: { position: 'absolute', width: 46, height: 46, borderRadius: 23, opacity: 0.18 },
+  meDot: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#1a73e8', borderWidth: 3.5, borderColor: '#fff', shadowColor: '#1a73e8', shadowOpacity: 0.6, shadowRadius: 5, shadowOffset: { width: 0, height: 1 }, elevation: 6 },
   mePulse: { position: 'absolute', width: 22, height: 22, borderRadius: 11, backgroundColor: '#1a73e8' },
+  hintWrap: { position: 'absolute', left: 0, right: 0, bottom: 74, alignItems: 'center' },
+  hintChip: { backgroundColor: 'rgba(17,17,17,0.9)', borderRadius: 8, paddingVertical: 9, paddingHorizontal: 16 },
+  hintChipTxt: { color: '#fff', fontSize: 12, fontWeight: '800', letterSpacing: 0.6 },
+  walkPill: { position: 'absolute', right: 14, bottom: 74, backgroundColor: '#fff', borderRadius: 999, paddingVertical: 9, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 5 },
+  walkPillTxt: { color: theme.ink, fontWeight: '800', fontSize: 13 },
   callout: { position: 'absolute', width: 244, marginLeft: -122, marginTop: -108, alignItems: 'center', zIndex: 30 },
   calloutCard: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#fff', borderRadius: 14, padding: 10, width: 244, shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 8 },
   calloutIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.brand },

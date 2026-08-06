@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { api } from '../../../../lib/api';
-import { confirmDelete } from '../../../../lib/confirm';
+import { confirmDelete, promptText } from '../../../../lib/confirm';
 
-interface Poi { id: string; type: string; name: string; lat: number; lng: number; color: string | null; mapZone: string | null }
+interface Poi { id: string; type: string; name: string; lat: number; lng: number; color: string | null; mapZone: string | null; image: string | null }
 interface MapConfig { markerColor: string; markerStyle: string; mapImageUrl: string | null }
 interface ParkMap { id: string; name: string; imageUrl: string | null; isDefault: boolean }
 
@@ -22,6 +22,7 @@ export default function MapEditor() {
   const [config, setConfig] = useState<MapConfig>({ markerColor: '#1a73e8', markerStyle: 'pulse', mapImageUrl: null });
   const [maps, setMaps] = useState<ParkMap[]>([]);
   const [newMapName, setNewMapName] = useState('');
+  const [showLabels, setShowLabels] = useState(true);
   const [selId, setSelId] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragId = useRef<string | null>(null);
@@ -47,7 +48,9 @@ export default function MapEditor() {
   // Upload an image file → resized data URL (keeps it reasonable for the app bundle).
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadTarget = useRef<string | null>(null);
-  function triggerUpload(id: string) { uploadTarget.current = id; fileInputRef.current?.click(); }
+  const uploadKind = useRef<'map' | 'spot'>('map');
+  function triggerUpload(id: string) { uploadKind.current = 'map'; uploadTarget.current = id; fileInputRef.current?.click(); }
+  function triggerSpotUpload() { uploadKind.current = 'spot'; fileInputRef.current?.click(); }
   function resizeToDataUrl(file: File, maxDim: number): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -66,10 +69,17 @@ export default function MapEditor() {
     });
   }
   async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]; const id = uploadTarget.current; e.target.value = '';
-    if (!file || !id) return;
+    const file = e.target.files?.[0]; e.target.value = '';
+    if (!file) return;
     if (file.size > 15 * 1024 * 1024) { alert('Please choose an image under 15 MB.'); return; }
-    try { await setMapImage(id, await resizeToDataUrl(file, 2400)); } catch { alert('Could not read that image.'); }
+    try {
+      if (uploadKind.current === 'spot') {
+        if (!selected) return;
+        await patchSel({ image: await resizeToDataUrl(file, 512) }); // small — it sits inside a marker
+      } else if (uploadTarget.current) {
+        await setMapImage(uploadTarget.current, await resizeToDataUrl(file, 2400));
+      }
+    } catch { alert('Could not read that image.'); }
   }
 
   // Bounds (with margin) drive the pixel↔lat/lng projection.
@@ -144,6 +154,7 @@ export default function MapEditor() {
       <div className="crumb"><Link href="/app-settings">App Settings</Link> › Map &amp; Hotspots</div>
       <div className="page-actions">
         <div><h1>Map &amp; Hotspots</h1><p className="subtitle" style={{ margin: 0 }}>Click the map to add a hotspot; drag to move. Changes sync to the app map.</p></div>
+        <label className="checkline"><input type="checkbox" checked={showLabels} onChange={(e) => setShowLabels(e.target.checked)} /> Show labels</label>
       </div>
 
       <div className="mapedit">
@@ -161,8 +172,8 @@ export default function MapEditor() {
                     onPointerDown={(e) => { e.stopPropagation(); setSelId(p.id); dragId.current = p.id; moved.current = false; }}
                     onClick={(e) => e.stopPropagation()}
                     title={p.name}
-                  >{p.type[0]}</div>
-                  <div className="hotlabel" style={{ left: `${left}%`, top: `${top}%` }}>{p.name}</div>
+                  >{p.image ? <img src={p.image} alt="" /> : p.type[0]}</div>
+                  {showLabels && <div className="hotlabel" style={{ left: `${left}%`, top: `${top}%` }}>{p.name}</div>}
                 </div>
               );
             })}
@@ -184,7 +195,7 @@ export default function MapEditor() {
             <div style={{ display: 'grid', gap: 8 }}>
               {maps.length === 0 && <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0 }}>No maps yet — add one below.</p>}
               {maps.map((m) => (
-                <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid var(--line)', paddingBottom: 8 }}>
+                <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', borderBottom: '1px solid var(--line)', paddingBottom: 8 }}>
                   <button onClick={() => setDefaultMap(m.id)} title="Set as default"
                     style={{ width: 18, height: 18, borderRadius: '50%', border: 0, cursor: 'pointer', background: m.isDefault ? '#22b365' : '#fff', boxShadow: '0 0 0 1px var(--border)' }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -192,7 +203,7 @@ export default function MapEditor() {
                     <div style={{ fontSize: 12, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.imageUrl ?? 'no image (illustrated map)'}</div>
                   </div>
                   <button className="tbtn" onClick={() => triggerUpload(m.id)}>Upload</button>
-                  <button className="tbtn" onClick={() => { const u = window.prompt('Image URL (leave blank to remove):', m.imageUrl ?? ''); if (u !== null) setMapImage(m.id, u.trim() || null); }}>URL</button>
+                  <button className="tbtn" onClick={async () => { const u = await promptText('Image URL (leave blank to remove)', m.imageUrl ?? '', 'Map image URL'); if (u !== null) setMapImage(m.id, u.trim() || null); }}>URL</button>
                   {m.imageUrl && <button className="tbtn" onClick={() => setMapImage(m.id, null)}>Remove</button>}
                   <button className="tbtn danger" onClick={() => deleteMap(m.id)}>✕</button>
                 </div>
@@ -220,6 +231,15 @@ export default function MapEditor() {
                 <div className="form-row"><label>Colour</label>
                   <div className="swatches">
                     {PALETTE.map((c) => <button key={c} className={`swatch-btn ${colorOf(selected) === c ? 'on' : ''}`} style={{ background: c }} onClick={() => patchSel({ color: c })} />)}
+                  </div>
+                </div>
+                <div className="form-row"><label>Marker image (fits inside the pin)</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {selected.image
+                      ? <img src={selected.image} alt="" style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', border: '2px solid #fff', boxShadow: '0 0 0 1px var(--border)' }} />
+                      : <div style={{ width: 40, height: 40, borderRadius: '50%', background: colorOf(selected), display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 800 }}>{selected.type[0]}</div>}
+                    <button className="tbtn" onClick={triggerSpotUpload}>Upload</button>
+                    {selected.image && <button className="tbtn" onClick={() => patchSel({ image: null })}>Remove</button>}
                   </div>
                 </div>
                 <div className="form-grid">

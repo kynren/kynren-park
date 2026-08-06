@@ -54,24 +54,16 @@ export default function HomeScreen() {
   }
 
   return (
+    <View style={{ flex: 1, backgroundColor: pal.screen }}>
     <ScrollView showsVerticalScrollIndicator={false}
-      style={[styles.screen, { backgroundColor: pal.screen }]}
+      style={{ flex: 1 }}
       contentContainerStyle={{ paddingBottom: 36 }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={pal.sub} />}
     >
       {/* Cinematic hero */}
       <View style={{ height: HERO_H }}>
-        <HeroArt />
-        <View style={[styles.heroOverlay, { paddingTop: insets.top + 8 }]}>
-          <View style={styles.heroTop}>
-            <View>
-              <Text style={styles.wordmark}>KYNREN</Text>
-              <View style={styles.wordmarkRule} />
-            </View>
-            <Pressable style={styles.avatar} onPress={() => router.push('/settings')}>
-              <Text style={{ fontSize: 18 }}>👤</Text>
-            </Pressable>
-          </View>
+        <HeroArt fade={pal.screen} />
+        <View style={styles.heroOverlay}>
           <View style={{ flex: 1 }} />
           <Text style={styles.tagline}>An epic tale{'\n'}of England</Text>
         </View>
@@ -151,6 +143,34 @@ export default function HomeScreen() {
         )}
       </View>
     </ScrollView>
+
+      {/* Fixed top bar over the hero (with a scrim so it stays readable) */}
+      <View style={[styles.fixedBar, { height: insets.top + 58 }]} pointerEvents="box-none">
+        <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
+          <Defs>
+            <LinearGradient id="hscrim" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor="#000" stopOpacity="0.4" />
+              <Stop offset="1" stopColor="#000" stopOpacity="0" />
+            </LinearGradient>
+          </Defs>
+          <Rect x="0" y="0" width="100%" height={insets.top + 58} fill="url(#hscrim)" />
+        </Svg>
+        <View style={[styles.fixedBarRow, { paddingTop: insets.top + 8 }]} pointerEvents="box-none">
+          <View>
+            <Text style={styles.wordmark}>KYNREN</Text>
+            <View style={styles.wordmarkRule} />
+          </View>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <Pressable style={styles.avatar} onPress={() => router.push('/notifications')}>
+              <Text style={{ fontSize: 17 }}>🔔</Text>
+            </Pressable>
+            <Pressable style={styles.avatar} onPress={() => router.push('/settings')}>
+              <Text style={{ fontSize: 18 }}>👤</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </View>
   );
 }
 
@@ -172,7 +192,7 @@ function SessionRow({ session, pal, onPress }: { session: Session; pal: ReturnTy
 }
 
 /** Stylised dusk hero: night sky, moon, hills and the Kynren keep. */
-function HeroArt() {
+function HeroArt({ fade }: { fade: string }) {
   const W = 375, H = 520;
   return (
     <Svg width="100%" height="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={StyleSheet.absoluteFill}>
@@ -183,9 +203,11 @@ function HeroArt() {
           <Stop offset="0.72" stopColor="#341a20" />
           <Stop offset="1" stopColor="#120c0b" />
         </LinearGradient>
+        {/* Dissolves the hero into the page background (no hard edge). */}
         <LinearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor="#120c0b" stopOpacity="0" />
-          <Stop offset="1" stopColor="#0c0c0c" stopOpacity="1" />
+          <Stop offset="0" stopColor={fade} stopOpacity="0" />
+          <Stop offset="0.7" stopColor={fade} stopOpacity="0.55" />
+          <Stop offset="1" stopColor={fade} stopOpacity="1" />
         </LinearGradient>
       </Defs>
 
@@ -219,8 +241,8 @@ function HeroArt() {
       {/* flags */}
       <Polygon points={`${W / 2},${H * 0.42} ${W / 2},${H * 0.36} ${W / 2 + 16},${H * 0.385}`} fill={theme.brand} />
 
-      {/* Legibility fade at the bottom */}
-      <Rect x="0" y={H * 0.62} width={W} height={H * 0.38} fill="url(#fade)" />
+      {/* Fade the hero into the page background */}
+      <Rect x="0" y={H * 0.55} width={W} height={H * 0.45} fill="url(#fade)" />
     </Svg>
   );
 }
@@ -234,6 +256,8 @@ const STARS: [number, number, number][] = [
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   heroOverlay: { ...StyleSheet.absoluteFillObject, paddingHorizontal: 18, paddingBottom: 20 },
+  fixedBar: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20 },
+  fixedBarRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 18, paddingBottom: 10 },
   heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   wordmark: { color: '#fff', fontSize: 24, fontWeight: '800', letterSpacing: 3 },
   wordmarkRule: { height: 3, width: 96, backgroundColor: '#fff', borderRadius: 2, marginTop: 3, opacity: 0.9 },

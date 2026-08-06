@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
-import { Alert } from 'react-native';
+import { Alert, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { AnnouncementMegaphone } from '../components/AnnouncementMegaphone';
 import * as Notifications from 'expo-notifications';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { SyncProvider } from '../lib/sync';
@@ -45,7 +46,7 @@ function RootNav() {
   const { scheme } = useThemePref();
   const dark = scheme === 'dark';
   return (
-    <>
+    <View style={{ flex: 1 }}>
       <StatusBar style={dark ? 'light' : 'light'} />
       <Stack
         screenOptions={{
@@ -66,7 +67,8 @@ function RootNav() {
         <Stack.Screen name="settings" options={{ headerShown: false }} />
         <Stack.Screen name="language" options={{ title: 'Language', presentation: 'modal' }} />
       </Stack>
-    </>
+      <AnnouncementMegaphone />
+    </View>
   );
 }
 

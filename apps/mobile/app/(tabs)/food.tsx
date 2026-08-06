@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ScrollView, View, Text, StyleSheet, Pressable } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { useSync } from '../../lib/sync';
@@ -62,18 +63,24 @@ export default function MealScreen() {
   const { date } = useSync();
   const router = useRouter();
   const pal = useMealPalette();
+  const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(true);
   const { wd, md } = fmtLong(date);
 
   return (
-    <ScrollView showsVerticalScrollIndicator={false} style={[styles.screen, { backgroundColor: pal.screen }]} contentContainerStyle={{ paddingBottom: 32 }}>
-      <View style={styles.topRow}>
+    <View style={[styles.screen, { backgroundColor: pal.screen }]}>
+      {/* Fixed top bar */}
+      <View style={[styles.topRow, { paddingTop: insets.top + 8 }]}>
+        <Pressable onPress={() => router.push('/notifications')} style={styles.avatar}>
+          <Text style={{ fontSize: 17 }}>🔔</Text>
+        </Pressable>
         <Pressable onPress={() => router.push('/settings')} style={styles.avatar}>
           <Text style={{ fontSize: 17 }}>👤</Text>
         </Pressable>
       </View>
       <Text style={[styles.title, { color: pal.text }]}>Dining at Kynren</Text>
 
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
       {/* Your meals */}
       <Pressable style={styles.sectionHead} onPress={() => setOpen((o) => !o)}>
         <Text style={[styles.sectionLabel, { color: pal.text }]}>Your meals on {wd}, {md}</Text>
@@ -122,7 +129,8 @@ export default function MealScreen() {
           onPress={() => router.push('/restaurants')}
         />
       </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -168,7 +176,7 @@ function BigCard({
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  topRow: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 16, paddingTop: 10 },
+  topRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, paddingHorizontal: 16, paddingTop: 10 },
   avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 27, fontWeight: '700', textAlign: 'center', marginTop: 6, marginBottom: 18 },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },

@@ -243,13 +243,14 @@ export class ManageController {
         mapZone: b.mapZone ?? null,
         icon: b.icon ?? null,
         color: b.color ?? null,
+        image: b.image ?? null,
       },
     });
   }
 
   @Patch('pois/:id')
   updatePoi(@Param('id') id: string, @Body() b: any) {
-    const data = pick(b, ['type', 'name', 'description', 'mapZone', 'icon', 'color']);
+    const data = pick(b, ['type', 'name', 'description', 'mapZone', 'icon', 'color', 'image']);
     if (b.lat !== undefined) data.lat = Number(b.lat);
     if (b.lng !== undefined) data.lng = Number(b.lng);
     return this.prisma.pointOfInterest.update({ where: { id }, data });

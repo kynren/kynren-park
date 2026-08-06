@@ -4,6 +4,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { NestFactory } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
+import express from 'express';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module.js';
 
@@ -32,7 +33,10 @@ function loadRootEnv() {
 
 async function bootstrap() {
   const envPath = loadRootEnv();
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
+  // Larger limit so uploaded map images (base64 data URLs) aren't rejected.
+  app.use(express.json({ limit: '25mb' }));
+  app.use(express.urlencoded({ limit: '25mb', extended: true }));
 
   // CORS: allow the configured production origins PLUS any localhost origin.
   // The admin dev server uses a dynamic port (autoPort), so a fixed allowlist

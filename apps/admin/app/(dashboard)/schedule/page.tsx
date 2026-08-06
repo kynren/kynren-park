@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { api, API_URL } from '../../../lib/api';
-import { confirmDelete } from '../../../lib/confirm';
+import { confirmDelete, promptText } from '../../../lib/confirm';
 import { REALTIME_EVENTS, type SessionUpdatedEvent } from '@kynren/shared';
 
 interface Session {
@@ -60,14 +60,16 @@ export default function SchedulePage() {
     let revisedStart: string | undefined;
     let note: string | undefined;
     if (status === 'DELAYED') {
-      const mins = prompt(`Delay "${session.attraction.name}" by how many minutes?`, '15');
+      const mins = await promptText('How many minutes?', '15', `Delay “${session.attraction.name}”`);
       if (mins === null) return;
-      revisedStart = new Date(new Date(session.startTime).getTime() + parseInt(mins, 10) * 60000).toISOString();
-      note = `Delayed by ${mins} minutes.`;
+      const n = parseInt(mins, 10);
+      if (!Number.isFinite(n) || n <= 0) return;
+      revisedStart = new Date(new Date(session.startTime).getTime() + n * 60000).toISOString();
+      note = `Delayed by ${n} minutes.`;
     }
     if (status === 'CANCELLED') {
-      note = prompt('Reason for cancellation (optional):') || undefined;
       if (!(await confirmDelete(`Cancel “${session.attraction.name}” at ${fmt(session.startTime)}?`, 'Cancel show?'))) return;
+      note = (await promptText('Reason (optional)', '', 'Cancellation note')) || undefined;
     }
     // Optimistic update; the socket echo will confirm.
     setSessions((prev) => prev.map((s) => (s.id === session.id ? { ...s, status } : s)));
