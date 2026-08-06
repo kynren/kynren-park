@@ -64,7 +64,7 @@ export default function RestaurantScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }}>
+    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, paddingBottom: 120 }}>
       <Stack.Screen options={{ title: restaurant.name }} />
       <Text style={styles.h1}>{restaurant.name}</Text>
       {restaurant.cuisine && <Text style={styles.cuisine}>{restaurant.cuisine}</Text>}
@@ -95,7 +95,7 @@ export default function RestaurantScreen() {
       ))}
 
       <Text style={styles.section}>Pickup time</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+      <ScrollView showsVerticalScrollIndicator={false} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
         {SLOT_TIMES.map((t) => (
           <Pressable key={t} onPress={() => setSlot(t)} style={[styles.slot, slot === t && styles.slotOn]}>
             <Text style={[styles.slotTxt, slot === t && { color: '#fff' }]}>{t}</Text>

@@ -1,179 +1,583 @@
-import { useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, PanResponder } from 'react-native';
-import Svg, { Circle, Rect, Ellipse, Line, Text as SvgText, G } from 'react-native-svg';
-import { useSync, type Poi } from '../../lib/sync';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, Pressable, PanResponder, Animated, type LayoutChangeEvent } from 'react-native';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Svg, { Rect, Circle, Ellipse, Path, G, Polygon, Line } from 'react-native-svg';
+import * as Location from 'expo-location';
+import { useSync } from '../../lib/sync';
+import { fmtTime } from '../../lib/format';
 import { theme } from '../../lib/theme';
 
-const TYPE_META: Record<string, { color: string; emoji: string; label: string }> = {
-  ATTRACTION: { color: theme.brand, emoji: '🎭', label: 'Shows' },
-  RESTAURANT: { color: '#b7791f', emoji: '🍽️', label: 'Food' },
-  RESTROOM: { color: '#3a7ca5', emoji: '🚻', label: 'Toilets' },
-  SHOP: { color: '#6b4fa1', emoji: '🛍️', label: 'Shops' },
-  FIRST_AID: { color: '#b3261e', emoji: '➕', label: 'First aid' },
-  ENTRANCE: { color: '#2e7d5b', emoji: '🚪', label: 'Entrance' },
-  PARKING: { color: '#6b6460', emoji: '🅿️', label: 'Parking' },
-  ACCESSIBILITY: { color: '#3a7ca5', emoji: '♿', label: 'Access' },
-  BABY_CHANGING: { color: '#c0392f', emoji: '🍼', label: 'Baby' },
-  PICNIC: { color: '#2e7d5b', emoji: '🧺', label: 'Picnic' },
-  INFO: { color: '#8f1d21', emoji: 'ℹ️', label: 'Info' },
+// Authoring coordinate system for the illustrated basemap (a viewBox). The SVG
+// is stretched to exactly fill the measured screen, and pins are projected into
+// screen space, so the initial view is always the whole park, edge-to-edge.
+const VBW = 420;
+const VBH = 680;
+const PADX = 0.14; // fraction of width kept as margin around the pin cluster
+const PADY = 0.12;
+const GRASS = '#a9c97f';
+const FAVS_KEY = 'kynren_favorites';
+
+type Cat = 'favorites' | 'shows' | 'restaurants' | 'facilities';
+const PILLS: { key: Cat; label: string; emoji: string }[] = [
+  { key: 'favorites', label: 'Favourites', emoji: '♡' },
+  { key: 'shows', label: 'Shows', emoji: '🎭' },
+  { key: 'restaurants', label: 'Restaurants', emoji: '🍴' },
+  { key: 'facilities', label: 'Facilities', emoji: '🚻' },
+];
+
+// Facility POI types shown under the "Facilities" filter, with default markers.
+const FACILITY_TYPES: Record<string, { emoji: string; color: string }> = {
+  RESTROOM: { emoji: '🚻', color: '#3a86c8' },
+  FIRST_AID: { emoji: '⛑️', color: '#e5544b' },
+  SHOP: { emoji: '🛍️', color: '#8b6ff0' },
+  PARKING: { emoji: '🅿️', color: '#6b6460' },
+  ACCESSIBILITY: { emoji: '♿', color: '#3a86c8' },
+  BABY_CHANGING: { emoji: '🍼', color: '#e2a53b' },
+  PICNIC: { emoji: '🧺', color: '#2e8b57' },
+  ENTRANCE: { emoji: '🚪', color: '#22b365' },
+  INFO: { emoji: 'ℹ️', color: '#6d5df6' },
 };
 
-const W = 340;
-const H = 440;
-const PAD = 40;
-const ZONE_TINT = ['#e8efe6', '#efe9dd', '#e6edf2', '#efe6ee', '#eef1e6'];
+interface Pin {
+  id: string;
+  attractionId?: string;
+  x: number;
+  y: number;
+  lat?: number;
+  lng?: number;
+  slug?: string;
+  color?: string;
+  kind: 'show' | 'evening' | 'restaurant' | 'facility';
+  number?: number;
+  emoji?: string;
+  title: string;
+  subtitle?: string;
+  nextTime?: string;
+  zone?: string | null;
+}
+
+// Great-circle distance so proximity reflects real metres, not map pixels.
+function distMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+const fmtDist = (m: number) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`);
+const walkMins = (m: number) => Math.max(1, Math.round(m / 80)); // ~80 m/min stroll
 
 export default function MapScreen() {
-  const { bundle } = useSync();
-  const pois = bundle?.pois ?? [];
-  const [filter, setFilter] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Poi | null>(null);
+  const { bundle, date } = useSync();
+  const router = useRouter();
+  const params = useLocalSearchParams<{ focus?: string }>();
+  const [cat, setCat] = useState<Cat>('shows');
+  const [selected, setSelected] = useState<Pin | null>(null);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+  const appliedFocus = useRef<string | null>(null);
+  const [favs, setFavs] = useState<Set<string>>(new Set());
+  const [gps, setGps] = useState<{ lat: number; lng: number } | null>(null);
+  const [vp, setVp] = useState({ w: 0, h: 0 });
   const [scale, setScale] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const panStart = useRef({ x: 0, y: 0 });
+  const pulse = useRef(new Animated.Value(0)).current;
 
-  // Drag-to-pan; only claims the gesture once the finger actually moves, so
-  // single taps still reach the POI markers.
+  const vw = vp.w || 375;
+  const vh = vp.h || 680;
+  const markerColor = bundle?.mapConfig?.markerColor ?? '#1a73e8';
+
+  function clampPan(p: { x: number; y: number }, s: number) {
+    const maxX = ((s - 1) * vw) / 2;
+    const maxY = ((s - 1) * vh) / 2;
+    return { x: Math.max(-maxX, Math.min(maxX, p.x)), y: Math.max(-maxY, Math.min(maxY, p.y)) };
+  }
+
+  useEffect(() => {
+    const loop = Animated.loop(Animated.timing(pulse, { toValue: 1, duration: 2000, useNativeDriver: true }));
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+
+  useEffect(() => {
+    AsyncStorage.getItem(FAVS_KEY).then((raw) => raw && setFavs(new Set(JSON.parse(raw))));
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') return;
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        if (!cancelled) setGps({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      } catch {
+        /* no location */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function toggleFav(attractionId: string) {
+    setFavs((prev) => {
+      const next = new Set(prev);
+      next.has(attractionId) ? next.delete(attractionId) : next.add(attractionId);
+      AsyncStorage.setItem(FAVS_KEY, JSON.stringify([...next])).catch(() => undefined);
+      return next;
+    });
+  }
+
   const responder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 5 || Math.abs(g.dy) > 5,
       onPanResponderGrant: () => {
         panStart.current = pan;
       },
-      onPanResponderMove: (_e, g) => setPan({ x: panStart.current.x + g.dx, y: panStart.current.y + g.dy }),
+      onPanResponderMove: (_e, g) => setPan(clampPan({ x: panStart.current.x + g.dx, y: panStart.current.y + g.dy }, scale)),
     }),
   ).current;
 
-  const projected = useMemo(() => {
-    if (pois.length === 0) return [];
+  const pois = bundle?.pois ?? [];
+
+  // Project a lat/lng to screen pixels, spreading the park across the viewport
+  // with a little margin so pins never touch the edges.
+  const project = useMemo(() => {
+    if (pois.length === 0) return null;
     const lats = pois.map((p) => p.lat);
     const lngs = pois.map((p) => p.lng);
     const minLat = Math.min(...lats), maxLat = Math.max(...lats);
     const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
     const spanLat = maxLat - minLat || 1;
     const spanLng = maxLng - minLng || 1;
-    return pois.map((p) => ({
-      poi: p,
-      x: PAD + ((p.lng - minLng) / spanLng) * (W - 2 * PAD),
-      y: PAD + ((maxLat - p.lat) / spanLat) * (H - 2 * PAD),
-    }));
-  }, [pois]);
-
-  // Group projected points into zones (centroid + radius) for the coloured regions.
-  const zones = useMemo(() => {
-    const byZone = new Map<string, { x: number; y: number }[]>();
-    for (const p of projected) {
-      const z = p.poi.mapZone || 'Park';
-      if (!byZone.has(z)) byZone.set(z, []);
-      byZone.get(z)!.push({ x: p.x, y: p.y });
-    }
-    return [...byZone.entries()].map(([name, pts], i) => {
-      const cx = pts.reduce((a, b) => a + b.x, 0) / pts.length;
-      const cy = pts.reduce((a, b) => a + b.y, 0) / pts.length;
-      const r = Math.max(38, ...pts.map((p) => Math.hypot(p.x - cx, p.y - cy))) + 26;
-      return { name, cx, cy, rx: r, ry: r * 0.8, tint: ZONE_TINT[i % ZONE_TINT.length]! };
+    const toXY = (lat: number, lng: number) => ({
+      x: (PADX + ((lng - minLng) / spanLng) * (1 - 2 * PADX)) * vw,
+      y: (PADY + ((maxLat - lat) / spanLat) * (1 - 2 * PADY)) * vh,
     });
-  }, [projected]);
+    const inBounds = (lat: number, lng: number) =>
+      lat >= minLat - spanLat * 0.6 && lat <= maxLat + spanLat * 0.6 && lng >= minLng - spanLng * 0.6 && lng <= maxLng + spanLng * 0.6;
+    return { toXY, inBounds };
+  }, [pois, vw, vh]);
 
-  const entrance = projected.find((p) => p.poi.type === 'ENTRANCE');
-  const attractions = projected.filter((p) => p.poi.type === 'ATTRACTION');
-  const visible = filter ? projected.filter((p) => p.poi.type === filter) : projected;
-  const types = Array.from(new Set(pois.map((p) => p.type)));
+  const nextByAttraction = useMemo(() => {
+    const m = new Map<string, string>();
+    const isRealToday = date === new Date().toISOString().slice(0, 10);
+    const ref = isRealToday ? Date.now() : new Date(`${date}T00:00:00.000Z`).getTime();
+    for (const s of bundle?.sessions ?? []) {
+      if (new Date(s.endTime).getTime() <= ref) continue;
+      const t = s.revisedStart ?? s.startTime;
+      const cur = m.get(s.attractionId);
+      if (!cur || new Date(t) < new Date(cur)) m.set(s.attractionId, t);
+    }
+    return m;
+  }, [bundle, date]);
+
+  const poiById = useMemo(() => new Map(pois.map((p) => [p.id, p])), [pois]);
+
+  const pins = useMemo<Pin[]>(() => {
+    if (!project) return [];
+    const out: Pin[] = [];
+    if (cat === 'restaurants') {
+      for (const r of bundle?.restaurants ?? []) {
+        if (!r.poiId) continue;
+        const poi = poiById.get(r.poiId);
+        if (!poi) continue;
+        const { x, y } = project.toXY(poi.lat, poi.lng);
+        out.push({ id: r.id, x, y, lat: poi.lat, lng: poi.lng, slug: r.slug, kind: 'restaurant', emoji: '🍴', title: r.name, subtitle: r.cuisine ?? undefined, zone: poi.mapZone });
+      }
+      return out;
+    }
+    if (cat === 'facilities') {
+      for (const poi of pois) {
+        const def = FACILITY_TYPES[poi.type];
+        if (!def) continue; // attractions & restaurants have their own filters
+        const { x, y } = project.toXY(poi.lat, poi.lng);
+        out.push({ id: poi.id, x, y, lat: poi.lat, lng: poi.lng, kind: 'facility', emoji: poi.icon ?? def.emoji, color: poi.color ?? def.color, title: poi.name, subtitle: poi.type.replace('_', ' ').toLowerCase(), zone: poi.mapZone });
+      }
+      return out;
+    }
+    const dayAttractions = (bundle?.attractions ?? []).filter((a) => a.category !== 'EVENING_SHOW');
+    dayAttractions.forEach((a, i) => {
+      if (!a.poiId) return;
+      if (cat === 'favorites' && !favs.has(a.id)) return;
+      const poi = poiById.get(a.poiId);
+      if (!poi) return;
+      const { x, y } = project.toXY(poi.lat, poi.lng);
+      out.push({ id: a.id, attractionId: a.id, x, y, lat: poi.lat, lng: poi.lng, slug: a.slug, kind: 'show', number: i + 1, title: a.name, subtitle: a.tagline ?? undefined, nextTime: nextByAttraction.get(a.id), zone: poi.mapZone });
+    });
+    if (cat === 'shows') {
+      const evening = (bundle?.attractions ?? []).find((a) => a.category === 'EVENING_SHOW');
+      if (evening?.poiId) {
+        const poi = poiById.get(evening.poiId);
+        if (poi) {
+          const { x, y } = project.toXY(poi.lat, poi.lng);
+          out.push({ id: evening.id, attractionId: evening.id, x, y, lat: poi.lat, lng: poi.lng, slug: evening.slug, kind: 'evening', emoji: '🌙', title: evening.name, subtitle: evening.tagline ?? undefined, nextTime: nextByAttraction.get(evening.id), zone: poi.mapZone });
+        }
+      }
+    }
+    return out;
+  }, [cat, bundle, project, poiById, nextByAttraction, favs]);
+
+  const entrance = pois.find((p) => p.type === 'ENTRANCE');
+  const locationReal = !!(gps && project && project.inBounds(gps.lat, gps.lng));
+  const youAreHere = useMemo(() => {
+    if (!project) return { x: vw / 2, y: vh * 0.7 };
+    if (locationReal && gps) return project.toXY(gps.lat, gps.lng);
+    if (entrance) return project.toXY(entrance.lat, entrance.lng);
+    return { x: vw / 2, y: vh * 0.7 };
+  }, [gps, project, entrance, vw, vh, locationReal]);
+
+  // Deep link from "Go to" / "Find on Map": focus a place, open its callout, centre on it.
+  useEffect(() => {
+    if (!params.focus) return;
+    const isRestaurant = (bundle?.restaurants ?? []).some((r) => r.id === params.focus);
+    setCat(isRestaurant ? 'restaurants' : 'shows');
+    appliedFocus.current = null;
+    setBannerDismissed(false);
+  }, [params.focus, bundle]);
+  useEffect(() => {
+    if (!params.focus || appliedFocus.current === params.focus || vw === 0) return;
+    const pin = pins.find((p) => p.id === params.focus);
+    if (!pin) return;
+    appliedFocus.current = params.focus;
+    setSelected(pin);
+    const s = 2.2;
+    setScale(s);
+    setPan(clampPan({ x: (vw / 2 - pin.x) * s, y: (vh / 2 - pin.y) * s }, s));
+  }, [params.focus, pins, vw, vh]);
+
+  // Distance from the guest to the currently selected place.
+  const selectedDist = useMemo(() => {
+    if (!selected || selected.lat == null || !locationReal || !gps) return null;
+    return distMeters(gps, { lat: selected.lat, lng: selected.lng! });
+  }, [selected, gps, locationReal]);
+
+  function zoomTo(next: number) {
+    const s = Math.max(1, Math.min(3, +next.toFixed(2)));
+    setScale(s);
+    setPan((p) => clampPan(p, s));
+  }
+  function recenter() {
+    const s = 2;
+    setScale(s);
+    setPan(clampPan({ x: (vw / 2 - youAreHere.x) * s, y: (vh / 2 - youAreHere.y) * s }, s));
+  }
+  function fitAll() {
+    setScale(1);
+    setPan({ x: 0, y: 0 });
+  }
+  function openDetail() {
+    if (!selected?.slug) return;
+    router.push(selected.kind === 'restaurant' ? `/restaurant/${selected.slug}` : `/attraction/${selected.slug}`);
+  }
+
+  function onLayout(e: LayoutChangeEvent) {
+    const { width, height } = e.nativeEvent.layout;
+    setVp({ w: width, h: height });
+  }
 
   return (
-    <View style={{ flex: 1 }}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filters} contentContainerStyle={{ gap: 8, paddingHorizontal: 12 }}>
-        <Chip active={filter === null} label="All" onPress={() => setFilter(null)} />
-        {types.map((t) => (
-          <Chip key={t} active={filter === t} label={`${TYPE_META[t]?.emoji ?? '📍'} ${TYPE_META[t]?.label ?? t}`} onPress={() => setFilter(t)} />
-        ))}
-      </ScrollView>
+    <View style={styles.root} onLayout={onLayout}>
+      <View style={styles.viewport} {...responder.panHandlers}>
+        <View style={[styles.canvas, { width: vw, height: vh, transform: [{ translateX: pan.x }, { translateY: pan.y }, { scale }] }]}>
+          <ParkBasemap vw={vw} vh={vh} />
 
-      <View style={styles.mapWrap} {...responder.panHandlers}>
-        <Svg width={W} height={H}>
-          <Rect x={0} y={0} width={W} height={H} rx={16} fill="#eef2ec" />
-          <G transform={`translate(${pan.x},${pan.y}) scale(${scale})`}>
-            {/* Zones */}
-            {zones.map((z) => (
-              <G key={z.name}>
-                <Ellipse cx={z.cx} cy={z.cy} rx={z.rx} ry={z.ry} fill={z.tint} stroke="#d8ddd2" strokeWidth={1} />
-                <SvgText x={z.cx} y={z.cy - z.ry + 14} fontSize={9} fill={theme.muted} textAnchor="middle" fontWeight="700">
-                  {z.name.toUpperCase()}
-                </SvgText>
-              </G>
-            ))}
-            {/* Paths from the entrance to each attraction */}
-            {entrance &&
-              attractions.map((a) => (
-                <Line key={`path-${a.poi.id}`} x1={entrance.x} y1={entrance.y} x2={a.x} y2={a.y} stroke="#c9cfc2" strokeWidth={1.5} strokeDasharray="4 4" />
-              ))}
-            {/* POIs */}
-            {visible.map(({ poi, x, y }) => {
-              const meta = TYPE_META[poi.type] ?? { color: theme.muted, emoji: '📍' };
-              const isSel = selected?.id === poi.id;
+          {/* Proximity line from the guest to the selected place */}
+          {selected && selectedDist != null && (
+            <Svg style={StyleSheet.absoluteFill} width={vw} height={vh} pointerEvents="none">
+              <Line x1={youAreHere.x} y1={youAreHere.y} x2={selected.x} y2={selected.y} stroke="#1a73e8" strokeWidth={2.5} strokeDasharray="6 5" strokeLinecap="round" />
+            </Svg>
+          )}
+
+          {pins.map((pin) => {
+            const isSel = selected?.id === pin.id;
+            if (pin.kind === 'evening') {
               return (
-                <G key={poi.id} onPress={() => setSelected(poi)}>
-                  <Circle cx={x} cy={y} r={isSel ? 11 : 7} fill={meta.color} stroke="#fff" strokeWidth={2} />
-                  {poi.type === 'ATTRACTION' && (
-                    <SvgText x={x} y={y - 13} fontSize={8.5} fill={theme.ink} textAnchor="middle">
-                      {poi.name.length > 16 ? poi.name.slice(0, 15) + '…' : poi.name}
-                    </SvgText>
+                <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => setSelected(pin)}>
+                  <View style={[styles.pinHead, styles.pinEvening, isSel && styles.pinSel]}>
+                    <Text style={styles.pinEmoji}>🌙</Text>
+                  </View>
+                  <View style={[styles.pinTail, { borderTopColor: '#2c3e70' }]} />
+                  {pin.nextTime && (
+                    <View style={styles.pinTime}><Text style={styles.pinTimeTxt}>{fmtTime(pin.nextTime)}</Text></View>
                   )}
-                </G>
+                </Pressable>
               );
-            })}
-          </G>
-        </Svg>
+            }
+            if (pin.kind === 'restaurant') {
+              return (
+                <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => setSelected(pin)}>
+                  <View style={[styles.pinHead, isSel && styles.pinSel]}>
+                    <Text style={styles.pinEmoji}>🍴</Text>
+                  </View>
+                  <View style={styles.pinTail} />
+                </Pressable>
+              );
+            }
+            if (pin.kind === 'facility') {
+              return (
+                <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => setSelected(pin)}>
+                  <View style={[styles.pinHead, { backgroundColor: pin.color ?? '#6b6460' }, isSel && styles.pinSel]}>
+                    <Text style={styles.pinEmoji}>{pin.emoji}</Text>
+                  </View>
+                  <View style={[styles.pinTail, { borderTopColor: pin.color ?? '#6b6460' }]} />
+                </Pressable>
+              );
+            }
+            return (
+              <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => setSelected(pin)}>
+                <View style={[styles.pinHead, isSel && styles.pinSel]}>
+                  <Text style={styles.pinNum}>{pin.number}</Text>
+                </View>
+                <View style={styles.pinTail} />
+                {pin.nextTime && (
+                  <View style={styles.pinTime}><Text style={styles.pinTimeTxt}>{fmtTime(pin.nextTime)}</Text></View>
+                )}
+              </Pressable>
+            );
+          })}
 
-        {/* Zoom controls */}
-        <View style={styles.zoomCol}>
-          <Pressable style={styles.zoomBtn} onPress={() => setScale((s) => Math.min(2.6, +(s + 0.3).toFixed(2)))}>
-            <Text style={styles.zoomTxt}>＋</Text>
+          {/* You are here */}
+          <View style={[styles.meWrap, { left: youAreHere.x, top: youAreHere.y }]} pointerEvents="none">
+            <Animated.View
+              style={[
+                styles.mePulse,
+                {
+                  backgroundColor: markerColor,
+                  opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.45, 0] }),
+                  transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.6, 2.6] }) }],
+                },
+              ]}
+            />
+            <View style={[styles.meDot, { backgroundColor: markerColor }]} />
+          </View>
+
+          {/* Popup above the tapped pin */}
+          {selected && (
+            <View style={[styles.callout, { left: selected.x, top: selected.y }]}>
+              <Pressable style={styles.calloutCard} onPress={openDetail}>
+                <View style={[styles.calloutIcon, selected.kind === 'evening' && { backgroundColor: '#2c3e70' }]}>
+                  <Text style={{ fontSize: 18 }}>{selected.emoji ?? '🎭'}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.calloutTitle} numberOfLines={1}>{selected.title}</Text>
+                  {selected.subtitle && <Text style={styles.calloutSub} numberOfLines={1}>{selected.subtitle}</Text>}
+                  <Text style={styles.calloutMeta}>
+                    {selectedDist != null
+                      ? `📍 ${fmtDist(selectedDist)} away · ~${walkMins(selectedDist)} min walk`
+                      : selected.kind === 'restaurant'
+                        ? selected.zone ?? 'The Storied Lands'
+                        : selected.nextTime
+                          ? `Next show ${fmtTime(selected.nextTime)}`
+                          : 'No more shows today'}
+                  </Text>
+                  <Text style={styles.calloutHint}>Tap for details ›</Text>
+                </View>
+                {selected.attractionId && (
+                  <Pressable hitSlop={8} onPress={() => toggleFav(selected.attractionId!)}>
+                    <Text style={[styles.calloutHeart, favs.has(selected.attractionId) && { color: theme.brand }]}>
+                      {favs.has(selected.attractionId) ? '♥' : '♡'}
+                    </Text>
+                  </Pressable>
+                )}
+                <Pressable hitSlop={8} onPress={() => setSelected(null)}>
+                  <Text style={styles.calloutClose}>✕</Text>
+                </Pressable>
+              </Pressable>
+              <View style={styles.calloutTail} />
+            </View>
+          )}
+        </View>
+
+        {/* Location banner — the app needs GPS to show your position & distances */}
+        {!locationReal && !bannerDismissed && (
+          <View style={styles.geoBanner}>
+            <Text style={styles.geoIcon}>📱</Text>
+            <Text style={styles.geoTxt}>
+              {gps ? 'You seem to be outside the park' : 'Turn on location to see where you are and how far things are'}
+            </Text>
+            <Pressable hitSlop={8} onPress={() => setBannerDismissed(true)}>
+              <Text style={styles.geoClose}>✕</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* Empty favourites hint */}
+        {cat === 'favorites' && pins.length === 0 && (
+          <View style={styles.hint} pointerEvents="none">
+            <Text style={styles.hintText}>No favourites yet — open a show and tap ♡ to add it here.</Text>
+          </View>
+        )}
+
+        {/* Profile */}
+        <Pressable style={styles.profileBtn} onPress={() => router.push('/settings')}>
+          <Text style={{ fontSize: 18 }}>👤</Text>
+        </Pressable>
+
+        {/* Zoom + locate controls */}
+        <View style={styles.ctrlCol}>
+          <Pressable style={styles.ctrlBtn} onPress={() => zoomTo(scale + 0.4)}>
+            <Text style={styles.ctrlTxt}>＋</Text>
           </Pressable>
-          <Pressable style={styles.zoomBtn} onPress={() => setScale((s) => Math.max(0.6, +(s - 0.3).toFixed(2)))}>
-            <Text style={styles.zoomTxt}>－</Text>
+          <Pressable style={styles.ctrlBtn} onPress={() => zoomTo(scale - 0.4)}>
+            <Text style={styles.ctrlTxt}>－</Text>
           </Pressable>
-          <Pressable style={styles.zoomBtn} onPress={() => { setScale(1); setPan({ x: 0, y: 0 }); }}>
-            <Text style={styles.resetTxt}>⟲</Text>
+          <Pressable style={styles.ctrlBtn} onPress={fitAll}>
+            <Text style={{ fontSize: 15 }}>🗺️</Text>
+          </Pressable>
+          <Pressable style={styles.ctrlBtn} onPress={recenter}>
+            <Text style={{ fontSize: 17 }}>📍</Text>
           </Pressable>
         </View>
-      </View>
 
-      <View style={styles.detail}>
-        {selected ? (
-          <>
-            <Text style={styles.detailName}>
-              {TYPE_META[selected.type]?.emoji} {selected.name}
-            </Text>
-            {selected.mapZone && <Text style={styles.muted}>Zone: {selected.mapZone}</Text>}
-            {selected.description && <Text style={styles.muted}>{selected.description}</Text>}
-          </>
-        ) : (
-          <Text style={styles.muted}>Tap a point for details · drag to pan · ＋/－ to zoom. Works fully offline.</Text>
-        )}
+        {/* Bottom category pills (Puy du Fou style) */}
+        <View style={styles.pills}>
+          {PILLS.map((p) => {
+            const on = cat === p.key;
+            return (
+              <Pressable key={p.key} style={[styles.pill, on && styles.pillOn]} onPress={() => { setCat(p.key); setSelected(null); }}>
+                <Text style={[styles.pillEmoji, on && { color: '#fff' }]}>{p.emoji}</Text>
+                <Text style={[styles.pillLabel, on && styles.pillLabelOn]} numberOfLines={1}>{p.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
       </View>
     </View>
   );
 }
 
-function Chip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+/** Full-bleed illustrated park basemap, stretched to fill the screen. */
+function ParkBasemap({ vw, vh }: { vw: number; vh: number }) {
   return (
-    <Pressable onPress={onPress} style={[styles.chip, active && { backgroundColor: theme.brand, borderColor: theme.brand }]}>
-      <Text style={[styles.chipText, active && { color: '#fff' }]}>{label}</Text>
-    </Pressable>
+    <Svg width={vw} height={vh} viewBox={`0 0 ${VBW} ${VBH}`} preserveAspectRatio="none" style={StyleSheet.absoluteFill}>
+      <Rect x={0} y={0} width={VBW} height={VBH} fill={GRASS} />
+      <Ellipse cx={100} cy={140} rx={140} ry={100} fill="#9dc073" opacity={0.55} />
+      <Ellipse cx={350} cy={470} rx={150} ry={130} fill="#b5d38f" opacity={0.55} />
+      <Ellipse cx={70} cy={560} rx={130} ry={110} fill="#9dc073" opacity={0.5} />
+
+      {/* Lake */}
+      <Ellipse cx={296} cy={166} rx={104} ry={58} fill="#a9d3e8" />
+      <Ellipse cx={296} cy={166} rx={104} ry={58} fill="none" stroke="#8ec3dd" strokeWidth={2.5} />
+      <Ellipse cx={276} cy={154} rx={44} ry={20} fill="#bfe0f0" opacity={0.7} />
+
+      {/* River */}
+      <Path d="M 360 230 C 330 285, 370 330, 330 385 S 280 470, 330 550 S 372 615, 350 680" stroke="#a9d3e8" strokeWidth={22} fill="none" strokeLinecap="round" />
+
+      {/* Paths */}
+      <Path d={`M ${VBW / 2} ${VBH - 4} C ${VBW / 2 - 8} ${VBH - 130}, ${VBW / 2 + 26} ${VBH - 210}, ${VBW / 2} ${VBH - 264} S ${VBW / 2 - 36} 150, ${VBW / 2} 80`} stroke="#e9dfc7" strokeWidth={24} fill="none" strokeLinecap="round" />
+      <Path d={`M ${VBW / 2} ${VBH - 264} C 164 ${VBH - 320}, 104 ${VBH - 326}, 66 ${VBH - 364}`} stroke="#e9dfc7" strokeWidth={16} fill="none" strokeLinecap="round" />
+      <Path d={`M ${VBW / 2} ${VBH - 264} C 260 ${VBH - 320}, 330 ${VBH - 330}, 368 ${VBH - 368}`} stroke="#e9dfc7" strokeWidth={16} fill="none" strokeLinecap="round" />
+      <Path d="M 66 330 C 130 352, 165 330, 200 166" stroke="#e9dfc7" strokeWidth={13} fill="none" strokeLinecap="round" />
+
+      {/* Plaza */}
+      <Circle cx={VBW / 2} cy={VBH - 264} r={30} fill="#efe6d2" />
+      <Circle cx={VBW / 2} cy={VBH - 264} r={11} fill="#e2d6bb" />
+
+      {/* Rocky outcrop */}
+      {ROCKS.map((r, i) => (
+        <Polygon key={i} points={r.pts} fill={r.fill} stroke="#9aa0a4" strokeWidth={0.8} />
+      ))}
+
+      {/* Buildings */}
+      {BUILDINGS.map((b, i) => (
+        <G key={i}>
+          <Rect x={b.x} y={b.y} width={b.w} height={b.h} rx={2} fill="#e7e2d8" stroke="#d3ccbe" strokeWidth={1} />
+          <Polygon points={`${b.x - 2},${b.y + 3} ${b.x + b.w / 2},${b.y - b.rh} ${b.x + b.w + 2},${b.y + 3}`} fill={b.roof} />
+        </G>
+      ))}
+
+      {/* Keep */}
+      <G>
+        <Rect x={VBW / 2 - 38} y={VBH - 320} width={76} height={48} rx={4} fill="#cfd3d6" stroke="#b7bcc0" strokeWidth={1.5} />
+        <Rect x={VBW / 2 - 50} y={VBH - 312} width={18} height={40} fill="#c3c8cc" />
+        <Rect x={VBW / 2 + 32} y={VBH - 312} width={18} height={40} fill="#c3c8cc" />
+        <Polygon points={`${VBW / 2 - 50},${VBH - 312} ${VBW / 2 - 41},${VBH - 332} ${VBW / 2 - 32},${VBH - 312}`} fill={theme.brand} />
+        <Polygon points={`${VBW / 2 + 32},${VBH - 312} ${VBW / 2 + 41},${VBH - 332} ${VBW / 2 + 50},${VBH - 312}`} fill={theme.brand} />
+        <Polygon points={`${VBW / 2 - 15},${VBH - 320} ${VBW / 2},${VBH - 346} ${VBW / 2 + 15},${VBH - 320}`} fill={theme.brandDark} />
+      </G>
+
+      {/* Forest */}
+      {TREES.map((t, i) => (
+        <G key={i}>
+          <Circle cx={t[0]} cy={t[1] + t[2] * 0.5} r={t[2]} fill="#6f9e55" opacity={0.55} />
+          <Circle cx={t[0]} cy={t[1]} r={t[2]} fill="#7fae63" />
+          <Circle cx={t[0] - t[2] * 0.55} cy={t[1] + 2} r={t[2] * 0.72} fill="#8cbb6f" />
+          <Circle cx={t[0] + t[2] * 0.55} cy={t[1] + 2} r={t[2] * 0.72} fill="#95c377" />
+        </G>
+      ))}
+    </Svg>
   );
 }
 
+const BUILDINGS: { x: number; y: number; w: number; h: number; rh: number; roof: string }[] = [
+  { x: 44, y: 80, w: 78, h: 48, rh: 15, roof: '#a9563f' },
+  { x: 134, y: 66, w: 60, h: 38, rh: 13, roof: '#8f5a2b' },
+  { x: 330, y: 290, w: 66, h: 44, rh: 14, roof: '#6f9e8a' },
+  { x: 48, y: 380, w: 64, h: 44, rh: 13, roof: '#b3564d' },
+  { x: 134, y: 420, w: 50, h: 34, rh: 11, roof: '#a9563f' },
+  { x: 288, y: 520, w: 72, h: 46, rh: 15, roof: '#8f5a2b' },
+  { x: 66, y: 520, w: 48, h: 34, rh: 11, roof: '#6f9e8a' },
+  { x: 330, y: 600, w: 58, h: 38, rh: 13, roof: '#b3564d' },
+];
+
+const ROCKS: { pts: string; fill: string }[] = [
+  { pts: '34,470 66,442 102,464 86,508 44,514', fill: '#c9ccce' },
+  { pts: '78,506 112,478 142,506 124,544 86,546', fill: '#bdc1c4' },
+  { pts: '26,522 56,506 76,546 48,566 22,554', fill: '#d2d5d7' },
+];
+
+const TREES: [number, number, number][] = [
+  [28, 44, 15], [70, 28, 12], [376, 44, 15], [344, 26, 11], [396, 108, 13],
+  [24, 232, 14], [396, 264, 14], [32, 330, 15], [28, 616, 16], [76, 648, 14],
+  [166, 660, 15], [276, 660, 15], [364, 660, 14], [220, 66, 13], [172, 32, 11],
+  [120, 330, 13], [220, 276, 12], [396, 440, 14], [44, 660, 13], [396, 596, 13],
+  [144, 520, 12], [376, 520, 13], [106, 166, 12], [300, 380, 12],
+];
+
 const styles = StyleSheet.create({
-  filters: { maxHeight: 52, paddingVertical: 10, backgroundColor: theme.card, borderBottomWidth: 1, borderBottomColor: theme.border },
-  chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: theme.border, backgroundColor: '#fff' },
-  chipText: { fontSize: 13, color: theme.ink },
-  mapWrap: { alignItems: 'center', padding: 12 },
-  zoomCol: { position: 'absolute', right: 20, top: 24, gap: 8 },
-  zoomBtn: { width: 38, height: 38, borderRadius: 10, backgroundColor: '#fff', borderWidth: 1, borderColor: theme.border, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 3, elevation: 2 },
-  zoomTxt: { fontSize: 20, fontWeight: '700', color: theme.ink },
-  resetTxt: { fontSize: 16, color: theme.muted },
-  detail: { margin: 12, padding: 14, backgroundColor: theme.card, borderRadius: 12, borderWidth: 1, borderColor: theme.border, minHeight: 80 },
-  detailName: { fontWeight: '700', fontSize: 16, color: theme.ink },
-  muted: { color: theme.muted, marginTop: 4, fontSize: 13 },
+  root: { flex: 1, backgroundColor: GRASS },
+  viewport: { flex: 1, overflow: 'hidden', backgroundColor: GRASS },
+  canvas: { position: 'absolute', left: 0, top: 0 },
+  pinWrap: { position: 'absolute', alignItems: 'center', width: 40, marginLeft: -20, marginTop: -46 },
+  pinHead: { width: 36, height: 36, borderRadius: 18, backgroundColor: theme.brand, alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3, shadowOffset: { width: 0, height: 2 }, elevation: 5 },
+  pinEvening: { backgroundColor: '#2c3e70' },
+  pinSel: { transform: [{ scale: 1.2 }] },
+  pinNum: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  pinEmoji: { fontSize: 16 },
+  pinTail: { width: 0, height: 0, borderLeftWidth: 7, borderRightWidth: 7, borderTopWidth: 11, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: theme.brand, marginTop: -3 },
+  pinTime: { marginTop: 1, backgroundColor: '#fff', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 2, shadowOffset: { width: 0, height: 1 }, elevation: 3 },
+  pinTimeTxt: { color: theme.ink, fontWeight: '800', fontSize: 11 },
+  meWrap: { position: 'absolute', width: 60, height: 60, marginLeft: -30, marginTop: -30, alignItems: 'center', justifyContent: 'center', zIndex: 5 },
+  meDot: { width: 18, height: 18, borderRadius: 9, backgroundColor: '#1a73e8', borderWidth: 3, borderColor: '#fff', shadowColor: '#1a73e8', shadowOpacity: 0.5, shadowRadius: 4, elevation: 5 },
+  mePulse: { position: 'absolute', width: 22, height: 22, borderRadius: 11, backgroundColor: '#1a73e8' },
+  callout: { position: 'absolute', width: 244, marginLeft: -122, marginTop: -108, alignItems: 'center', zIndex: 30 },
+  calloutCard: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#fff', borderRadius: 14, padding: 10, width: 244, shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 8 },
+  calloutIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.brand },
+  calloutTitle: { fontWeight: '800', fontSize: 15, color: theme.ink },
+  calloutSub: { color: theme.brand, fontWeight: '600', fontSize: 11, marginTop: 1 },
+  calloutMeta: { color: theme.muted, fontSize: 11, marginTop: 2 },
+  calloutHint: { color: theme.brand, fontSize: 11, fontWeight: '700', marginTop: 3 },
+  calloutHeart: { fontSize: 20, color: theme.muted, paddingHorizontal: 2 },
+  calloutClose: { color: theme.muted, fontSize: 15, fontWeight: '700', paddingHorizontal: 2 },
+  calloutTail: { width: 0, height: 0, borderLeftWidth: 8, borderRightWidth: 8, borderTopWidth: 10, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: '#fff', marginTop: -1 },
+  geoBanner: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'rgba(15,15,15,0.9)', paddingTop: 12, paddingBottom: 12, paddingHorizontal: 16, zIndex: 50 },
+  geoIcon: { fontSize: 18 },
+  geoTxt: { flex: 1, color: '#f0a8a8', fontSize: 14, fontWeight: '600' },
+  geoClose: { color: '#f0a8a8', fontSize: 16, fontWeight: '700' },
+  hint: { position: 'absolute', top: 20, left: 24, right: 24, backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 12, padding: 14 },
+  hintText: { textAlign: 'center', color: theme.ink, fontWeight: '600', fontSize: 13 },
+  profileBtn: { position: 'absolute', right: 14, top: 14, width: 44, height: 44, borderRadius: 22, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 4, elevation: 4 },
+  ctrlCol: { position: 'absolute', right: 14, top: 70, gap: 8 },
+  ctrlBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 3, elevation: 3 },
+  ctrlTxt: { fontSize: 20, fontWeight: '700', color: theme.ink },
+  pills: { position: 'absolute', left: 12, right: 12, bottom: 16, flexDirection: 'row', gap: 8, justifyContent: 'center' },
+  pill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#fff', borderRadius: 999, paddingVertical: 12, paddingHorizontal: 16, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 5, elevation: 5, flexShrink: 1 },
+  pillOn: { backgroundColor: theme.brand },
+  pillEmoji: { fontSize: 15, color: theme.ink },
+  pillLabel: { fontWeight: '800', fontSize: 13, color: theme.ink },
+  pillLabelOn: { color: '#fff' },
 });

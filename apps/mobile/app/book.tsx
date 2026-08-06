@@ -72,7 +72,7 @@ export default function BookScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
       <Text style={styles.h1}>Book your visit</Text>
       <Text style={styles.muted}>Visit date: {date}</Text>
 

@@ -5,7 +5,7 @@ import { theme } from '../lib/theme';
 export default function LanguageScreen() {
   const { locale, setLocale, t } = useI18n();
   return (
-    <ScrollView contentContainerStyle={{ padding: 16 }}>
+    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16 }}>
       <Text style={styles.h1}>{t('common.language')}</Text>
       <Text style={styles.muted}>Every translation is built into the app and works offline.</Text>
       <View style={{ marginTop: 16, gap: 10 }}>

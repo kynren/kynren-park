@@ -3,7 +3,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { getToken } from '../../lib/api';
-import { Topbar } from '../../components/Topbar';
+import { Sidebar } from '../../components/Sidebar';
+import { TopHeader } from '../../components/TopHeader';
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -16,9 +17,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
   if (!ready) return null;
   return (
-    <>
-      <Topbar />
-      <div className="container">{children}</div>
-    </>
+    <div className="shell">
+      <Sidebar />
+      <main className="main">
+        <TopHeader />
+        <div className="main-scroll">{children}</div>
+      </main>
+    </div>
   );
 }

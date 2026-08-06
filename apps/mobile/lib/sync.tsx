@@ -13,6 +13,13 @@ export interface Poi {
   lat: number;
   lng: number;
   mapZone?: string | null;
+  color?: string | null;
+  icon?: string | null;
+}
+export interface MapConfig {
+  markerColor: string;
+  markerStyle: string;
+  mapImageUrl?: string | null;
 }
 export interface Attraction {
   id: string;
@@ -57,6 +64,7 @@ export interface Bundle {
   content: ContentPage[];
   announcements: Announcement[];
   sessions: Session[];
+  mapConfig?: MapConfig | null;
 }
 
 interface SyncState {

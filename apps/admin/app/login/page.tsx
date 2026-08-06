@@ -21,7 +21,7 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
       setSession(res.accessToken, res.staff);
-      router.replace('/schedule');
+      router.replace('/dashboard');
     } catch (err) {
       if (err instanceof ApiError && err.status === 0) {
         setError(`Can’t reach the API (${API_URL}). Is \`npm run dev:api\` running?`);
@@ -38,7 +38,7 @@ export default function LoginPage() {
   return (
     <div className="login-wrap">
       <form className="login-card" onSubmit={submit}>
-        <h1>◈ Kynren Staff</h1>
+        <div className="logo" style={{ fontSize: 30 }}>Kyn<b>ren</b></div>
         <p className="subtitle" style={{ textAlign: 'center' }}>The Storied Lands — Operations</p>
         <label>Email</label>
         <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" />
