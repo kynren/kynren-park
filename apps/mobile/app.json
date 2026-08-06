@@ -29,6 +29,7 @@
       }
     },
     "android": {
+      "googleServicesFile": "./google-services.json",
       "package": "com.kynren.storiedlands",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",

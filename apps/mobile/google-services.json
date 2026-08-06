@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "37519187493",
+    "project_id": "kynren-park-app",
+    "storage_bucket": "kynren-park-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:37519187493:android:41da612d44f41bd8ee69cc",
+        "android_client_info": {
+          "package_name": "com.kynren.storiedlands"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBackhb4lQiwqXjduotFnj_pMFK18iZ1-U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
