@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import { api, setToken, getToken } from './api';
 
 export interface AuthUser {
@@ -106,8 +107,12 @@ export async function registerPushToken() {
       granted = req.status === 'granted';
     }
     if (!granted) return;
-    const tokenData = await Notifications.getExpoPushTokenAsync();
-    await api('/me/push-tokens', {
+    const projectId =
+      (Constants.expoConfig?.extra as { eas?: { projectId?: string } } | undefined)?.eas?.projectId;
+    const tokenData = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
+    // Public endpoint: registers the device even for guests, and links to the
+    // signed-in user automatically when an auth token is present.
+    await api('/push/register', {
       method: 'POST',
       body: JSON.stringify({ token: tokenData.data, platform: Platform.OS }),
     });

@@ -122,8 +122,10 @@ model PushToken {
   id        String   @id @default(cuid())
   token     String   @unique
   platform  String // ios | android
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Optional: device tokens register on launch (guests included); linked to a
+  // user once they sign in, so we can target either everyone or specific users.
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
 
   @@index([userId])
