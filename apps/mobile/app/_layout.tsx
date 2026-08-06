@@ -39,7 +39,8 @@ if (g.ErrorUtils?.setGlobalHandler && !g.__kynrenErrorHandler) {
 // Show notifications while the app is foregrounded.
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
   }),

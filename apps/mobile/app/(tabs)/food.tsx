@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type JSX } from 'react';
 import { ScrollView, View, Text, StyleSheet } from 'react-native';
 import { Touchable } from '../../components/Touchable';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
