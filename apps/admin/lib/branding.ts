@@ -5,7 +5,7 @@ import { api } from './api';
 
 export interface Branding {
   appName: string; tagline: string; primary: string; accent: string;
-  logoUrl?: string | null; iconUrl?: string | null;
+  logoUrl?: string | null; iconUrl?: string | null; faviconUrl?: string | null;
 }
 export const DEFAULT_BRANDING: Branding = { appName: 'Kynren', tagline: 'The Storied Lands', primary: '#8f1d21', accent: '#22b365' };
 

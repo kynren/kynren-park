@@ -11,6 +11,7 @@ import { api, getToken } from '../../lib/api';
 import { useSync } from '../../lib/sync';
 import { fmtTime } from '../../lib/format';
 import { theme } from '../../lib/theme';
+import { useThemePref } from '../../lib/theme-context';
 import { Touchable } from '../../components/Touchable';
 import { selection } from '../../lib/haptics';
 
@@ -83,6 +84,10 @@ export default function MapScreen() {
   const { bundle, date } = useSync();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const dark = useThemePref().scheme === 'dark';
+  const cpal = dark
+    ? { card: '#1f1f24', ink: '#ffffff', muted: '#a5a5ad' }
+    : { card: '#ffffff', ink: theme.ink, muted: theme.muted };
   const params = useLocalSearchParams<{ focus?: string }>();
   const [cat, setCat] = useState<Cat>('shows');
   const [selected, setSelected] = useState<Pin | null>(null);
@@ -203,18 +208,6 @@ export default function MapScreen() {
   const canvasStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: panX.value }, { translateY: panY.value }, { scale: scale.value }],
   }));
-  // The callout is anchored to its pin's on-screen position and follows the map
-  // on the UI thread, but keeps a fixed size (it's outside the scaled canvas).
-  const calloutStyle = useAnimatedStyle(() => {
-    const sx = selected ? selected.x : 0;
-    const sy = selected ? selected.y : 0;
-    return {
-      transform: [
-        { translateX: vw / 2 + (sx - vw / 2) * scale.value + panX.value },
-        { translateY: vh / 2 + (sy - vh / 2) * scale.value + panY.value },
-      ],
-    };
-  });
 
   const pois = bundle?.pois ?? [];
 
@@ -476,18 +469,17 @@ export default function MapScreen() {
         </Reanimated.View>
         </GestureDetector>
 
-        {/* Popup — rendered OUTSIDE the scaled map, anchored to the pin's
-            on-screen position, so it keeps a fixed size and stays on the spot. */}
+        {/* Popup — centred on the map with a margin, themed to match light/dark. */}
         {selected && (
-          <Reanimated.View style={[styles.callout, calloutStyle]}>
-            <Touchable style={styles.calloutCard} onPress={openDetail}>
+          <View style={styles.calloutWrap} pointerEvents="box-none">
+            <Touchable style={[styles.calloutCard, { backgroundColor: cpal.card }]} onPress={openDetail}>
               <View style={[styles.calloutIcon, selected.kind === 'evening' && { backgroundColor: '#2c3e70' }]}>
                 <Text style={{ fontSize: 18 }}>{selected.emoji ?? '🎭'}</Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.calloutTitle} numberOfLines={1}>{selected.title}</Text>
+                <Text style={[styles.calloutTitle, { color: cpal.ink }]} numberOfLines={1}>{selected.title}</Text>
                 {selected.subtitle && <Text style={styles.calloutSub} numberOfLines={1}>{selected.subtitle}</Text>}
-                <Text style={styles.calloutMeta}>
+                <Text style={[styles.calloutMeta, { color: cpal.muted }]}>
                   {selectedDist != null
                     ? `📍 ${fmtDist(selectedDist)} away · ~${walkMins(selectedDist)} min walk`
                     : selected.kind === 'restaurant'
@@ -500,17 +492,16 @@ export default function MapScreen() {
               </View>
               {selected.attractionId && (
                 <Pressable hitSlop={8} onPress={() => toggleFav(selected.attractionId!)}>
-                  <Text style={[styles.calloutHeart, favs.has(selected.attractionId) && { color: theme.brand }]}>
+                  <Text style={[styles.calloutHeart, { color: cpal.muted }, favs.has(selected.attractionId) && { color: theme.brand }]}>
                     {favs.has(selected.attractionId) ? '♥' : '♡'}
                   </Text>
                 </Pressable>
               )}
               <Pressable hitSlop={8} onPress={() => setSelected(null)}>
-                <Text style={styles.calloutClose}>✕</Text>
+                <Text style={[styles.calloutClose, { color: cpal.muted }]}>✕</Text>
               </Pressable>
             </Touchable>
-            <View style={styles.calloutTail} />
-          </Reanimated.View>
+          </View>
         )}
 
         {/* Location banner — the app needs GPS to show your position & distances */}
@@ -735,8 +726,8 @@ const styles = StyleSheet.create({
   hintChipTxt: { color: '#fff', fontSize: 12, fontWeight: '800', letterSpacing: 0.6 },
   walkPill: { position: 'absolute', right: 14, bottom: 74, backgroundColor: '#fff', borderRadius: 999, paddingVertical: 9, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 5 },
   walkPillTxt: { color: theme.ink, fontWeight: '800', fontSize: 13 },
-  callout: { position: 'absolute', width: 244, marginLeft: -122, marginTop: -108, alignItems: 'center', zIndex: 30 },
-  calloutCard: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#fff', borderRadius: 14, padding: 10, width: 244, shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 8 },
+  calloutWrap: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, zIndex: 30 },
+  calloutCard: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, padding: 14, width: '100%', maxWidth: 360, shadowColor: '#000', shadowOpacity: 0.28, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 12 },
   calloutIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.brand },
   calloutTitle: { fontWeight: '800', fontSize: 15, color: theme.ink },
   calloutSub: { color: theme.brand, fontWeight: '600', fontSize: 11, marginTop: 1 },
@@ -744,7 +735,6 @@ const styles = StyleSheet.create({
   calloutHint: { color: theme.brand, fontSize: 11, fontWeight: '700', marginTop: 3 },
   calloutHeart: { fontSize: 20, color: theme.muted, paddingHorizontal: 2 },
   calloutClose: { color: theme.muted, fontSize: 15, fontWeight: '700', paddingHorizontal: 2 },
-  calloutTail: { width: 0, height: 0, borderLeftWidth: 8, borderRightWidth: 8, borderTopWidth: 10, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: '#fff', marginTop: -1 },
   geoBanner: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'rgba(15,15,15,0.9)', paddingTop: 12, paddingBottom: 12, paddingHorizontal: 16, zIndex: 50 },
   geoIcon: { fontSize: 18 },
   geoTxt: { flex: 1, color: '#f0a8a8', fontSize: 14, fontWeight: '600' },

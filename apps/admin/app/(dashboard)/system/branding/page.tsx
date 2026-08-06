@@ -11,6 +11,7 @@ export default function BrandingPage() {
   const [error, setError] = useState('');
   const logoInput = useRef<HTMLInputElement>(null);
   const iconInput = useRef<HTMLInputElement>(null);
+  const faviconInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     api<Branding>('/branding').then((v) => setB({ ...DEFAULT_BRANDING, ...v })).catch(() => setError('Could not load branding.'));
@@ -18,12 +19,12 @@ export default function BrandingPage() {
 
   const set = <K extends keyof Branding>(k: K, v: Branding[K]) => { setB((p) => ({ ...p, [k]: v })); setSaved(false); };
 
-  async function pick(kind: 'logo' | 'icon', file?: File | null) {
+  async function pick(kind: 'logo' | 'icon' | 'favicon', file?: File | null) {
     if (!file) return;
-    try {
-      const url = await resizeToDataUrl(file, kind === 'logo' ? 640 : 512);
-      set(kind === 'logo' ? 'logoUrl' : 'iconUrl', url);
-    } catch { setError('Could not read that image.'); }
+    const maxDim = kind === 'logo' ? 640 : kind === 'favicon' ? 64 : 512;
+    const field = kind === 'logo' ? 'logoUrl' : kind === 'favicon' ? 'faviconUrl' : 'iconUrl';
+    try { set(field, await resizeToDataUrl(file, maxDim)); }
+    catch { setError('Could not read that image.'); }
   }
 
   async function save() {
@@ -31,7 +32,7 @@ export default function BrandingPage() {
     try {
       const next = await api<Branding>('/admin/branding', {
         method: 'PATCH',
-        body: JSON.stringify({ appName: b.appName, tagline: b.tagline, primary: b.primary, accent: b.accent, logoUrl: b.logoUrl ?? null, iconUrl: b.iconUrl ?? null }),
+        body: JSON.stringify({ appName: b.appName, tagline: b.tagline, primary: b.primary, accent: b.accent, logoUrl: b.logoUrl ?? null, iconUrl: b.iconUrl ?? null, faviconUrl: b.faviconUrl ?? null }),
       });
       setB({ ...DEFAULT_BRANDING, ...next });
       localStorage.setItem('kynren_branding', JSON.stringify(next));
@@ -75,7 +76,17 @@ export default function BrandingPage() {
             <button className="tbtn" onClick={() => iconInput.current?.click()}>Upload</button>
             {b.iconUrl && <button className="tbtn danger" onClick={() => set('iconUrl', null)}>Remove</button>}
           </div>
-          <p className="hint" style={{ marginTop: 14 }}>Best results: logo ~640px wide PNG (transparent), icon a 512×512 square. The phone’s home-screen launcher icon is set at build time and needs an app rebuild to change.</p>
+
+          <div className="panel-title" style={{ margin: '18px 0 10px' }}>Favicon (browser tab)</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 6, border: '1px solid var(--line)', background: '#fff', display: 'grid', placeItems: 'center', overflow: 'hidden' }}>
+              {b.faviconUrl ? <img src={b.faviconUrl} alt="favicon" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ color: 'var(--muted)', fontSize: 10 }}>—</span>}
+            </div>
+            <input ref={faviconInput} type="file" accept="image/*" hidden onChange={(e) => pick('favicon', e.target.files?.[0])} />
+            <button className="tbtn" onClick={() => faviconInput.current?.click()}>Upload</button>
+            {b.faviconUrl && <button className="tbtn danger" onClick={() => set('faviconUrl', null)}>Remove</button>}
+          </div>
+          <p className="hint" style={{ marginTop: 14 }}>Best results: logo ~640px wide PNG (transparent), icon a 512×512 square, favicon a small square (32–64px). The phone’s home-screen launcher icon is set at build time and needs an app rebuild to change.</p>
         </div>
 
         <div className="panel">

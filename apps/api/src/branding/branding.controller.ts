@@ -33,6 +33,7 @@ export class BrandingController {
     }
     if (b?.logoUrl !== undefined) data.logoUrl = b.logoUrl || null;
     if (b?.iconUrl !== undefined) data.iconUrl = b.iconUrl || null;
+    if (b?.faviconUrl !== undefined) data.faviconUrl = b.faviconUrl || null;
     return this.prisma.branding.update({ where: { id: cur.id }, data });
   }
 }

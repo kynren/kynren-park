@@ -265,9 +265,10 @@ model Branding {
   tagline   String   @default("The Storied Lands")
   primary   String   @default("#8f1d21")
   accent    String   @default("#22b365")
-  logoUrl   String?  @db.Text
-  iconUrl   String?  @db.Text
-  updatedAt DateTime @updatedAt
+  logoUrl    String?  @db.Text
+  iconUrl    String?  @db.Text
+  faviconUrl String?  @db.Text
+  updatedAt  DateTime @updatedAt
 }
 
 model MapConfig {
