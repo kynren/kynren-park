@@ -81,7 +81,10 @@ export default function ProgramScreen() {
     return { start, end, hours };
   }, [sessions]);
 
-  const pos = (min: number) => (ruler ? ((min - ruler.start) / (ruler.end - ruler.start)) * trackW : 0);
+  // Spread the day across a wide, horizontally-scrollable track so every show
+  // time is readable (min 2.4px/min); falls back to the on-screen width.
+  const contentW = ruler ? Math.max(trackW, Math.round((ruler.end - ruler.start) * 2.4)) : trackW;
+  const pos = (min: number) => (ruler ? ((min - ruler.start) / (ruler.end - ruler.start)) * contentW : 0);
 
   // Order: day attractions by sortOrder (numbered like the map), then evening show.
   const rows = useMemo(() => {
@@ -129,13 +132,17 @@ export default function ProgramScreen() {
             <ClockIcon color={pal.text} />
           </View>
           <View style={styles.rulerTrack} onLayout={(e: LayoutChangeEvent) => setTrackW(e.nativeEvent.layout.width)}>
-            <View style={[styles.rulerBase, { backgroundColor: pal.rule }]} />
-            {ruler.hours.map((h) => (
-              <View key={h} style={[styles.tick, { left: pos(h) }]}>
-                <View style={[styles.tickMark, { backgroundColor: pal.rule }]} />
-                <Text style={[styles.tickTxt, { color: pal.ruleText }]}>{h / 60}h</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} scrollEnabled={contentW > trackW}>
+              <View style={{ width: contentW, height: 34 }}>
+                <View style={[styles.rulerBase, { backgroundColor: pal.rule }]} />
+                {ruler.hours.map((h) => (
+                  <View key={h} style={[styles.tick, { left: pos(h) }]}>
+                    <View style={[styles.tickMark, { backgroundColor: pal.rule }]} />
+                    <Text style={[styles.tickTxt, { color: pal.ruleText }]}>{h / 60}h</Text>
+                  </View>
+                ))}
               </View>
-            ))}
+            </ScrollView>
           </View>
         </View>
       )}
@@ -155,6 +162,7 @@ export default function ProgramScreen() {
             pal={pal}
             pos={pos}
             trackW={trackW}
+            contentW={contentW}
             bg={idx % 2 === 0 ? pal.rowA : pal.rowB}
             onPress={() => router.push(`/attraction/${r.a.slug}`)}
           />
@@ -165,7 +173,7 @@ export default function ProgramScreen() {
 }
 
 function ProgramRow({
-  attraction, badge, sessions, pal, pos, trackW, bg, onPress,
+  attraction, badge, sessions, pal, pos, trackW, contentW, bg, onPress,
 }: {
   attraction: Attraction;
   badge: string;
@@ -173,6 +181,7 @@ function ProgramRow({
   pal: ReturnType<typeof usePalette>;
   pos: (min: number) => number;
   trackW: number;
+  contentW: number;
   bg: string;
   onPress: () => void;
 }) {
@@ -211,38 +220,37 @@ function ProgramRow({
         </View>
       </View>
 
-      {/* Timeline track */}
+      {/* Timeline track — horizontally scrollable; the show icon above stays put. */}
       <View style={styles.trackRow}>
-        {continuous ? (
-          (() => {
-            const a = sessions[0]!, b = sessions[sessions.length - 1]!;
-            const x1 = pos(minsUTC(a.revisedStart ?? a.startTime));
-            const x2 = pos(minsUTC(b.endTime));
-            const left = Math.max(0, Math.min(x1, trackW - 60));
-            const width = Math.max(40, Math.min(x2, trackW) - left);
-            return (
-              <View style={{ position: 'absolute', left }}>
-                <Text style={[styles.timeLbl, { color: pal.label }]}>From {fmtTime(a.startTime)} to {fmtTime(b.endTime)}</Text>
-                <View style={[styles.lozenge, { width, backgroundColor: pal.pill }]} />
-              </View>
-            );
-          })()
-        ) : (
-          sessions.map((s) => {
-            const startMin = minsUTC(s.revisedStart ?? s.startTime);
-            const durSpan = Math.max(10, minsUTC(s.endTime) - startMin);
-            const x = pos(startMin);
-            const pw = Math.max(22, Math.min(pos(startMin + durSpan) - x, 70));
-            const left = Math.max(0, Math.min(x, trackW - Math.max(pw, 42)));
-            const cancelled = s.status === 'CANCELLED';
-            return (
-              <View key={s.id} style={{ position: 'absolute', left }}>
-                <Text style={[styles.timeLbl, { color: cancelled ? theme.danger : pal.label }]}>{fmtTime(s.revisedStart ?? s.startTime)}</Text>
-                <View style={[styles.lozenge, { width: pw, backgroundColor: cancelled ? theme.danger : pal.pill, opacity: cancelled ? 0.5 : 1 }]} />
-              </View>
-            );
-          })
-        )}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} scrollEnabled={contentW > trackW} contentContainerStyle={{ width: contentW, height: 40 }}>
+          {continuous ? (
+            (() => {
+              const a = sessions[0]!, b = sessions[sessions.length - 1]!;
+              const left = Math.max(0, pos(minsUTC(a.revisedStart ?? a.startTime)));
+              const width = Math.max(40, pos(minsUTC(b.endTime)) - left);
+              return (
+                <View style={{ position: 'absolute', left }}>
+                  <Text style={[styles.timeLbl, { color: pal.label }]} numberOfLines={1}>From {fmtTime(a.startTime)} to {fmtTime(b.endTime)}</Text>
+                  <View style={[styles.lozenge, { width, backgroundColor: pal.pill }]} />
+                </View>
+              );
+            })()
+          ) : (
+            sessions.map((s) => {
+              const startMin = minsUTC(s.revisedStart ?? s.startTime);
+              const durSpan = Math.max(10, minsUTC(s.endTime) - startMin);
+              const x = pos(startMin);
+              const pw = Math.max(30, Math.min(pos(startMin + durSpan) - x, 120));
+              const cancelled = s.status === 'CANCELLED';
+              return (
+                <View key={s.id} style={{ position: 'absolute', left: Math.max(0, x) }}>
+                  <Text style={[styles.timeLbl, { color: cancelled ? theme.danger : pal.label }]} numberOfLines={1}>{fmtTime(s.revisedStart ?? s.startTime)}</Text>
+                  <View style={[styles.lozenge, { width: pw, backgroundColor: cancelled ? theme.danger : pal.pill, opacity: cancelled ? 0.5 : 1 }]} />
+                </View>
+              );
+            })
+          )}
+        </ScrollView>
       </View>
     </Touchable>
   );

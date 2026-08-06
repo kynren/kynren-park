@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Animated, Image, TextInput, Keyboard, ScrollView, type LayoutChangeEvent } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Animated, Image, TextInput, Keyboard, ScrollView, Dimensions, type LayoutChangeEvent } from 'react-native';
 import Reanimated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -98,7 +98,9 @@ export default function MapScreen() {
   const appliedFocus = useRef<string | null>(null);
   const [favs, setFavs] = useState<Set<string>>(new Set());
   const [gps, setGps] = useState<{ lat: number; lng: number } | null>(null);
-  const [vp, setVp] = useState({ w: 0, h: 0 });
+  // Seed from the real window size so the map fills the screen from the first
+  // frame (never leaving a green margin before onLayout measures precisely).
+  const [vp, setVp] = useState(() => { const d = Dimensions.get('window'); return { w: d.width, h: d.height }; });
   const pulse = useRef(new Animated.Value(0)).current;
 
   // Pan/zoom live on the UI thread as reanimated shared values → native-smooth.
@@ -111,8 +113,9 @@ export default function MapScreen() {
   const vpw = useSharedValue(375);
   const vph = useSharedValue(680);
 
-  const vw = vp.w || 375;
-  const vh = vp.h || 680;
+  const win = Dimensions.get('window');
+  const vw = vp.w || win.width;
+  const vh = vp.h || win.height;
   const markerColor = bundle?.mapConfig?.markerColor ?? '#1a73e8';
   const mapImageUrl = bundle?.defaultMap?.imageUrl || bundle?.mapConfig?.mapImageUrl || null;
 
@@ -314,7 +317,7 @@ export default function MapScreen() {
     if (!pendingSelect || vw === 0) return;
     const pin = pins.find((p) => p.id === pendingSelect);
     if (!pin) return;
-    setSelected(pin);
+    // Centre on the result, but don't open the popup — it appears only on a tap.
     const s = 2.4;
     const c = clampPanJS((vw / 2 - pin.x) * s, (vh / 2 - pin.y) * s, s);
     animateTo(s, c.x, c.y);
@@ -347,7 +350,6 @@ export default function MapScreen() {
     const pin = pins.find((p) => p.id === params.focus);
     if (!pin) return;
     appliedFocus.current = params.focus;
-    setSelected(pin);
     const s = 2.2;
     const c = clampPanJS((vw / 2 - pin.x) * s, (vh / 2 - pin.y) * s, s);
     animateTo(s, c.x, c.y);
@@ -412,7 +414,7 @@ export default function MapScreen() {
                   </View>
                   <View style={[styles.pinTail, { borderTopColor: '#2c3e70' }]} />
                   {pin.nextTime && (
-                    <View style={styles.pinTime}><Text style={styles.pinTimeTxt}>{fmtTime(pin.nextTime)}</Text></View>
+                    <View style={styles.pinTime}><Text style={styles.pinTimeTxt} numberOfLines={1}>{fmtTime(pin.nextTime)}</Text></View>
                   )}
                 </Pressable>
               );
@@ -444,7 +446,7 @@ export default function MapScreen() {
                 </View>
                 <View style={styles.pinTail} />
                 {pin.nextTime && (
-                  <View style={styles.pinTime}><Text style={styles.pinTimeTxt}>{fmtTime(pin.nextTime)}</Text></View>
+                  <View style={styles.pinTime}><Text style={styles.pinTimeTxt} numberOfLines={1}>{fmtTime(pin.nextTime)}</Text></View>
                 )}
               </Pressable>
             );
@@ -707,7 +709,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: GRASS },
   viewport: { flex: 1, overflow: 'hidden', backgroundColor: GRASS },
   canvas: { position: 'absolute', left: 0, top: 0 },
-  pinWrap: { position: 'absolute', alignItems: 'center', width: 40, marginLeft: -20, marginTop: -46 },
+  pinWrap: { position: 'absolute', alignItems: 'center', width: 60, marginLeft: -30, marginTop: -46 },
   pinHead: { width: 36, height: 36, borderRadius: 18, backgroundColor: theme.brand, alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: '#fff', overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3, shadowOffset: { width: 0, height: 2 }, elevation: 5 },
   pinImg: { width: '100%', height: '100%' },
   pinEvening: { backgroundColor: '#2c3e70' },
