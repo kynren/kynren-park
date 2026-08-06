@@ -15,6 +15,7 @@ export interface Poi {
   mapZone?: string | null;
   color?: string | null;
   icon?: string | null;
+  image?: string | null;
 }
 export interface MapConfig {
   markerColor: string;
@@ -58,7 +59,10 @@ export interface MenuItem { id: string; name: string; description?: string | nul
 export interface Restaurant { id: string; slug: string; name: string; cuisine?: string | null; openingHours?: string | null; menuItems: MenuItem[]; poiId?: string | null; }
 export interface TicketType { id: string; name: string; category: string; priceCents: number; description?: string | null; }
 export interface ContentPage { id: string; slug: string; title: string; body: string; category?: string | null; }
-export interface Announcement { id: string; title: string; body: string; createdAt: string; }
+export interface Announcement {
+  id: string; title: string; body: string; createdAt: string;
+  sentAt?: string | null; startAt?: string | null; endAt?: string | null; recurrence?: string;
+}
 
 export interface Bundle {
   date: string;

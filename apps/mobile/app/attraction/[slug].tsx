@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
-import { ScrollView, View, Text, StyleSheet, Pressable, Image } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, Image } from 'react-native';
+import { Touchable } from '../../components/Touchable';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { useSync } from '../../lib/sync';
@@ -86,17 +87,17 @@ export default function AttractionDetail() {
               <Text style={styles.heroFallback}>{attraction.name}</Text>
             </View>
           )}
-          <Pressable style={[styles.backBtn, { top: insets.top + 8 }]} onPress={() => router.back()}>
+          <Touchable style={[styles.backBtn, { top: insets.top + 8 }]} onPress={() => router.back()}>
             <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><Path d="M15 5l-7 7 7 7" /></Svg>
-          </Pressable>
+          </Touchable>
         </View>
 
         {/* Title block */}
         <View style={styles.pad}>
           <View style={styles.titleRow}>
-            <Pressable onPress={toggleFavorite} hitSlop={8}>
+            <Touchable onPress={toggleFavorite} hitSlop={8}>
               <Star filled={favorite} color={favorite ? theme.brand : pal.sub} />
-            </Pressable>
+            </Touchable>
             <Text style={[styles.title, { color: pal.text }]}>{attraction.name}</Text>
           </View>
           <Text style={[styles.place, { color: pal.sub }]}>Kynren – The Storied Lands</Text>
@@ -130,12 +131,12 @@ export default function AttractionDetail() {
 
         {/* Find on Map */}
         <Divider color={pal.line} />
-        <Pressable style={styles.findMap} onPress={() => router.push(`/map?focus=${attraction.id}`)}>
+        <Touchable style={styles.findMap} onPress={() => router.push(`/map?focus=${attraction.id}`)}>
           <Svg width={30} height={30} viewBox="0 0 24 24" fill="none" stroke={pal.text} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
             <Path d="M9 4 4 6v14l5-2 6 2 5-2V4l-5 2-6-2Z" /><Path d="M9 4v14M15 6v14" />
           </Svg>
           <Text style={[styles.findMapTxt, { color: pal.text }]}>Find on Map</Text>
-        </Pressable>
+        </Touchable>
 
         {/* Duration / suitability */}
         <Divider color={pal.line} />
@@ -151,10 +152,10 @@ export default function AttractionDetail() {
 
         {/* Accessibility (expandable) */}
         <Divider color={pal.line} />
-        <Pressable style={[styles.pad, styles.accessHead]} onPress={() => setShowAccess((v) => !v)}>
+        <Touchable style={[styles.pad, styles.accessHead]} onPress={() => setShowAccess((v) => !v)}>
           <Text style={[styles.accessTitle, { color: pal.link }]}>Accessibility &amp; Other Information</Text>
           <Text style={{ color: pal.link, fontSize: 14 }}>{showAccess ? '▲' : '▼'}</Text>
-        </Pressable>
+        </Touchable>
         {showAccess && (
           <View style={styles.pad}>
             {access.length > 0 ? access.map((a) => <Text key={a} style={[styles.accessItem, { color: pal.text }]}>{a}</Text>) : <Text style={{ color: pal.sub }}>No specific accessibility features listed.</Text>}
@@ -171,9 +172,9 @@ export default function AttractionDetail() {
 
         {/* Mark as seen */}
         <View style={[styles.pad, { marginTop: 18 }]}>
-          <Pressable style={[styles.seenBtn, { borderColor: seen ? theme.ok : pal.line }]} onPress={markSeen}>
+          <Touchable style={[styles.seenBtn, { borderColor: seen ? theme.ok : pal.line }]} onPress={markSeen}>
             <Text style={[styles.seenTxt, { color: seen ? theme.ok : pal.text }]}>{seen ? '✓ Seen it' : 'Mark as seen'}</Text>
-          </Pressable>
+          </Touchable>
         </View>
       </ScrollView>
     </View>

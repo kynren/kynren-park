@@ -1,4 +1,5 @@
-import { ScrollView, Text, Pressable, View, StyleSheet } from 'react-native';
+import { ScrollView, Text, View, StyleSheet } from 'react-native';
+import { Touchable } from '../components/Touchable';
 import { useI18n, LOCALES } from '../lib/i18n';
 import { theme } from '../lib/theme';
 
@@ -12,11 +13,11 @@ export default function LanguageScreen() {
         {LOCALES.map((l) => {
           const active = locale === l.code;
           return (
-            <Pressable key={l.code} style={[styles.row, active && styles.rowOn]} onPress={() => setLocale(l.code)}>
+            <Touchable key={l.code} style={[styles.row, active && styles.rowOn]} onPress={() => setLocale(l.code)}>
               <Text style={styles.flag}>{l.flag}</Text>
               <Text style={[styles.label, active && { fontWeight: '800', color: theme.brand }]}>{l.label}</Text>
               {active && <Text style={styles.check}>✓</Text>}
-            </Pressable>
+            </Touchable>
           );
         })}
       </View>

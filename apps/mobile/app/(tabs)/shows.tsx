@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
-import { ScrollView, View, Text, StyleSheet, Pressable, Image, Dimensions, type LayoutChangeEvent } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, Image, Dimensions, type LayoutChangeEvent } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Touchable } from '../../components/Touchable';
 import { useRouter } from 'expo-router';
 import Svg, { Circle, Polyline, Line } from 'react-native-svg';
 import { useSync, type Attraction, type Session } from '../../lib/sync';
@@ -43,6 +45,7 @@ function ClockIcon({ color, size = 20 }: { color: string; size?: number }) {
 export default function ProgramScreen() {
   const { bundle, date, setDate } = useSync();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const pal = usePalette();
   const [trackW, setTrackW] = useState(Dimensions.get('window').width - HPAD * 2);
 
@@ -93,30 +96,30 @@ export default function ProgramScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: pal.screen }]}>
       {/* Custom top bar */}
-      <View style={[styles.topBar, { backgroundColor: pal.header }]}>
+      <View style={[styles.topBar, { backgroundColor: pal.header, paddingTop: insets.top + 8 }]}>
         <Text style={styles.brand}>KYNREN</Text>
         <View style={{ flexDirection: 'row', gap: 6 }}>
-          <Pressable onPress={() => router.push('/notifications')} hitSlop={8} style={styles.avatar}>
+          <Touchable onPress={() => router.push('/notifications')} hitSlop={8} style={styles.avatar}>
             <Text style={{ fontSize: 16 }}>🔔</Text>
-          </Pressable>
-          <Pressable onPress={() => router.push('/settings')} hitSlop={8} style={styles.avatar}>
+          </Touchable>
+          <Touchable onPress={() => router.push('/settings')} hitSlop={8} style={styles.avatar}>
             <Text style={{ fontSize: 16 }}>👤</Text>
-          </Pressable>
+          </Touchable>
         </View>
       </View>
 
       {/* Date selector */}
       <View style={[styles.dateRow, { backgroundColor: pal.screen }]}>
-        <Pressable onPress={() => setDate(shiftDate(date, -1))} hitSlop={12} style={styles.dateArrow}>
+        <Touchable onPress={() => setDate(shiftDate(date, -1))} hitSlop={12} style={styles.dateArrow}>
           <Text style={[styles.dateArrowTxt, { color: pal.sub }]}>‹</Text>
-        </Pressable>
+        </Touchable>
         <View style={{ alignItems: 'center' }}>
           <Text style={[styles.dateTxt, { color: pal.text }]}>{fmtDate(date)}</Text>
           <View style={styles.dateUnderline} />
         </View>
-        <Pressable onPress={() => setDate(shiftDate(date, 1))} hitSlop={12} style={styles.dateArrow}>
+        <Touchable onPress={() => setDate(shiftDate(date, 1))} hitSlop={12} style={styles.dateArrow}>
           <Text style={[styles.dateArrowTxt, { color: pal.text }]}>›</Text>
-        </Pressable>
+        </Touchable>
       </View>
 
       {/* Shared time ruler */}
@@ -177,7 +180,7 @@ function ProgramRow({
   const isNew = attraction.sortOrder >= 90; // convention: high sortOrder flags "new" attractions
 
   return (
-    <Pressable style={[styles.row, { backgroundColor: bg }]} onPress={onPress}>
+    <Touchable style={[styles.row, { backgroundColor: bg }]} onPress={onPress}>
       <View style={styles.rowHead}>
         <View style={styles.thumbWrap}>
           {attraction.heroImage ? (
@@ -241,7 +244,7 @@ function ProgramRow({
           })
         )}
       </View>
-    </Pressable>
+    </Touchable>
   );
 }
 

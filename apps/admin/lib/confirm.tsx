@@ -2,36 +2,76 @@
 
 import { useEffect, useState } from 'react';
 
-type Resolver = (ok: boolean) => void;
-let openFn: ((message: string, title: string, resolve: Resolver) => void) | null = null;
+type Req =
+  | { kind: 'confirm'; title: string; message: string; resolve: (ok: boolean) => void }
+  | { kind: 'prompt'; title: string; message: string; def: string; resolve: (v: string | null) => void };
+
+let openFn: ((req: Req) => void) | null = null;
 
 /** Show a delete-confirmation popup; resolves true if the user confirms. */
 export function confirmDelete(message = 'This action cannot be undone.', title = 'Delete?'): Promise<boolean> {
   return new Promise((resolve) => {
-    if (openFn) openFn(message, title, resolve);
+    if (openFn) openFn({ kind: 'confirm', title, message, resolve });
     else resolve(typeof window !== 'undefined' ? window.confirm(`${title}\n\n${message}`) : false);
   });
 }
 
-/** Mount once (in the dashboard layout) to render the styled confirmation modal. */
+/** In-app replacement for window.prompt() (which Next/the sandbox block). */
+export function promptText(message: string, def = '', title = ''): Promise<string | null> {
+  return new Promise((resolve) => {
+    if (openFn) openFn({ kind: 'prompt', title: title || message, message: title ? message : '', def, resolve });
+    else resolve(null);
+  });
+}
+
+/** Mount once (in the dashboard layout) to render confirm + prompt dialogs. */
 export function ConfirmHost() {
-  const [state, setState] = useState<{ message: string; title: string; resolve: Resolver } | null>(null);
+  const [req, setReq] = useState<Req | null>(null);
+  const [value, setValue] = useState('');
   useEffect(() => {
-    openFn = (message, title, resolve) => setState({ message, title, resolve });
+    openFn = (r) => { setReq(r); if (r.kind === 'prompt') setValue(r.def); };
     return () => { openFn = null; };
   }, []);
-  if (!state) return null;
-  const done = (ok: boolean) => { state.resolve(ok); setState(null); };
-  return (
-    <div className="modal-back" onClick={(e) => e.target === e.currentTarget && done(false)}>
-      <div className="modal" style={{ width: 380 }}>
-        <h2 style={{ marginBottom: 8 }}>{state.title}</h2>
-        <p style={{ color: 'var(--muted)', margin: 0, lineHeight: 1.5 }}>{state.message}</p>
+  if (!req) return null;
+
+  const shell = (children: React.ReactNode, onBackdrop: () => void) => (
+    <div className="modal-back" style={{ background: 'transparent' }} onClick={(e) => e.target === e.currentTarget && onBackdrop()}>
+      <div className="modal" style={{ width: 400, boxShadow: '0 12px 40px rgba(20,25,40,0.28)' }}>{children}</div>
+    </div>
+  );
+
+  if (req.kind === 'confirm') {
+    const done = (ok: boolean) => { req.resolve(ok); setReq(null); };
+    return shell(
+      <>
+        <h2 style={{ marginBottom: 8 }}>{req.title}</h2>
+        <p style={{ color: 'var(--muted)', margin: 0, lineHeight: 1.5 }}>{req.message}</p>
         <div className="modal-foot">
           <button className="btn-ghost" onClick={() => done(false)}>Cancel</button>
           <button className="primary" style={{ background: 'var(--danger)' }} onClick={() => done(true)}>Delete</button>
         </div>
+      </>,
+      () => done(false),
+    );
+  }
+
+  const done = (v: string | null) => { req.resolve(v); setReq(null); };
+  return shell(
+    <>
+      <h2 style={{ marginBottom: 8 }}>{req.title}</h2>
+      {req.message ? <p style={{ color: 'var(--muted)', margin: '0 0 12px', lineHeight: 1.5 }}>{req.message}</p> : null}
+      <input
+        autoFocus
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') done(value); if (e.key === 'Escape') done(null); }}
+        style={{ width: '100%' }}
+      />
+      <div className="modal-foot">
+        <button className="btn-ghost" onClick={() => done(null)}>Cancel</button>
+        <button className="primary" onClick={() => done(value)}>OK</button>
       </div>
-    </div>
+    </>,
+    () => done(null),
   );
 }

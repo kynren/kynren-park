@@ -216,6 +216,7 @@ model PointOfInterest {
   mapZone    String?
   icon       String?
   color      String? // hotspot marker colour (admin-editable)
+  image      String? // optional image shown inside the marker
   attraction Attraction?
   restaurant Restaurant?
   createdAt  DateTime    @default(now())
@@ -440,6 +441,9 @@ model Announcement {
   deepLink    String?
   scheduledAt DateTime?
   sentAt      DateTime?
+  startAt     DateTime? // active-from (when it becomes "due" in the app)
+  endAt       DateTime? // active-to (expires)
+  recurrence  String    @default("none") // none | daily | weekly
   createdBy   String?
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt

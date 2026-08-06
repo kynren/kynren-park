@@ -1,9 +1,11 @@
 import { Tabs } from 'expo-router';
-import { Text, Pressable, View, StyleSheet } from 'react-native';
+import { Text, View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Line, Rect, Circle, Polyline } from 'react-native-svg';
 import { theme } from '../../lib/theme';
 import { useThemePref } from '../../lib/theme-context';
+import { Touchable } from '../../components/Touchable';
+import { selection } from '../../lib/haptics';
 
 // The bottom bar adapts to the app theme: the dark bar is dark mode,
 // a light bar in light mode.
@@ -114,7 +116,7 @@ function KynrenTabBar({ state, navigation }: { state: any; navigation: any }) {
     if (!route) return;
     const focused = current === name;
     const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-    if (!focused && !event.defaultPrevented) navigation.navigate(name);
+    if (!focused && !event.defaultPrevented) { selection(); navigation.navigate(name); }
   };
 
   return (
@@ -123,21 +125,21 @@ function KynrenTabBar({ state, navigation }: { state: any; navigation: any }) {
         const active = current === item.name;
         if (item.center) {
           return (
-            <Pressable key={item.name} style={styles.item} onPress={() => go(item.name)}>
+            <Touchable key={item.name} style={styles.item} haptic="none" noRipple onPress={() => go(item.name)}>
               <View style={[styles.fab, { backgroundColor: pal.fabBg, borderColor: pal.fabBorder }]}>
                 <TicketIcon color={active ? pal.activeIcon : pal.fabInactive} size={30} bg={pal.fabBg} />
               </View>
               <Text style={[styles.label, { color: active ? pal.activeLabel : pal.inactive }, active && styles.labelActive]}>{item.label}</Text>
-            </Pressable>
+            </Touchable>
           );
         }
         return (
-          <Pressable key={item.name} style={styles.item} onPress={() => go(item.name)}>
+          <Touchable key={item.name} style={styles.item} haptic="none" noRipple scaleTo={0.9} onPress={() => go(item.name)}>
             <View style={[styles.iconWrap, active && { backgroundColor: pal.pill }]}>
               <item.Icon color={active ? pal.activeIcon : pal.inactive} size={23} />
             </View>
             <Text style={[styles.label, { color: active ? pal.activeLabel : pal.inactive }, active && styles.labelActive]}>{item.label}</Text>
-          </Pressable>
+          </Touchable>
         );
       })}
     </View>

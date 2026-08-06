@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ScrollView, View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { ScrollView, View, Text, TextInput, StyleSheet, ActivityIndicator } from 'react-native';
+import { Touchable } from '../components/Touchable';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../lib/auth';
 import { theme } from '../lib/theme';
@@ -62,22 +63,22 @@ export default function AuthScreen() {
       <Text style={styles.label}>Password</Text>
       <View style={styles.pwWrap}>
         <TextInput style={[styles.input, styles.pwInput]} value={password} onChangeText={setPassword} placeholder="At least 8 characters" secureTextEntry={!showPw} autoCapitalize="none" autoCorrect={false} />
-        <Pressable style={styles.pwToggle} onPress={() => setShowPw((v) => !v)} hitSlop={8}>
+        <Touchable style={styles.pwToggle} onPress={() => setShowPw((v) => !v)} hitSlop={8}>
           <Text style={styles.pwToggleTxt}>{showPw ? 'Hide' : 'Show'}</Text>
-        </Pressable>
+        </Touchable>
       </View>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      <Pressable style={styles.cta} onPress={submit} disabled={loading}>
+      <Touchable style={styles.cta} onPress={submit} disabled={loading}>
         {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.ctaText}>{mode === 'login' ? 'Sign in' : 'Create account'}</Text>}
-      </Pressable>
+      </Touchable>
 
-      <Pressable onPress={() => setMode(mode === 'login' ? 'register' : 'login')} style={{ marginTop: 16 }}>
+      <Touchable onPress={() => setMode(mode === 'login' ? 'register' : 'login')} style={{ marginTop: 16 }}>
         <Text style={styles.switch}>
           {mode === 'login' ? 'New here? Create an account' : 'Already have an account? Sign in'}
         </Text>
-      </Pressable>
+      </Touchable>
     </ScrollView>
   );
 }

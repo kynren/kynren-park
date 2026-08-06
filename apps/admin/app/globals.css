@@ -17,6 +17,8 @@
 }
 
 * { box-sizing: border-box; }
+/* Wrap all text so nothing overflows or gets clipped. */
+* { overflow-wrap: anywhere; word-break: break-word; }
 /* Hide scrollbars everywhere while keeping scroll functional. */
 * { scrollbar-width: none; -ms-overflow-style: none; }
 *::-webkit-scrollbar { width: 0; height: 0; display: none; }
@@ -56,7 +58,7 @@ a { color: var(--green); text-decoration: none; }
 .nav-foot { display: flex; flex-direction: column; gap: 4px; }
 
 .main { flex: 1; padding: 24px 30px 0; max-width: 1500px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
-.main-scroll { flex: 1; overflow-y: auto; padding-bottom: 36px; }
+.main-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; padding-bottom: 36px; min-width: 0; }
 /* Sticky System header + tabs so they stay put while content scrolls. */
 .sys-head { position: sticky; top: 0; z-index: 6; background: var(--app-bg); padding-top: 2px; }
 
@@ -263,14 +265,18 @@ button.primary:hover { filter: brightness(0.95); }
 .rowline:last-child { border-bottom: 0; }
 
 /* ---- Map & Hotspots editor ---- */
-.mapedit { display: grid; grid-template-columns: 1fr 330px; gap: 18px; align-items: start; }
+.mapedit { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 330px); gap: 18px; align-items: start; }
+.mapedit > * { min-width: 0; }
+.editcard { min-width: 0; }
+.editcard input, .editcard select, .editcard textarea { min-width: 0; max-width: 100%; }
 @media (max-width: 1000px) { .mapedit { grid-template-columns: 1fr; } }
 .mapcanvas { position: relative; width: 100%; aspect-ratio: 7 / 5; border-radius: 16px; overflow: hidden; cursor: crosshair; user-select: none; touch-action: none;
   background:
     radial-gradient(120px 90px at 70% 30%, #a9d3e8 0 60%, transparent 62%),
     linear-gradient(160deg, #b7d78f, #9ec473); }
 .mapcanvas .grid { position: absolute; inset: 0; background-image: linear-gradient(#ffffff22 1px, transparent 1px), linear-gradient(90deg, #ffffff22 1px, transparent 1px); background-size: 40px 40px; pointer-events: none; }
-.hot { position: absolute; transform: translate(-50%, -50%); width: 22px; height: 22px; border-radius: 50%; border: 2.5px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35); cursor: grab; display: grid; place-items: center; color: #fff; font-size: 10px; font-weight: 800; }
+.hot { position: absolute; transform: translate(-50%, -50%); width: 26px; height: 26px; border-radius: 50%; border: 2.5px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35); cursor: grab; display: grid; place-items: center; color: #fff; font-size: 10px; font-weight: 800; overflow: hidden; }
+.hot img { width: 100%; height: 100%; object-fit: cover; }
 .hot.sel { outline: 3px solid #6d5df6; outline-offset: 2px; }
 .hot:active { cursor: grabbing; }
 .hotlabel { position: absolute; transform: translate(-50%, 6px); font-size: 10.5px; font-weight: 700; color: #14321f; background: rgba(255,255,255,0.82); padding: 1px 5px; border-radius: 5px; white-space: nowrap; pointer-events: none; }
