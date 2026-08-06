@@ -9,6 +9,7 @@ import path from 'node:path';
 
 const BRAND = [0x8f, 0x1d, 0x21]; // Kynren red
 const WHITE = [0xff, 0xff, 0xff];
+const RED = [0xe1, 0x1d, 0x2b]; // bright cross red
 
 const CRC_TABLE = (() => {
   const t = new Uint32Array(256);
@@ -75,6 +76,36 @@ function draw({ size, bg, mark = WHITE, transparent = false, markScale = 0.42 })
   return encodePng(size, size, rgba);
 }
 
+// Draw a bold "+" cross (the Kynren mark), centred, with lightly rounded tips.
+function drawPlus({ size, bg, plus = RED, transparent = false, armFrac = 0.32, thickFrac = 0.11 }) {
+  const rgba = Buffer.alloc(size * size * 4);
+  const cx = (size - 1) / 2, cy = (size - 1) / 2;
+  const arm = size * armFrac; // half-length of each arm from centre
+  const thick = size * thickFrac; // half-thickness of each bar
+  const tipR = thick * 0.5; // rounding radius at the four arm tips
+  const inBar = (a, b, half, len) => {
+    // Rounded-end bar: |a| within half-thickness, |b| within len; round the tip.
+    if (a > half || b > len) return false;
+    if (b > len - tipR && a > half - tipR) {
+      return Math.hypot(a - (half - tipR), b - (len - tipR)) <= tipR;
+    }
+    return true;
+  };
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const i = (y * size + x) * 4;
+      const dx = Math.abs(x - cx), dy = Math.abs(y - cy);
+      const inside = inBar(dx, dy, thick, arm) || inBar(dy, dx, thick, arm);
+      if (inside) {
+        rgba[i] = plus[0]; rgba[i + 1] = plus[1]; rgba[i + 2] = plus[2]; rgba[i + 3] = 255;
+      } else {
+        rgba[i] = bg[0]; rgba[i + 1] = bg[1]; rgba[i + 2] = bg[2]; rgba[i + 3] = transparent ? 0 : 255;
+      }
+    }
+  }
+  return encodePng(size, size, rgba);
+}
+
 const outDir = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
 const write = (name, buf) => {
   fs.writeFileSync(path.join(outDir, name), buf);
@@ -82,9 +113,10 @@ const write = (name, buf) => {
 };
 
 console.log('Generating brand assets:');
-write('icon.png', draw({ size: 1024, bg: BRAND }));
-write('adaptive-icon.png', draw({ size: 1024, bg: BRAND, markScale: 0.34 })); // safe area
-write('splash.png', draw({ size: 1242, bg: BRAND, markScale: 0.26 }));
-write('favicon.png', draw({ size: 48, bg: BRAND, markScale: 0.42 }));
-write('notification-icon.png', draw({ size: 96, bg: [0, 0, 0], mark: WHITE, transparent: true, markScale: 0.42 }));
+// Red cross on white — iOS icon (opaque) + Android adaptive foreground (transparent).
+write('icon.png', drawPlus({ size: 1024, bg: WHITE, plus: RED }));
+write('adaptive-icon.png', drawPlus({ size: 1024, bg: WHITE, plus: RED, transparent: true, armFrac: 0.24, thickFrac: 0.084 })); // safe area
+write('splash.png', drawPlus({ size: 1242, bg: WHITE, plus: RED, armFrac: 0.16, thickFrac: 0.056 }));
+write('favicon.png', drawPlus({ size: 48, bg: WHITE, plus: RED }));
+write('notification-icon.png', drawPlus({ size: 96, bg: [0, 0, 0], plus: WHITE, transparent: true }));
 console.log('Done.');

@@ -3,6 +3,7 @@ import { Alert, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
 import { AnnouncementMegaphone } from '../components/AnnouncementMegaphone';
+import { LoadingOverlay } from '../components/LoadingOverlay';
 import * as Notifications from 'expo-notifications';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { SyncProvider } from '../lib/sync';
@@ -69,6 +70,7 @@ function RootNav() {
         <Stack.Screen name="language" options={{ title: 'Language', presentation: 'modal' }} />
       </Stack>
       <AnnouncementMegaphone />
+      <LoadingOverlay />
     </View>
   );
 }

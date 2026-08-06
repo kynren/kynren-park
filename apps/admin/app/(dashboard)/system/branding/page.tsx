@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../../../../lib/api';
-import { DEFAULT_BRANDING, resizeToDataUrl, type Branding } from '../../../../lib/branding';
+import { DEFAULT_BRANDING, resizeToDataUrl, rawDataUrl, type Branding } from '../../../../lib/branding';
 
 export default function BrandingPage() {
   const [b, setB] = useState<Branding>(DEFAULT_BRANDING);
@@ -12,6 +12,18 @@ export default function BrandingPage() {
   const logoInput = useRef<HTMLInputElement>(null);
   const iconInput = useRef<HTMLInputElement>(null);
   const faviconInput = useRef<HTMLInputElement>(null);
+  const splashInput = useRef<HTMLInputElement>(null);
+  const splashType = b.splashType ?? 'none';
+
+  async function pickSplash(file?: File | null) {
+    if (!file) return;
+    try {
+      // Keep GIFs raw (resizing flattens the animation); resize plain photos.
+      const url = file.type === 'image/gif' ? await rawDataUrl(file) : await resizeToDataUrl(file, 1200);
+      setB((p) => ({ ...p, splashMediaUrl: url, splashType: file.type === 'image/gif' ? 'gif' : 'photo' }));
+      setSaved(false);
+    } catch { setError('Could not read that file.'); }
+  }
 
   useEffect(() => {
     api<Branding>('/branding').then((v) => setB({ ...DEFAULT_BRANDING, ...v })).catch(() => setError('Could not load branding.'));
@@ -32,7 +44,7 @@ export default function BrandingPage() {
     try {
       const next = await api<Branding>('/admin/branding', {
         method: 'PATCH',
-        body: JSON.stringify({ appName: b.appName, tagline: b.tagline, primary: b.primary, accent: b.accent, logoUrl: b.logoUrl ?? null, iconUrl: b.iconUrl ?? null, faviconUrl: b.faviconUrl ?? null }),
+        body: JSON.stringify({ appName: b.appName, tagline: b.tagline, primary: b.primary, accent: b.accent, logoUrl: b.logoUrl ?? null, iconUrl: b.iconUrl ?? null, faviconUrl: b.faviconUrl ?? null, splashType: b.splashType ?? 'none', splashMediaUrl: b.splashMediaUrl ?? null }),
       });
       setB({ ...DEFAULT_BRANDING, ...next });
       localStorage.setItem('kynren_branding', JSON.stringify(next));
@@ -102,6 +114,52 @@ export default function BrandingPage() {
             <div style={{ padding: 16, display: 'flex', gap: 10 }}>
               <span style={{ background: b.primary, color: '#fff', padding: '8px 16px', borderRadius: 999, fontWeight: 700, fontSize: 13 }}>{b.appName}</span>
               <span style={{ background: b.accent, color: '#fff', padding: '8px 16px', borderRadius: 999, fontWeight: 700, fontSize: 13 }}>Accent</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="panel" style={{ marginTop: 16 }}>
+        <div className="panel-title" style={{ marginBottom: 4 }}>App loading screen (mobile)</div>
+        <p className="subtitle" style={{ marginTop: 0 }}>Shown while the app opens — choose a photo, GIF or video. Plays muted, looping and cover-fit on both iOS and Android.</p>
+        <div className="grid-2">
+          <div>
+            <div className="form-row" style={{ marginBottom: 10 }}><label>Type</label>
+              <select value={splashType} onChange={(e) => set('splashType', e.target.value as Branding['splashType'])}>
+                <option value="none">None (default cross)</option>
+                <option value="photo">Photo</option>
+                <option value="gif">GIF</option>
+                <option value="video">Video</option>
+              </select>
+            </div>
+            {splashType !== 'none' && (
+              <>
+                <div className="form-row" style={{ marginBottom: 10 }}><label>Media URL {splashType === 'video' ? '(mp4 / HLS)' : '(or upload below)'}</label>
+                  <input value={b.splashMediaUrl ?? ''} onChange={(e) => set('splashMediaUrl', e.target.value)} placeholder="https://…" />
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {(splashType === 'photo' || splashType === 'gif') && (
+                    <>
+                      <input ref={splashInput} type="file" accept={splashType === 'gif' ? 'image/gif' : 'image/*'} hidden onChange={(e) => pickSplash(e.target.files?.[0])} />
+                      <button className="tbtn" onClick={() => splashInput.current?.click()}>Upload {splashType}</button>
+                    </>
+                  )}
+                  {b.splashMediaUrl && <button className="tbtn danger" onClick={() => set('splashMediaUrl', null)}>Remove</button>}
+                </div>
+              </>
+            )}
+            <p className="hint" style={{ marginTop: 14 }}>
+              Recommended — <b>Photo/GIF</b>: portrait 1080×1920 (9:16), under ~2&nbsp;MB. <b>Video</b>: MP4 (H.264 + AAC), 1080×1920, 3–6&nbsp;s, muted, under ~10&nbsp;MB — host it and paste the URL rather than uploading. The splash stays up ~1.6&nbsp;s minimum (never flashes) and caps at 6&nbsp;s.
+            </p>
+          </div>
+          <div>
+            <div className="panel-title" style={{ marginBottom: 10 }}>Phone preview</div>
+            <div style={{ width: 190, height: 340, margin: '0 auto', borderRadius: 24, overflow: 'hidden', border: '7px solid #111', background: '#000', display: 'grid', placeItems: 'center' }}>
+              {splashType === 'none' || !b.splashMediaUrl
+                ? <span style={{ color: '#888', fontSize: 12 }}>Default cross</span>
+                : splashType === 'video'
+                  ? <video src={b.splashMediaUrl} muted loop autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <img src={b.splashMediaUrl} alt="loading screen" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
             </div>
           </div>
         </div>

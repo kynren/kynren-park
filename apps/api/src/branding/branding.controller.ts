@@ -34,6 +34,8 @@ export class BrandingController {
     if (b?.logoUrl !== undefined) data.logoUrl = b.logoUrl || null;
     if (b?.iconUrl !== undefined) data.iconUrl = b.iconUrl || null;
     if (b?.faviconUrl !== undefined) data.faviconUrl = b.faviconUrl || null;
+    if (typeof b?.splashType === 'string' && ['none', 'photo', 'gif', 'video'].includes(b.splashType)) data.splashType = b.splashType;
+    if (b?.splashMediaUrl !== undefined) data.splashMediaUrl = b.splashMediaUrl || null;
     return this.prisma.branding.update({ where: { id: cur.id }, data });
   }
 }

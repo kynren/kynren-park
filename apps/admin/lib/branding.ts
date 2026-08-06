@@ -6,6 +6,7 @@ import { api } from './api';
 export interface Branding {
   appName: string; tagline: string; primary: string; accent: string;
   logoUrl?: string | null; iconUrl?: string | null; faviconUrl?: string | null;
+  splashType?: 'none' | 'photo' | 'gif' | 'video'; splashMediaUrl?: string | null;
 }
 export const DEFAULT_BRANDING: Branding = { appName: 'Kynren', tagline: 'The Storied Lands', primary: '#8f1d21', accent: '#22b365' };
 
@@ -24,6 +25,16 @@ export function useBranding(): Branding {
       .catch(() => undefined);
   }, []);
   return b;
+}
+
+/** Read a File as a data URL unchanged (keeps GIF animation; use for gifs/small media). */
+export function rawDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result as string);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
 }
 
 /** Resize an image File to a data URL (keeps aspect ratio, longest edge = maxDim). */

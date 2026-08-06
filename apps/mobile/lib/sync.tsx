@@ -35,6 +35,9 @@ export interface Branding {
   accent: string;
   logoUrl?: string | null;
   iconUrl?: string | null;
+  faviconUrl?: string | null;
+  splashType?: 'none' | 'photo' | 'gif' | 'video';
+  splashMediaUrl?: string | null;
 }
 export interface Attraction {
   id: string;

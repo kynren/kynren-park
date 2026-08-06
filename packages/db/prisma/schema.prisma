@@ -268,6 +268,10 @@ model Branding {
   logoUrl    String?  @db.Text
   iconUrl    String?  @db.Text
   faviconUrl String?  @db.Text
+  // In-app loading screen: type = none | photo | gif | video, media = data URL
+  // (photo/gif) or a hosted URL (recommended for video).
+  splashType     String  @default("none")
+  splashMediaUrl String? @db.Text
   updatedAt  DateTime @updatedAt
 }
 
