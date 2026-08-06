@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, View, Text, StyleSheet, RefreshControl, Pressable } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, RefreshControl } from 'react-native';
 import * as Speech from 'expo-speech';
 import { useSync, type Announcement } from '../lib/sync';
 import { api } from '../lib/api';
 import { theme } from '../lib/theme';
+import { Touchable } from '../components/Touchable';
 
 /** Is the announcement live right now (sent + inside its active window)? */
 function isLive(a: Announcement, now: number) {
@@ -80,9 +81,9 @@ export default function NotificationsScreen() {
               </View>
               <Text style={styles.time}>{new Date(a.sentAt ?? a.createdAt).toLocaleString('en-GB')}</Text>
               <Text style={styles.body}>{a.body}</Text>
-              <Pressable style={[styles.listen, speaking && styles.listenOn]} onPress={() => toggleSpeak(a)} hitSlop={6}>
+              <Touchable style={[styles.listen, speaking && styles.listenOn]} haptic="medium" onPress={() => toggleSpeak(a)} hitSlop={6}>
                 <Text style={[styles.listenTxt, speaking && styles.listenTxtOn]}>{speaking ? '■ Stop' : '🔊 Listen'}</Text>
-              </Pressable>
+              </Touchable>
             </View>
           );
         })

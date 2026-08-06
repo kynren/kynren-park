@@ -7,6 +7,10 @@ module.exports = function (api) {
     // resolve it via require.resolve and silently skips its expo-router
     // transform — which is what inlines EXPO_ROUTER_APP_ROOT for require.context.
     // Add that transform back explicitly so the router entry bundles.
-    plugins: [require('babel-preset-expo/build/expo-router-plugin').expoRouterBabelPlugin],
+    plugins: [
+      require('babel-preset-expo/build/expo-router-plugin').expoRouterBabelPlugin,
+      // react-native-reanimated's plugin MUST be listed last.
+      'react-native-reanimated/plugin',
+    ],
   };
 };

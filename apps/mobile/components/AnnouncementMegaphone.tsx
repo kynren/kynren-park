@@ -4,6 +4,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Speech from 'expo-speech';
 import { useSync, type Announcement } from '../lib/sync';
 import { theme } from '../lib/theme';
+import { Touchable } from './Touchable';
+import { tapMedium } from '../lib/haptics';
 
 const DISMISS_KEY = 'kynren_announce_dismissed';
 
@@ -68,7 +70,7 @@ export function AnnouncementMegaphone() {
     setSpeaking(true);
     Speech.speak(`${due.title}. ${due.body}`, { rate: 0.98, onDone: () => setSpeaking(false), onStopped: () => setSpeaking(false), onError: () => setSpeaking(false) });
   };
-  const openAndSpeak = () => { setOpen(true); speak(); };
+  const openAndSpeak = () => { tapMedium(); setOpen(true); speak(); };
   const dismiss = () => {
     Speech.stop(); setSpeaking(false); setOpen(false);
     setDismissed((prev) => {
@@ -92,15 +94,15 @@ export function AnnouncementMegaphone() {
           <Text style={styles.cardBody}>{due.body}</Text>
           <View style={styles.cardActions}>
             {speaking ? (
-              <Pressable style={styles.playBtn} onPress={() => { Speech.stop(); setSpeaking(false); }}>
+              <Touchable style={styles.playBtn} haptic="medium" onPress={() => { Speech.stop(); setSpeaking(false); }}>
                 <Text style={styles.playTxt}>■ Stop</Text>
-              </Pressable>
+              </Touchable>
             ) : (
-              <Pressable style={styles.playBtn} onPress={speak}>
+              <Touchable style={styles.playBtn} haptic="medium" onPress={speak}>
                 <Text style={styles.playTxt}>🔊 Play again</Text>
-              </Pressable>
+              </Touchable>
             )}
-            <Pressable style={styles.dismissBtn} onPress={dismiss}><Text style={styles.dismissTxt}>Dismiss</Text></Pressable>
+            <Touchable style={styles.dismissBtn} onPress={dismiss}><Text style={styles.dismissTxt}>Dismiss</Text></Touchable>
           </View>
         </View>
       )}

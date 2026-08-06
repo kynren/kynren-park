@@ -1,5 +1,6 @@
 import { Stack } from 'expo-router';
 import { Alert, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
 import { AnnouncementMegaphone } from '../components/AnnouncementMegaphone';
 import * as Notifications from 'expo-notifications';
@@ -74,16 +75,18 @@ function RootNav() {
 
 export default function RootLayout() {
   return (
-    <SafeAreaProvider>
-      <I18nProvider>
-        <AuthProvider>
-          <SyncProvider>
-            <ThemeProvider>
-              <RootNav />
-            </ThemeProvider>
-          </SyncProvider>
-        </AuthProvider>
-      </I18nProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <I18nProvider>
+          <AuthProvider>
+            <SyncProvider>
+              <ThemeProvider>
+                <RootNav />
+              </ThemeProvider>
+            </SyncProvider>
+          </AuthProvider>
+        </I18nProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
