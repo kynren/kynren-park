@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, View, Text, StyleSheet, Pressable } from 'react-native';
+import { ScrollView, View, Text, StyleSheet } from 'react-native';
+import { Touchable } from '../components/Touchable';
 import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Path, Circle } from 'react-native-svg';
@@ -95,9 +96,9 @@ export default function RestaurantsScreen() {
     <View style={[styles.screen, { backgroundColor: pal.screen }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.topRow}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
+        <Touchable onPress={() => router.back()} style={styles.backBtn}>
           <BackIcon color="#111" />
-        </Pressable>
+        </Touchable>
       </View>
       <Text style={[styles.heading, { color: pal.text }]}>{heading}</Text>
       {showSlotNote && (
@@ -154,10 +155,10 @@ function Chip({
   active?: boolean;
 }) {
   return (
-    <Pressable style={[styles.chip, { backgroundColor: pal.chip }]} onPress={onPress}>
+    <Touchable style={[styles.chip, { backgroundColor: pal.chip }]} onPress={onPress}>
       {render ? render(pal.icon) : Icon ? <Icon color={pal.icon} /> : null}
       <Text style={[styles.chipTxt, { color: active ? theme.brand : pal.text }]}>{label}</Text>
-    </Pressable>
+    </Touchable>
   );
 }
 

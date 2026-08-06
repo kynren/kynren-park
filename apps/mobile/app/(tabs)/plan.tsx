@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { ScrollView, View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { Touchable } from '../../components/Touchable';
 import { useSync } from '../../lib/sync';
 import { api } from '../../lib/api';
 import { fmtTime } from '../../lib/format';
@@ -67,9 +68,9 @@ export default function PlanScreen() {
 
       <View style={styles.pickHeader}>
         <Text style={styles.pickHeaderLabel}>Choose your shows</Text>
-        <Pressable onPress={toggleAll} hitSlop={8}>
+        <Touchable onPress={toggleAll} hitSlop={8}>
           <Text style={styles.selectAll}>{allOn ? 'Clear all' : 'Select all'}</Text>
-        </Pressable>
+        </Touchable>
       </View>
 
       <View style={{ gap: 8 }}>
@@ -77,7 +78,7 @@ export default function PlanScreen() {
         {attractions.map((a) => {
           const on = selected.has(a.id);
           return (
-            <Pressable key={a.id} style={[styles.pick, on && styles.pickOn]} onPress={() => toggle(a.id)}>
+            <Touchable key={a.id} style={[styles.pick, on && styles.pickOn]} onPress={() => toggle(a.id)}>
               <View style={[styles.dot, { backgroundColor: categoryColor[a.category] ?? theme.muted }]} />
               <View style={{ flex: 1 }}>
                 <Text style={[styles.pickText, on && { fontWeight: '700' }]}>{a.name}</Text>
@@ -88,12 +89,12 @@ export default function PlanScreen() {
               <View style={[styles.checkBox, on && styles.checkBoxOn]}>
                 <Text style={[styles.check, on && { color: '#fff' }]}>{on ? '✓' : '+'}</Text>
               </View>
-            </Pressable>
+            </Touchable>
           );
         })}
       </View>
 
-      <Pressable style={[styles.cta, selected.size === 0 && styles.ctaDisabled]} onPress={optimize} disabled={loading || selected.size === 0}>
+      <Touchable style={[styles.cta, selected.size === 0 && styles.ctaDisabled]} onPress={optimize} disabled={loading || selected.size === 0}>
         {loading ? (
           <ActivityIndicator color="#fff" />
         ) : (
@@ -102,7 +103,7 @@ export default function PlanScreen() {
             {selected.size ? ` (${selected.size})` : ''}
           </Text>
         )}
-      </Pressable>
+      </Touchable>
 
       {plan && (
         <View style={{ marginTop: 26 }}>

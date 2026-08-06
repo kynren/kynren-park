@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, View, Text, StyleSheet, Pressable, TextInput, Switch, Image, Alert } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, TextInput, Switch, Image, Alert } from 'react-native';
+import { Touchable } from '../components/Touchable';
 import { useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -67,9 +68,9 @@ export default function SettingsScreen() {
     <View style={[styles.screen, { backgroundColor: pal.screen }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={[styles.top, { paddingTop: insets.top + 8 }]}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
+        <Touchable onPress={() => router.back()} style={styles.backBtn}>
           <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><Path d="M15 5l-7 7 7 7" /></Svg>
-        </Pressable>
+        </Touchable>
         <Text style={[styles.topTitle, { color: pal.text }]}>Account</Text>
         <View style={{ width: 42 }} />
       </View>
@@ -77,7 +78,7 @@ export default function SettingsScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, paddingBottom: 40, gap: 22 }}>
         {/* Photo */}
         <View style={{ alignItems: 'center', gap: 10 }}>
-          <Pressable onPress={pickPhoto} style={styles.photoWrap}>
+          <Touchable onPress={pickPhoto} style={styles.photoWrap}>
             {p.photoUri ? (
               <Image source={{ uri: p.photoUri }} style={styles.photo} />
             ) : (
@@ -88,8 +89,8 @@ export default function SettingsScreen() {
             <View style={styles.photoEdit}>
               <Text style={{ color: '#fff', fontSize: 13 }}>✎</Text>
             </View>
-          </Pressable>
-          <Pressable onPress={pickPhoto}><Text style={styles.changePhoto}>Change photo</Text></Pressable>
+          </Touchable>
+          <Touchable onPress={pickPhoto}><Text style={styles.changePhoto}>Change photo</Text></Touchable>
         </View>
 
         {/* Profile */}
@@ -115,17 +116,17 @@ export default function SettingsScreen() {
             {(['light', 'dark', 'system'] as ThemePref[]).map((opt) => {
               const on = pref === opt;
               return (
-                <Pressable key={opt} style={[styles.segItem, on && { backgroundColor: theme.brand }]} onPress={() => setPref(opt)}>
+                <Touchable key={opt} style={[styles.segItem, on && { backgroundColor: theme.brand }]} onPress={() => setPref(opt)}>
                   <Text style={[styles.segTxt, { color: on ? '#fff' : pal.text }]}>{opt[0].toUpperCase() + opt.slice(1)}</Text>
-                </Pressable>
+                </Touchable>
               );
             })}
           </View>
         </Section>
 
-        <Pressable style={styles.saveBtn} onPress={save}>
+        <Touchable style={styles.saveBtn} onPress={save}>
           <Text style={styles.saveTxt}>{saved ? '✓ Saved' : 'Save changes'}</Text>
-        </Pressable>
+        </Touchable>
       </ScrollView>
     </View>
   );

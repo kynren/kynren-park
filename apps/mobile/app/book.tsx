@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ScrollView, View, Text, Pressable, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { Touchable } from '../components/Touchable';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSync } from '../lib/sync';
@@ -84,13 +85,13 @@ export default function BookScreen() {
               <Text style={styles.price}>{poundsFromCents(t.priceCents)}</Text>
             </View>
             <View style={styles.stepper}>
-              <Pressable style={styles.stepBtn} onPress={() => bump(t.id, -1)}>
+              <Touchable style={styles.stepBtn} onPress={() => bump(t.id, -1)}>
                 <Text style={styles.stepTxt}>−</Text>
-              </Pressable>
+              </Touchable>
               <Text style={styles.qty}>{qty[t.id] ?? 0}</Text>
-              <Pressable style={styles.stepBtn} onPress={() => bump(t.id, 1)}>
+              <Touchable style={styles.stepBtn} onPress={() => bump(t.id, 1)}>
                 <Text style={styles.stepTxt}>+</Text>
-              </Pressable>
+              </Touchable>
             </View>
           </View>
         ))}
@@ -101,9 +102,9 @@ export default function BookScreen() {
         <Text style={styles.totalValue}>{poundsFromCents(total)}</Text>
       </View>
 
-      <Pressable style={[styles.cta, count === 0 && { opacity: 0.5 }]} onPress={book} disabled={submitting || count === 0}>
+      <Touchable style={[styles.cta, count === 0 && { opacity: 0.5 }]} onPress={book} disabled={submitting || count === 0}>
         {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.ctaText}>Confirm booking ({count})</Text>}
-      </Pressable>
+      </Touchable>
       <Text style={styles.note}>Demo checkout — no payment is taken. Tickets are issued instantly with offline QR codes.</Text>
     </ScrollView>
   );

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { ScrollView, View, Text, StyleSheet, Pressable, ActivityIndicator, Alert } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { Touchable } from '../../components/Touchable';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSync } from '../../lib/sync';
 import { useAuth } from '../../lib/auth';
@@ -83,13 +84,13 @@ export default function RestaurantScreen() {
             </View>
           </View>
           <View style={styles.stepper}>
-            <Pressable style={styles.stepBtn} onPress={() => bump(m.id, -1)}>
+            <Touchable style={styles.stepBtn} onPress={() => bump(m.id, -1)}>
               <Text style={styles.stepTxt}>−</Text>
-            </Pressable>
+            </Touchable>
             <Text style={styles.qty}>{cart[m.id] ?? 0}</Text>
-            <Pressable style={styles.stepBtn} onPress={() => bump(m.id, 1)}>
+            <Touchable style={styles.stepBtn} onPress={() => bump(m.id, 1)}>
               <Text style={styles.stepTxt}>+</Text>
-            </Pressable>
+            </Touchable>
           </View>
         </View>
       ))}
@@ -97,14 +98,14 @@ export default function RestaurantScreen() {
       <Text style={styles.section}>Pickup time</Text>
       <ScrollView showsVerticalScrollIndicator={false} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
         {SLOT_TIMES.map((t) => (
-          <Pressable key={t} onPress={() => setSlot(t)} style={[styles.slot, slot === t && styles.slotOn]}>
+          <Touchable key={t} onPress={() => setSlot(t)} style={[styles.slot, slot === t && styles.slotOn]}>
             <Text style={[styles.slotTxt, slot === t && { color: '#fff' }]}>{t}</Text>
-          </Pressable>
+          </Touchable>
         ))}
       </ScrollView>
 
       {count > 0 && (
-        <Pressable style={styles.cta} onPress={placeOrder} disabled={placing}>
+        <Touchable style={styles.cta} onPress={placeOrder} disabled={placing}>
           {placing ? (
             <ActivityIndicator color="#fff" />
           ) : (
@@ -112,7 +113,7 @@ export default function RestaurantScreen() {
               Place order · {count} item{count > 1 ? 's' : ''} · {poundsFromCents(total)}
             </Text>
           )}
-        </Pressable>
+        </Touchable>
       )}
       <Text style={styles.note}>Demo checkout — no payment is taken.</Text>
     </ScrollView>

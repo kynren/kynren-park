@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
-import { ScrollView, View, Text, StyleSheet, Pressable, Alert } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, Alert } from 'react-native';
+import { Touchable } from '../../components/Touchable';
 import { useFocusEffect, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import QRCode from 'react-native-qrcode-svg';
@@ -40,31 +41,31 @@ export default function TicketsScreen() {
         {user ? (
           <>
             <Text style={styles.accountName}>👤 {user.name || user.email}</Text>
-            <Pressable onPress={logout}>
+            <Touchable onPress={logout}>
               <Text style={styles.link}>{t('common.signOut')}</Text>
-            </Pressable>
+            </Touchable>
           </>
         ) : (
           <>
             <Text style={styles.muted}>{t('tickets.signInToBook')}</Text>
-            <Pressable onPress={() => router.push('/auth')}>
+            <Touchable onPress={() => router.push('/auth')}>
               <Text style={styles.link}>{t('common.signIn')}</Text>
-            </Pressable>
+            </Touchable>
           </>
         )}
       </View>
 
-      <Pressable style={styles.langRow} onPress={() => router.push('/language')}>
+      <Touchable style={styles.langRow} onPress={() => router.push('/language')}>
         <Text style={styles.langText}>🌐 {t('common.language')}</Text>
         <Text style={styles.chev}>›</Text>
-      </Pressable>
+      </Touchable>
 
-      <Pressable
+      <Touchable
         style={styles.cta}
         onPress={() => router.push(user ? '/book' : '/auth')}
       >
         <Text style={styles.ctaText}>{t('tickets.book')}</Text>
-      </Pressable>
+      </Touchable>
 
       {tickets.length === 0 ? (
         <View style={styles.empty}>
@@ -82,9 +83,9 @@ export default function TicketsScreen() {
             </View>
             <Text style={styles.ticketType}>{t.ticketType}</Text>
             <Text style={styles.muted}>{t.reference} · {t.visitDate}</Text>
-            <Pressable style={styles.wallet} onPress={() => Alert.alert('Add to Wallet', 'Apple/Google Wallet passes require signing certificates and are configured server-side (coming in a later release). Your offline QR above already works for entry.')}>
+            <Touchable style={styles.wallet} onPress={() => Alert.alert('Add to Wallet', 'Apple/Google Wallet passes require signing certificates and are configured server-side (coming in a later release). Your offline QR above already works for entry.')}>
               <Text style={styles.walletText}>Add to Apple / Google Wallet</Text>
-            </Pressable>
+            </Touchable>
           </View>
         ))
       )}

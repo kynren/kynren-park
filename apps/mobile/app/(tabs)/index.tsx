@@ -1,4 +1,5 @@
-import { ScrollView, View, Text, StyleSheet, RefreshControl, Pressable, Dimensions } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, RefreshControl, Dimensions } from 'react-native';
+import { Touchable } from '../../components/Touchable';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -71,12 +72,12 @@ export default function HomeScreen() {
 
       {/* Primary actions */}
       <View style={styles.actions}>
-        <Pressable style={styles.primaryBtn} onPress={() => router.push('/book')}>
+        <Touchable style={styles.primaryBtn} onPress={() => router.push('/book')}>
           <Text style={styles.primaryTxt}>Buy tickets</Text>
-        </Pressable>
-        <Pressable style={[styles.outlineBtn, { borderColor: pal.outline }]} onPress={() => router.push('/auth')}>
+        </Touchable>
+        <Touchable style={[styles.outlineBtn, { borderColor: pal.outline }]} onPress={() => router.push('/auth')}>
           <Text style={[styles.outlineTxt, { color: pal.text }]}>Create an account</Text>
-        </Pressable>
+        </Touchable>
       </View>
 
       {/* Welcome + opening hours */}
@@ -94,7 +95,7 @@ export default function HomeScreen() {
       </View>
 
       {/* Add visit dates */}
-      <Pressable style={[styles.visitCard, { backgroundColor: pal.card }]} onPress={() => router.push('/plan')}>
+      <Touchable style={[styles.visitCard, { backgroundColor: pal.card }]} onPress={() => router.push('/plan')}>
         <View style={styles.visitIcon}>
           <Svg width={30} height={30} viewBox="0 0 24 24" fill="none" stroke={pal.text} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
             <Rect x="4" y="5" width="16" height="16" rx="2.4" />
@@ -106,7 +107,7 @@ export default function HomeScreen() {
           <Text style={[styles.visitSub, { color: pal.sub }]}>Tell us the dates of your visit to Kynren</Text>
         </View>
         <Text style={[styles.chev, { color: pal.sub }]}>›</Text>
-      </Pressable>
+      </Touchable>
 
       {bundle?.announcements?.[0] && (
         <View style={[styles.notice, { backgroundColor: pal.card, borderColor: pal.line }]}>
@@ -161,12 +162,12 @@ export default function HomeScreen() {
             <View style={styles.wordmarkRule} />
           </View>
           <View style={{ flexDirection: 'row', gap: 10 }}>
-            <Pressable style={styles.avatar} onPress={() => router.push('/notifications')}>
+            <Touchable style={styles.avatar} onPress={() => router.push('/notifications')}>
               <Text style={{ fontSize: 17 }}>🔔</Text>
-            </Pressable>
-            <Pressable style={styles.avatar} onPress={() => router.push('/settings')}>
+            </Touchable>
+            <Touchable style={styles.avatar} onPress={() => router.push('/settings')}>
               <Text style={{ fontSize: 18 }}>👤</Text>
-            </Pressable>
+            </Touchable>
           </View>
         </View>
       </View>
@@ -176,7 +177,7 @@ export default function HomeScreen() {
 
 function SessionRow({ session, pal, onPress }: { session: Session; pal: ReturnType<typeof usePalette>; onPress: () => void }) {
   return (
-    <Pressable style={[styles.row, { backgroundColor: pal.card, borderColor: pal.line }]} onPress={onPress}>
+    <Touchable style={[styles.row, { backgroundColor: pal.card, borderColor: pal.line }]} onPress={onPress}>
       <View style={[styles.cat, { backgroundColor: categoryColor[session.attraction.category] ?? theme.muted }]} />
       <View style={{ flex: 1 }}>
         <Text style={[styles.rowName, { color: pal.text }]}>{session.attraction.name}</Text>
@@ -187,7 +188,7 @@ function SessionRow({ session, pal, onPress }: { session: Session; pal: ReturnTy
           <Text style={styles.badgeText}>{session.status}</Text>
         </View>
       )}
-    </Pressable>
+    </Touchable>
   );
 }
 
