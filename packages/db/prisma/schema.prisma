@@ -103,6 +103,10 @@ model User {
   locale             String   @default("en-GB")
   // Accessibility preferences kept as a flexible JSON blob.
   accessibilityPrefs Json?
+  // Last known location, used to show who is in the park right now.
+  lastLat            Float?
+  lastLng            Float?
+  lastSeenAt         DateTime?
   pushTokens         PushToken[]
   refreshTokens      RefreshToken[]
   bookings           Booking[]

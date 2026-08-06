@@ -85,6 +85,15 @@ export default function PushTemplates() {
               </div>
               <div className="form-row full"><label>Notification title *</label><input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Vikings starts soon!" /></div>
               <div className="form-row full"><label>Body *</label><textarea value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} placeholder="Land of the Vikings starts in 20 minutes — 5 min walk away." /></div>
+              <div className="form-row full">
+                <p className="hint" style={{ margin: 0 }}>
+                  Variables: {form.action === 'DELAY_ALERT' && <code>{'{show} {time} {status} {note}'}</code>}
+                  {form.action === 'ORDER_READY' && <code>{'{restaurant}'}</code>}
+                  {form.action === 'SHOW_REMINDER' && <code>{'{show} {time}'}</code>}
+                  {(form.action === 'ANNOUNCEMENT' || form.action === 'WELCOME' || form.action === 'CUSTOM') && '— none for this action yet'}
+                  . Active templates are used automatically when that action fires (delay/cancel alerts and order-ready are live now).
+                </p>
+              </div>
               <div className="form-row full"><label>Deep link (optional)</label><input value={form.deepLink} onChange={(e) => setForm({ ...form, deepLink: e.target.value })} placeholder="kynren://attraction/land-of-the-vikings" /></div>
               <div className="form-row"><label className="checkline"><input type="checkbox" checked={form.sound} onChange={(e) => setForm({ ...form, sound: e.target.checked })} /> Play sound</label></div>
               <div className="form-row"><label className="checkline"><input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Active</label></div>

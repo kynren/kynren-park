@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, PanResponder, Animated, type LayoutChangeEvent } from 'react-native';
+import { View, Text, StyleSheet, Pressable, PanResponder, Animated, Image, type LayoutChangeEvent } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Rect, Circle, Ellipse, Path, G, Polygon, Line } from 'react-native-svg';
 import * as Location from 'expo-location';
+import { api, getToken } from '../../lib/api';
 import { useSync } from '../../lib/sync';
 import { fmtTime } from '../../lib/format';
 import { theme } from '../../lib/theme';
@@ -88,6 +89,7 @@ export default function MapScreen() {
   const vw = vp.w || 375;
   const vh = vp.h || 680;
   const markerColor = bundle?.mapConfig?.markerColor ?? '#1a73e8';
+  const mapImageUrl = bundle?.mapConfig?.mapImageUrl || null;
 
   function clampPan(p: { x: number; y: number }, s: number) {
     const maxX = ((s - 1) * vw) / 2;
@@ -112,7 +114,12 @@ export default function MapScreen() {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') return;
         const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        if (!cancelled) setGps({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        if (cancelled) return;
+        const here = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setGps(here);
+        // Report presence so staff can see who's in the park (signed-in guests only).
+        const token = await getToken();
+        if (token) api('/me/presence', { method: 'POST', body: JSON.stringify(here) }).catch(() => undefined);
       } catch {
         /* no location */
       }
@@ -283,7 +290,11 @@ export default function MapScreen() {
     <View style={styles.root} onLayout={onLayout}>
       <View style={styles.viewport} {...responder.panHandlers}>
         <View style={[styles.canvas, { width: vw, height: vh, transform: [{ translateX: pan.x }, { translateY: pan.y }, { scale }] }]}>
-          <ParkBasemap vw={vw} vh={vh} />
+          {mapImageUrl ? (
+            <Image source={{ uri: mapImageUrl }} style={{ position: 'absolute', width: vw, height: vh }} resizeMode="cover" />
+          ) : (
+            <ParkBasemap vw={vw} vh={vh} />
+          )}
 
           {/* Proximity line from the guest to the selected place */}
           {selected && selectedDist != null && (

@@ -18,6 +18,17 @@ export class UsersController {
     });
   }
 
+  /** Report the guest's current location (for in-park presence). */
+  @Post('presence')
+  async presence(@CurrentUser() user: AuthPrincipal, @Body() body: { lat: number; lng: number }) {
+    if (typeof body?.lat !== 'number' || typeof body?.lng !== 'number') return { ok: false };
+    await this.prisma.user.update({
+      where: { id: user.sub },
+      data: { lastLat: body.lat, lastLng: body.lng, lastSeenAt: new Date() },
+    });
+    return { ok: true };
+  }
+
   /** Register an Expo push token for this device. */
   @Post('push-tokens')
   async registerPushToken(

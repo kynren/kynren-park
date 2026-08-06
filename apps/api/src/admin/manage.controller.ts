@@ -176,6 +176,32 @@ export class ManageController {
     });
   }
 
+  /** Bulk-create a session across a date range on selected weekdays. */
+  @Post('sessions/recurring')
+  async createRecurring(@Body() b: any) {
+    if (!b?.attractionId || !b?.startDate || !b?.endDate || !b?.start || !b?.end) {
+      throw new BadRequestException('attractionId, startDate, endDate, start and end are required');
+    }
+    const days: number[] = Array.isArray(b.days) && b.days.length ? b.days.map(Number) : [0, 1, 2, 3, 4, 5, 6];
+    const start = dayDate(b.startDate);
+    const end = dayDate(b.endDate);
+    if (end < start) throw new BadRequestException('endDate must be on or after startDate');
+    const rows: { attractionId: string; date: Date; startTime: Date; endTime: Date; status: any }[] = [];
+    const d = new Date(start);
+    let guard = 0;
+    while (d <= end && guard < 400) {
+      if (days.includes(d.getUTCDay())) {
+        const ymd = d.toISOString().slice(0, 10);
+        rows.push({ attractionId: b.attractionId, date: dayDate(ymd), startTime: timeOn(ymd, b.start), endTime: timeOn(ymd, b.end), status: b.status ?? 'SCHEDULED' });
+      }
+      d.setUTCDate(d.getUTCDate() + 1);
+      guard++;
+    }
+    if (rows.length === 0) throw new BadRequestException('No dates match the selected weekdays in that range');
+    await this.prisma.showSession.createMany({ data: rows });
+    return { created: rows.length };
+  }
+
   @Patch('sessions/:id')
   async updateSession(@Param('id') id: string, @Body() b: any) {
     const data: Record<string, unknown> = {};
@@ -285,18 +311,31 @@ export class ManageController {
   @Get('users')
   async listUsers() {
     const today = new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`);
-    const [users, todayBookings] = await Promise.all([
+    const [users, todayBookings, pois] = await Promise.all([
       this.prisma.user.findMany({
         orderBy: { createdAt: 'desc' },
         take: 500,
         select: {
           id: true, email: true, name: true, locale: true, createdAt: true,
+          lastLat: true, lastLng: true, lastSeenAt: true,
           _count: { select: { pushTokens: true, bookings: true, orders: true } },
         },
       }),
       this.prisma.booking.findMany({ where: { visitDate: today }, select: { userId: true } }),
+      this.prisma.pointOfInterest.findMany({ select: { lat: true, lng: true } }),
     ]);
-    const inPark = new Set(todayBookings.map((b) => b.userId));
+    const bookedToday = new Set(todayBookings.map((b) => b.userId));
+
+    // Park bounding box (POI extent + margin) for a real geofence check.
+    const lats = pois.map((p) => p.lat), lngs = pois.map((p) => p.lng);
+    const box = pois.length
+      ? { minLat: Math.min(...lats) - 0.004, maxLat: Math.max(...lats) + 0.004, minLng: Math.min(...lngs) - 0.006, maxLng: Math.max(...lngs) + 0.006 }
+      : null;
+    const cutoff = Date.now() - 45 * 60 * 1000; // "here now" = seen in the last 45 min
+    const isPresent = (u: { lastLat: number | null; lastLng: number | null; lastSeenAt: Date | null }) =>
+      !!(box && u.lastLat != null && u.lastLng != null && u.lastSeenAt && u.lastSeenAt.getTime() > cutoff &&
+        u.lastLat >= box.minLat && u.lastLat <= box.maxLat && u.lastLng >= box.minLng && u.lastLng <= box.maxLng);
+
     return users.map((u) => ({
       id: u.id,
       name: u.name,
@@ -307,7 +346,8 @@ export class ManageController {
       devices: u._count.pushTokens,
       bookings: u._count.bookings,
       orders: u._count.orders,
-      inPark: inPark.has(u.id),
+      // Real presence when we have a recent in-bounds fix; else the booking proxy.
+      inPark: isPresent(u) || bookedToday.has(u.id),
     }));
   }
 
