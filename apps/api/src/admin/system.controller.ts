@@ -101,6 +101,24 @@ export class SystemController {
     return { deleted: true };
   }
 
+  @Post('staff/bulk-delete')
+  async bulkDelete(@Body() b: { ids?: string[] }) {
+    const ids = Array.isArray(b?.ids) ? b.ids : [];
+    if (ids.length === 0) throw new BadRequestException('No staff selected');
+    // Never let a bulk delete remove the last active admin.
+    const remainingAdmins = await this.prisma.staffUser.count({
+      where: { role: 'ADMIN', active: true, NOT: { id: { in: ids } } },
+    });
+    const deletingAnActiveAdmin = await this.prisma.staffUser.count({
+      where: { id: { in: ids }, role: 'ADMIN', active: true },
+    });
+    if (deletingAnActiveAdmin > 0 && remainingAdmins === 0) {
+      throw new BadRequestException('That would remove the last active admin');
+    }
+    const res = await this.prisma.staffUser.deleteMany({ where: { id: { in: ids } } });
+    return { deleted: res.count };
+  }
+
   // ---- Role → permission matrix --------------------------------------------
   @Get('permissions')
   getPermissions() {

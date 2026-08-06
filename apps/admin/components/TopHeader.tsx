@@ -37,7 +37,7 @@ export function TopHeader() {
           </svg>
           <span className="ping" />
         </button>
-        <button className="avatar" onClick={() => router.push('/analytics')} aria-label="Profile">{initials}</button>
+        <button className="avatar" onClick={() => router.push('/settings')} aria-label="Profile">{initials}</button>
       </div>
     </div>
   );

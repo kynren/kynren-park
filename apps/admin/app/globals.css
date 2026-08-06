@@ -34,7 +34,8 @@ a { color: var(--green); text-decoration: none; }
 /* ---- App shell ---- */
 .shell { display: flex; height: 100vh; overflow: hidden; }
 .sidebar {
-  width: 244px; flex-shrink: 0; background: var(--card);
+  width: 244px; flex-shrink: 0; background: #e9ebef;
+  border-right: 1px solid #dfe2e8;
   padding: 26px 16px; display: flex; flex-direction: column;
   position: sticky; top: 0; height: 100vh; overflow-y: auto;
 }

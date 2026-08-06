@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Animated, Image, TextInput, Keyboard, type LayoutChangeEvent } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Animated, Image, TextInput, Keyboard, ScrollView, type LayoutChangeEvent } from 'react-native';
 import Reanimated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -603,17 +603,22 @@ export default function MapScreen() {
         )}
 
         {/* Bottom category pills (Puy du Fou style) */}
-        <View style={styles.pills}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.pills}
+          contentContainerStyle={styles.pillsContent}
+        >
           {PILLS.map((p) => {
             const on = cat === p.key;
             return (
               <Touchable key={p.key} haptic="selection" style={[styles.pill, on && styles.pillOn]} onPress={() => { setCat(p.key); setSelected(null); }}>
                 <Text style={[styles.pillEmoji, on && { color: '#fff' }]}>{p.emoji}</Text>
-                <Text style={[styles.pillLabel, on && styles.pillLabelOn]} numberOfLines={1}>{p.label}</Text>
+                <Text style={[styles.pillLabel, on && styles.pillLabelOn]}>{p.label}</Text>
               </Touchable>
             );
           })}
-        </View>
+        </ScrollView>
       </View>
     </View>
   );
@@ -760,8 +765,9 @@ const styles = StyleSheet.create({
   ctrlCol: { position: 'absolute', right: 14, top: 70, gap: 8 },
   ctrlBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 3, elevation: 3 },
   ctrlTxt: { fontSize: 20, fontWeight: '700', color: theme.ink },
-  pills: { position: 'absolute', left: 12, right: 12, bottom: 16, flexDirection: 'row', gap: 8, justifyContent: 'center' },
-  pill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#fff', borderRadius: 999, paddingVertical: 12, paddingHorizontal: 16, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 5, elevation: 5, flexShrink: 1 },
+  pills: { position: 'absolute', left: 0, right: 0, bottom: 16 },
+  pillsContent: { flexDirection: 'row', gap: 8, paddingHorizontal: 12, alignItems: 'center', flexGrow: 1, justifyContent: 'center' },
+  pill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#fff', borderRadius: 999, paddingVertical: 12, paddingHorizontal: 16, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 5, elevation: 5 },
   pillOn: { backgroundColor: theme.brand },
   pillEmoji: { fontSize: 15, color: theme.ink },
   pillLabel: { fontWeight: '800', fontSize: 13, color: theme.ink },
