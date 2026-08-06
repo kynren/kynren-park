@@ -78,19 +78,22 @@ export default function AttractionDetail() {
     <View style={[styles.screen, { backgroundColor: pal.screen }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-        {/* Hero */}
-        <View style={styles.hero}>
-          {attraction.heroImage ? (
+        {/* Full-bleed hero when there's an image; otherwise a compact top bar. */}
+        {attraction.heroImage ? (
+          <View style={styles.hero}>
             <Image source={{ uri: attraction.heroImage }} style={styles.heroImg} />
-          ) : (
-            <View style={[styles.heroImg, { backgroundColor: categoryColor[attraction.category] ?? theme.brand, alignItems: 'center', justifyContent: 'center' }]}>
-              <Text style={styles.heroFallback}>{attraction.name}</Text>
-            </View>
-          )}
-          <Touchable style={[styles.backBtn, { top: insets.top + 8 }]} onPress={() => router.back()}>
-            <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><Path d="M15 5l-7 7 7 7" /></Svg>
-          </Touchable>
-        </View>
+            <Touchable style={[styles.backBtn, { top: insets.top + 8 }]} onPress={() => router.back()}>
+              <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><Path d="M15 5l-7 7 7 7" /></Svg>
+            </Touchable>
+          </View>
+        ) : (
+          <View style={[styles.headerBar, { backgroundColor: categoryColor[attraction.category] ?? theme.brand, paddingTop: insets.top + 8 }]}>
+            <Touchable style={styles.headerBack} onPress={() => router.back()} hitSlop={8}>
+              <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><Path d="M15 5l-7 7 7 7" /></Svg>
+            </Touchable>
+            <Text style={styles.headerTitle} numberOfLines={1}>{attraction.name}</Text>
+          </View>
+        )}
 
         {/* Title block */}
         <View style={styles.pad}>
@@ -202,6 +205,9 @@ const styles = StyleSheet.create({
   heroImg: { width: '100%', height: 300 },
   heroFallback: { color: '#fff', fontSize: 24, fontWeight: '800', textAlign: 'center', paddingHorizontal: 20 },
   backBtn: { position: 'absolute', left: 14, width: 42, height: 42, borderRadius: 21, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
+  headerBar: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingBottom: 14 },
+  headerBack: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
+  headerTitle: { flex: 1, color: '#fff', fontSize: 19, fontWeight: '800' },
   pad: { paddingHorizontal: 18 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 16 },
   title: { flex: 1, fontSize: 26, fontWeight: '800' },
