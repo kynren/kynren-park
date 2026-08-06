@@ -1,56 +1,283 @@
-import { FlatList, View, Text, StyleSheet, Pressable } from 'react-native';
+import { useMemo, useState } from 'react';
+import { ScrollView, View, Text, StyleSheet, Pressable, Image, Dimensions, type LayoutChangeEvent } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useSync, type Attraction } from '../../lib/sync';
+import Svg, { Circle, Polyline, Line } from 'react-native-svg';
+import { useSync, type Attraction, type Session } from '../../lib/sync';
+import { fmtTime } from '../../lib/format';
 import { theme, categoryColor } from '../../lib/theme';
+import { useThemePref } from '../../lib/theme-context';
+import { SkeletonRows } from '../../components/Shimmer';
 
-export default function ShowsScreen() {
-  const { bundle } = useSync();
-  const router = useRouter();
-  const attractions = bundle?.attractions ?? [];
+const HPAD = 14;
 
+function usePalette() {
+  const dark = useThemePref().scheme === 'dark';
+  return dark
+    ? { screen: '#141414', rowA: '#1c1c1c', rowB: '#171717', text: '#ffffff', sub: '#9b9b9b', rule: '#3a3a3a', ruleText: '#8a8a8a', pill: '#f0f0f0', label: '#eaeaea', chip: '#2a2a2a', chipText: '#c9c9c9', header: '#141414' }
+    : { screen: theme.bg, rowA: '#ffffff', rowB: '#f2ede6', text: theme.ink, sub: theme.muted, rule: '#d9d0c5', ruleText: theme.muted, pill: theme.brand, label: theme.ink, chip: '#efe9e2', chipText: theme.muted, header: theme.brand };
+}
+
+function minsUTC(iso: string) {
+  const d = new Date(iso);
+  return d.getUTCHours() * 60 + d.getUTCMinutes();
+}
+function fmtDate(ymd: string) {
+  const [y, m, d] = ymd.split('-').map(Number);
+  return `${d}/${m}/${y}`;
+}
+function shiftDate(ymd: string, days: number) {
+  const d = new Date(`${ymd}T00:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function ClockIcon({ color, size = 20 }: { color: string; size?: number }) {
   return (
-    <FlatList
-      style={{ flex: 1 }}
-      contentContainerStyle={{ padding: 16, gap: 12 }}
-      data={attractions}
-      keyExtractor={(a) => a.id}
-      renderItem={({ item }) => <ShowCard attraction={item} onPress={() => router.push(`/attraction/${item.slug}`)} />}
-      ListEmptyComponent={<Text style={{ color: theme.muted }}>Loading shows…</Text>}
-    />
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+      <Circle cx="12" cy="12" r="9" />
+      <Polyline points="12 7 12 12 15.5 13.5" />
+    </Svg>
   );
 }
 
-function ShowCard({ attraction, onPress }: { attraction: Attraction; onPress: () => void }) {
-  const access: string[] = [];
-  if (attraction.wheelchairAccessible) access.push('♿ Step-free');
-  if (attraction.hasAudioDescription) access.push('🔊 Audio described');
-  if (attraction.hasCaptioning) access.push('💬 Captioned');
-  if (attraction.hasBSL) access.push('🤟 BSL');
+export default function ProgramScreen() {
+  const { bundle, date, setDate } = useSync();
+  const router = useRouter();
+  const pal = usePalette();
+  const [trackW, setTrackW] = useState(Dimensions.get('window').width - HPAD * 2);
+
+  const attractions = bundle?.attractions ?? [];
+  const sessions = bundle?.sessions ?? [];
+
+  const byAttraction = useMemo(() => {
+    const m = new Map<string, Session[]>();
+    for (const s of sessions) {
+      const arr = m.get(s.attractionId) ?? [];
+      arr.push(s);
+      m.set(s.attractionId, arr);
+    }
+    for (const arr of m.values()) arr.sort((a, b) => minsUTC(a.revisedStart ?? a.startTime) - minsUTC(b.revisedStart ?? b.startTime));
+    return m;
+  }, [sessions]);
+
+  // Daytime window drives the shared ruler; the late evening show would
+  // otherwise stretch the axis and squash everything (its pill clamps right).
+  const ruler = useMemo(() => {
+    const day = sessions.filter((s) => s.attraction.category !== 'EVENING_SHOW');
+    const basis = day.length > 0 ? day : sessions;
+    if (basis.length === 0) return null;
+    let lo = Infinity, hi = -Infinity;
+    for (const s of basis) {
+      lo = Math.min(lo, minsUTC(s.revisedStart ?? s.startTime));
+      hi = Math.max(hi, minsUTC(s.endTime));
+    }
+    const start = Math.floor(lo / 60) * 60;
+    const end = Math.max(start + 120, Math.ceil(hi / 60) * 60);
+    const hours: number[] = [];
+    for (let h = start; h <= end; h += 60) hours.push(h);
+    return { start, end, hours };
+  }, [sessions]);
+
+  const pos = (min: number) => (ruler ? ((min - ruler.start) / (ruler.end - ruler.start)) * trackW : 0);
+
+  // Order: day attractions by sortOrder (numbered like the map), then evening show.
+  const rows = useMemo(() => {
+    const day = attractions.filter((a) => a.category !== 'EVENING_SHOW').sort((a, b) => a.sortOrder - b.sortOrder);
+    const evening = attractions.filter((a) => a.category === 'EVENING_SHOW');
+    return [
+      ...day.map((a, i) => ({ a, badge: String(i + 1) })),
+      ...evening.map((a) => ({ a, badge: '🌙' })),
+    ].filter((r) => (byAttraction.get(r.a.id)?.length ?? 0) > 0);
+  }, [attractions, byAttraction]);
 
   return (
-    <Pressable style={styles.card} onPress={onPress}>
-      <View style={[styles.stripe, { backgroundColor: categoryColor[attraction.category] ?? theme.muted }]} />
-      <View style={{ flex: 1, padding: 14 }}>
-        <Text style={styles.name}>{attraction.name}</Text>
-        {attraction.tagline && <Text style={styles.tagline}>{attraction.tagline}</Text>}
-        <Text style={styles.synopsis} numberOfLines={2}>
-          {attraction.synopsis}
-        </Text>
-        <View style={styles.metaRow}>
-          <Text style={styles.meta}>⏱ {attraction.durationMins} min</Text>
-          {access.length > 0 && <Text style={styles.meta}>{access.join('  ')}</Text>}
+    <View style={[styles.screen, { backgroundColor: pal.screen }]}>
+      {/* Custom top bar */}
+      <View style={[styles.topBar, { backgroundColor: pal.header }]}>
+        <Text style={styles.brand}>KYNREN</Text>
+        <View style={{ flexDirection: 'row', gap: 6 }}>
+          <Pressable onPress={() => router.push('/notifications')} hitSlop={8} style={styles.avatar}>
+            <Text style={{ fontSize: 16 }}>🔔</Text>
+          </Pressable>
+          <Pressable onPress={() => router.push('/settings')} hitSlop={8} style={styles.avatar}>
+            <Text style={{ fontSize: 16 }}>👤</Text>
+          </Pressable>
         </View>
+      </View>
+
+      {/* Date selector */}
+      <View style={[styles.dateRow, { backgroundColor: pal.screen }]}>
+        <Pressable onPress={() => setDate(shiftDate(date, -1))} hitSlop={12} style={styles.dateArrow}>
+          <Text style={[styles.dateArrowTxt, { color: pal.sub }]}>‹</Text>
+        </Pressable>
+        <View style={{ alignItems: 'center' }}>
+          <Text style={[styles.dateTxt, { color: pal.text }]}>{fmtDate(date)}</Text>
+          <View style={styles.dateUnderline} />
+        </View>
+        <Pressable onPress={() => setDate(shiftDate(date, 1))} hitSlop={12} style={styles.dateArrow}>
+          <Text style={[styles.dateArrowTxt, { color: pal.text }]}>›</Text>
+        </Pressable>
+      </View>
+
+      {/* Shared time ruler */}
+      {ruler && (
+        <View style={styles.rulerRow}>
+          <View style={styles.clockCol}>
+            <ClockIcon color={pal.text} />
+          </View>
+          <View style={styles.rulerTrack} onLayout={(e: LayoutChangeEvent) => setTrackW(e.nativeEvent.layout.width)}>
+            <View style={[styles.rulerBase, { backgroundColor: pal.rule }]} />
+            {ruler.hours.map((h) => (
+              <View key={h} style={[styles.tick, { left: pos(h) }]}>
+                <View style={[styles.tickMark, { backgroundColor: pal.rule }]} />
+                <Text style={[styles.tickTxt, { color: pal.ruleText }]}>{h / 60}h</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+
+      <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24 }}>
+        {!bundle ? (
+          <View style={{ padding: 16 }}><SkeletonRows count={6} height={54} /></View>
+        ) : rows.length === 0 ? (
+          <Text style={[styles.empty, { color: pal.sub }]}>No shows scheduled for {fmtDate(date)}.</Text>
+        ) : null}
+        {bundle && rows.map((r, idx) => (
+          <ProgramRow
+            key={r.a.id}
+            attraction={r.a}
+            badge={r.badge}
+            sessions={byAttraction.get(r.a.id) ?? []}
+            pal={pal}
+            pos={pos}
+            trackW={trackW}
+            bg={idx % 2 === 0 ? pal.rowA : pal.rowB}
+            onPress={() => router.push(`/attraction/${r.a.slug}`)}
+          />
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+function ProgramRow({
+  attraction, badge, sessions, pal, pos, trackW, bg, onPress,
+}: {
+  attraction: Attraction;
+  badge: string;
+  sessions: Session[];
+  pal: ReturnType<typeof usePalette>;
+  pos: (min: number) => number;
+  trackW: number;
+  bg: string;
+  onPress: () => void;
+}) {
+  const continuous = sessions.length > 4;
+  const isNew = attraction.sortOrder >= 90; // convention: high sortOrder flags "new" attractions
+
+  return (
+    <Pressable style={[styles.row, { backgroundColor: bg }]} onPress={onPress}>
+      <View style={styles.rowHead}>
+        <View style={styles.thumbWrap}>
+          {attraction.heroImage ? (
+            <Image source={{ uri: attraction.heroImage }} style={styles.thumb} />
+          ) : (
+            <View style={[styles.thumb, { backgroundColor: categoryColor[attraction.category] ?? theme.muted }]} />
+          )}
+          <View style={styles.pinBadge}>
+            <Text style={styles.pinBadgeTxt}>{badge}</Text>
+          </View>
+        </View>
+
+        <View style={{ flex: 1 }}>
+          <View style={styles.titleRow}>
+            <Text style={[styles.title, { color: pal.text }]} numberOfLines={1}>{attraction.name}</Text>
+            {isNew && <Text style={styles.newBadge}>NEW</Text>}
+            <Text style={[styles.chevron, { color: pal.sub }]}>›</Text>
+          </View>
+          <View style={styles.subRow}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+              <ClockIcon color={pal.sub} size={14} />
+              <Text style={[styles.sub, { color: pal.sub }]}>{attraction.durationMins} mins</Text>
+            </View>
+            <View style={[styles.countChip, { backgroundColor: pal.chip }]}>
+              <Text style={[styles.countTxt, { color: pal.chipText }]}>+{sessions.length} ›</Text>
+            </View>
+          </View>
+        </View>
+      </View>
+
+      {/* Timeline track */}
+      <View style={styles.trackRow}>
+        {continuous ? (
+          (() => {
+            const a = sessions[0]!, b = sessions[sessions.length - 1]!;
+            const x1 = pos(minsUTC(a.revisedStart ?? a.startTime));
+            const x2 = pos(minsUTC(b.endTime));
+            const left = Math.max(0, Math.min(x1, trackW - 60));
+            const width = Math.max(40, Math.min(x2, trackW) - left);
+            return (
+              <View style={{ position: 'absolute', left }}>
+                <Text style={[styles.timeLbl, { color: pal.label }]}>From {fmtTime(a.startTime)} to {fmtTime(b.endTime)}</Text>
+                <View style={[styles.lozenge, { width, backgroundColor: pal.pill }]} />
+              </View>
+            );
+          })()
+        ) : (
+          sessions.map((s) => {
+            const startMin = minsUTC(s.revisedStart ?? s.startTime);
+            const durSpan = Math.max(10, minsUTC(s.endTime) - startMin);
+            const x = pos(startMin);
+            const pw = Math.max(22, Math.min(pos(startMin + durSpan) - x, 70));
+            const left = Math.max(0, Math.min(x, trackW - Math.max(pw, 42)));
+            const cancelled = s.status === 'CANCELLED';
+            return (
+              <View key={s.id} style={{ position: 'absolute', left }}>
+                <Text style={[styles.timeLbl, { color: cancelled ? theme.danger : pal.label }]}>{fmtTime(s.revisedStart ?? s.startTime)}</Text>
+                <View style={[styles.lozenge, { width: pw, backgroundColor: cancelled ? theme.danger : pal.pill, opacity: cancelled ? 0.5 : 1 }]} />
+              </View>
+            );
+          })
+        )}
       </View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { flexDirection: 'row', backgroundColor: theme.card, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: theme.border },
-  stripe: { width: 8 },
-  name: { fontSize: 17, fontWeight: '800', color: theme.ink },
-  tagline: { color: theme.brand, fontWeight: '600', fontSize: 13, marginTop: 2 },
-  synopsis: { color: theme.muted, fontSize: 13, marginTop: 6 },
-  metaRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10, flexWrap: 'wrap', gap: 6 },
-  meta: { color: theme.ink, fontSize: 12 },
+  screen: { flex: 1 },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: HPAD, paddingTop: 8, paddingBottom: 12 },
+  brand: { color: '#fff', fontSize: 20, fontWeight: '800', letterSpacing: 2 },
+  avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  dateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 26, paddingVertical: 10 },
+  dateArrow: { paddingHorizontal: 8 },
+  dateArrowTxt: { fontSize: 26, fontWeight: '700' },
+  dateTxt: { fontSize: 17, fontWeight: '800' },
+  dateUnderline: { height: 3, width: 84, backgroundColor: theme.brand, borderRadius: 2, marginTop: 3 },
+  rulerRow: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: HPAD, paddingBottom: 6 },
+  clockCol: { width: 30, paddingTop: 2 },
+  rulerTrack: { flex: 1, height: 34, position: 'relative' },
+  rulerBase: { position: 'absolute', left: 0, right: 0, top: 22, height: 1 },
+  tick: { position: 'absolute', alignItems: 'center', width: 40, marginLeft: -20 },
+  tickMark: { width: 1, height: 8, marginTop: 14 },
+  tickTxt: { fontSize: 11, marginTop: 2 },
+  empty: { textAlign: 'center', marginTop: 40, fontSize: 14 },
+  row: { paddingHorizontal: HPAD, paddingTop: 12, paddingBottom: 8 },
+  rowHead: { flexDirection: 'row', gap: 12 },
+  thumbWrap: { width: 52, height: 52 },
+  thumb: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#333' },
+  pinBadge: { position: 'absolute', top: -6, left: -6, minWidth: 24, height: 24, borderRadius: 12, backgroundColor: theme.brand, borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
+  pinBadgeTxt: { color: '#fff', fontWeight: '800', fontSize: 12 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  title: { fontSize: 18, fontWeight: '700', flexShrink: 1 },
+  newBadge: { backgroundColor: theme.gold, color: '#3a2c00', fontSize: 10, fontWeight: '800', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' },
+  chevron: { fontSize: 22, fontWeight: '400', marginLeft: 'auto' },
+  subRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
+  sub: { fontSize: 13 },
+  countChip: { flexDirection: 'row', alignItems: 'center', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
+  countTxt: { fontSize: 12, fontWeight: '700' },
+  trackRow: { height: 40, marginTop: 8, position: 'relative' },
+  timeLbl: { fontSize: 12, fontWeight: '700', marginBottom: 5 },
+  lozenge: { height: 11, borderRadius: 6 },
 });

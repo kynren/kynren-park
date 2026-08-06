@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { api, API_URL } from '../../../lib/api';
+import { confirmDelete } from '../../../lib/confirm';
 import { REALTIME_EVENTS, type SessionUpdatedEvent } from '@kynren/shared';
 
 interface Session {
@@ -66,7 +67,7 @@ export default function SchedulePage() {
     }
     if (status === 'CANCELLED') {
       note = prompt('Reason for cancellation (optional):') || undefined;
-      if (!confirm(`Cancel "${session.attraction.name}" at ${fmt(session.startTime)}?`)) return;
+      if (!(await confirmDelete(`Cancel “${session.attraction.name}” at ${fmt(session.startTime)}?`, 'Cancel show?'))) return;
     }
     // Optimistic update; the socket echo will confirm.
     setSessions((prev) => prev.map((s) => (s.id === session.id ? { ...s, status } : s)));

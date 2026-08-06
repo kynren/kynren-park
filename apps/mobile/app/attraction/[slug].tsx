@@ -1,135 +1,227 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
-import { ScrollView, View, Text, StyleSheet, Pressable } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, Pressable, Image } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 import { useSync } from '../../lib/sync';
 import { useAuth } from '../../lib/auth';
 import { api } from '../../lib/api';
 import { fmtTime } from '../../lib/format';
 import { theme, categoryColor, statusColor } from '../../lib/theme';
+import { useThemePref } from '../../lib/theme-context';
+
+function usePalette() {
+  const dark = useThemePref().scheme === 'dark';
+  return dark
+    ? { screen: '#0c0c0c', text: '#ffffff', sub: '#9a9a9a', card: '#181818', line: '#262626', link: '#5aa9e6', chip: '#1f1f1f' }
+    : { screen: '#ffffff', text: '#16324f', sub: '#6b6460', card: '#f6f3ef', line: '#e4ddd5', link: '#2b6cb0', chip: '#f1ece5' };
+}
 
 export default function AttractionDetail() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
-  const { bundle } = useSync();
+  const { bundle, date } = useSync();
   const { user } = useAuth();
   const router = useRouter();
+  const pal = usePalette();
+  const insets = useSafeAreaInsets();
   const attraction = bundle?.attractions.find((a) => a.slug === slug);
-  const sessions = (bundle?.sessions ?? []).filter((s) => s.attraction.slug === slug);
+  const sessions = useMemo(
+    () => (bundle?.sessions ?? []).filter((s) => s.attraction.slug === slug).sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()),
+    [bundle, slug],
+  );
 
   const [favorite, setFavorite] = useState(false);
   const [seen, setSeen] = useState(false);
+  const [showAccess, setShowAccess] = useState(false);
 
-  // Load this attraction's favorite/seen state for the signed-in user.
   useEffect(() => {
     if (!user || !attraction) return;
-    api<{ attractionId: string }[]>('/me/favorites')
-      .then((f) => setFavorite(f.some((x) => x.attractionId === attraction.id)))
-      .catch(() => undefined);
-    api<{ attractionId: string }[]>('/me/seen')
-      .then((s) => setSeen(s.some((x) => x.attractionId === attraction.id)))
-      .catch(() => undefined);
+    api<{ attractionId: string }[]>('/me/favorites').then((f) => setFavorite(f.some((x) => x.attractionId === attraction.id))).catch(() => undefined);
+    api<{ attractionId: string }[]>('/me/seen').then((s) => setSeen(s.some((x) => x.attractionId === attraction.id))).catch(() => undefined);
   }, [user, attraction?.id]);
 
   async function toggleFavorite() {
     if (!user) return router.push('/auth');
     if (!attraction) return;
-    setFavorite(true); // optimistic; endpoint is idempotent upsert
-    await api('/me/favorites', { method: 'POST', body: JSON.stringify({ attractionId: attraction.id }) }).catch(() =>
-      setFavorite(false),
-    );
+    setFavorite((v) => !v);
+    await api('/me/favorites', { method: 'POST', body: JSON.stringify({ attractionId: attraction.id }) }).catch(() => setFavorite((v) => !v));
   }
-
   async function markSeen() {
     if (!user) return router.push('/auth');
     if (!attraction) return;
     setSeen(true);
-    await api('/me/seen', { method: 'POST', body: JSON.stringify({ attractionId: attraction.id }) }).catch(() =>
-      setSeen(false),
-    );
+    await api('/me/seen', { method: 'POST', body: JSON.stringify({ attractionId: attraction.id }) }).catch(() => setSeen(false));
   }
 
   if (!attraction) {
     return (
-      <View style={styles.center}>
-        <Text style={{ color: theme.muted }}>Show not found.</Text>
+      <View style={[styles.center, { backgroundColor: pal.screen }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <Text style={{ color: pal.sub }}>Show not found.</Text>
       </View>
     );
   }
 
+  const isRealToday = date === new Date().toISOString().slice(0, 10);
+  const ref = isRealToday ? Date.now() : new Date(`${date}T00:00:00.000Z`).getTime();
+  const next = sessions.find((s) => new Date(s.endTime).getTime() > ref && s.status !== 'CANCELLED');
+  const statusLine = next ? `Next show at ${fmtTime(next.revisedStart ?? next.startTime)}` : 'No more shows today';
+
   const access: string[] = [];
-  if (attraction.wheelchairAccessible) access.push('♿ Step-free access');
-  if (attraction.hasAudioDescription) access.push('🔊 Audio described');
-  if (attraction.hasCaptioning) access.push('💬 Captioned');
-  if (attraction.hasBSL) access.push('🤟 BSL interpreted');
+  if (attraction.wheelchairAccessible) access.push('♿  Step-free access');
+  if (attraction.hasAudioDescription) access.push('🔊  Audio described');
+  if (attraction.hasCaptioning) access.push('💬  Captioned performances');
+  if (attraction.hasBSL) access.push('🤟  BSL interpreted');
 
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-      <Stack.Screen options={{ title: attraction.name }} />
-      <View style={[styles.hero, { backgroundColor: categoryColor[attraction.category] ?? theme.brand }]}>
-        <Text style={styles.heroCat}>{attraction.category.replace('_', ' ')}</Text>
-        <Text style={styles.heroName}>{attraction.name}</Text>
-        {attraction.tagline && <Text style={styles.heroTag}>{attraction.tagline}</Text>}
-      </View>
-
-      <View style={styles.actions}>
-        <Pressable style={[styles.actionBtn, favorite && styles.actionOn]} onPress={toggleFavorite}>
-          <Text style={[styles.actionText, favorite && styles.actionTextOn]}>{favorite ? '♥ Favourited' : '♡ Favourite'}</Text>
-        </Pressable>
-        <Pressable style={[styles.actionBtn, seen && styles.actionOn]} onPress={markSeen}>
-          <Text style={[styles.actionText, seen && styles.actionTextOn]}>{seen ? '✓ Seen' : 'Mark as seen'}</Text>
-        </Pressable>
-      </View>
-
-      <Text style={styles.body}>{attraction.synopsis}</Text>
-      <Text style={styles.meta}>⏱ Duration: {attraction.durationMins} minutes</Text>
-
-      {access.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.h2}>Accessibility</Text>
-          {access.map((a) => (
-            <Text key={a} style={styles.access}>{a}</Text>
-          ))}
+    <View style={[styles.screen, { backgroundColor: pal.screen }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+        {/* Hero */}
+        <View style={styles.hero}>
+          {attraction.heroImage ? (
+            <Image source={{ uri: attraction.heroImage }} style={styles.heroImg} />
+          ) : (
+            <View style={[styles.heroImg, { backgroundColor: categoryColor[attraction.category] ?? theme.brand, alignItems: 'center', justifyContent: 'center' }]}>
+              <Text style={styles.heroFallback}>{attraction.name}</Text>
+            </View>
+          )}
+          <Pressable style={[styles.backBtn, { top: insets.top + 8 }]} onPress={() => router.back()}>
+            <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><Path d="M15 5l-7 7 7 7" /></Svg>
+          </Pressable>
         </View>
-      )}
-      {attraction.sensoryNotes && (
-        <View style={styles.section}>
-          <Text style={styles.h2}>Sensory notes</Text>
-          <Text style={styles.muted}>{attraction.sensoryNotes}</Text>
-        </View>
-      )}
 
-      <Text style={styles.h2}>Today’s times</Text>
-      {sessions.length === 0 && <Text style={styles.muted}>No sessions listed for the selected day.</Text>}
-      {sessions.map((s) => (
-        <View key={s.id} style={styles.timeRow}>
-          <Text style={styles.time}>{fmtTime(s.revisedStart ?? s.startTime)}</Text>
-          <View style={[styles.badge, { backgroundColor: statusColor[s.status] }]}>
-            <Text style={styles.badgeText}>{s.status}</Text>
+        {/* Title block */}
+        <View style={styles.pad}>
+          <View style={styles.titleRow}>
+            <Pressable onPress={toggleFavorite} hitSlop={8}>
+              <Star filled={favorite} color={favorite ? theme.brand : pal.sub} />
+            </Pressable>
+            <Text style={[styles.title, { color: pal.text }]}>{attraction.name}</Text>
           </View>
+          <Text style={[styles.place, { color: pal.sub }]}>Kynren – The Storied Lands</Text>
+          <Text style={[styles.place, { color: pal.sub }]}>{attraction.category.replace('_', ' ').toLowerCase()}</Text>
+          <Text style={[styles.status, { color: pal.text }]}>{statusLine}</Text>
         </View>
-      ))}
-    </ScrollView>
+
+        {/* Showtimes */}
+        <Divider color={pal.line} />
+        <View style={styles.pad}>
+          <Text style={[styles.centerH, { color: pal.text }]}>Today’s showtimes</Text>
+          <Text style={[styles.centerSub, { color: pal.sub }]}>{fmtDateLong(date)}</Text>
+          {sessions.length === 0 ? (
+            <Text style={[styles.centerSub, { color: pal.sub, marginTop: 10 }]}>No sessions listed for this day.</Text>
+          ) : (
+            <View style={styles.times}>
+              {sessions.map((s) => {
+                const cancelled = s.status === 'CANCELLED';
+                return (
+                  <View key={s.id} style={[styles.timeChip, { backgroundColor: pal.chip, borderColor: pal.line }]}>
+                    <Text style={[styles.timeChipTxt, { color: cancelled ? theme.danger : pal.text, textDecorationLine: cancelled ? 'line-through' : 'none' }]}>
+                      {fmtTime(s.revisedStart ?? s.startTime)}
+                    </Text>
+                    {s.status !== 'SCHEDULED' && <View style={[styles.dot, { backgroundColor: statusColor[s.status] }]} />}
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </View>
+
+        {/* Find on Map */}
+        <Divider color={pal.line} />
+        <Pressable style={styles.findMap} onPress={() => router.push(`/map?focus=${attraction.id}`)}>
+          <Svg width={30} height={30} viewBox="0 0 24 24" fill="none" stroke={pal.text} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+            <Path d="M9 4 4 6v14l5-2 6 2 5-2V4l-5 2-6-2Z" /><Path d="M9 4v14M15 6v14" />
+          </Svg>
+          <Text style={[styles.findMapTxt, { color: pal.text }]}>Find on Map</Text>
+        </Pressable>
+
+        {/* Duration / suitability */}
+        <Divider color={pal.line} />
+        <View style={styles.pad}>
+          <Text style={[styles.centerLabel, { color: pal.sub }]}>Duration</Text>
+          <Text style={[styles.centerBig, { color: pal.text }]}>{attraction.durationMins} minutes</Text>
+        </View>
+        <Divider color={pal.line} />
+        <View style={styles.pad}>
+          <Text style={[styles.centerLabel, { color: pal.sub }]}>Suitable for</Text>
+          <Text style={[styles.centerBig, { color: pal.text }]}>All ages</Text>
+        </View>
+
+        {/* Accessibility (expandable) */}
+        <Divider color={pal.line} />
+        <Pressable style={[styles.pad, styles.accessHead]} onPress={() => setShowAccess((v) => !v)}>
+          <Text style={[styles.accessTitle, { color: pal.link }]}>Accessibility &amp; Other Information</Text>
+          <Text style={{ color: pal.link, fontSize: 14 }}>{showAccess ? '▲' : '▼'}</Text>
+        </Pressable>
+        {showAccess && (
+          <View style={styles.pad}>
+            {access.length > 0 ? access.map((a) => <Text key={a} style={[styles.accessItem, { color: pal.text }]}>{a}</Text>) : <Text style={{ color: pal.sub }}>No specific accessibility features listed.</Text>}
+            {attraction.sensoryNotes && <Text style={[styles.sensory, { color: pal.sub }]}>Sensory: {attraction.sensoryNotes}</Text>}
+          </View>
+        )}
+
+        {/* Description */}
+        <Divider color={pal.line} />
+        <View style={styles.pad}>
+          {attraction.tagline && <Text style={[styles.descLead, { color: pal.text }]}>{attraction.tagline}</Text>}
+          <Text style={[styles.desc, { color: pal.text }]}>{attraction.synopsis}</Text>
+        </View>
+
+        {/* Mark as seen */}
+        <View style={[styles.pad, { marginTop: 18 }]}>
+          <Pressable style={[styles.seenBtn, { borderColor: seen ? theme.ok : pal.line }]} onPress={markSeen}>
+            <Text style={[styles.seenTxt, { color: seen ? theme.ok : pal.text }]}>{seen ? '✓ Seen it' : 'Mark as seen'}</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
+function Divider({ color }: { color: string }) {
+  return <View style={{ height: 1, backgroundColor: color, marginVertical: 16 }} />;
+}
+function Star({ filled, color }: { filled: boolean; color: string }) {
+  return (
+    <Svg width={26} height={26} viewBox="0 0 24 24" fill={filled ? color : 'none'} stroke={color} strokeWidth={1.8} strokeLinejoin="round">
+      <Path d="M12 3l2.7 5.9 6.3.7-4.7 4.3 1.3 6.2L12 17.8 6.1 20.4l1.3-6.2L2.7 9.6l6.3-.7Z" />
+    </Svg>
+  );
+}
+function fmtDateLong(ymd: string) {
+  return new Date(`${ymd}T00:00:00.000Z`).toLocaleDateString('en-GB', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' });
+}
+
 const styles = StyleSheet.create({
+  screen: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  hero: { borderRadius: 16, padding: 20, marginBottom: 16 },
-  heroCat: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1 },
-  heroName: { color: '#fff', fontSize: 24, fontWeight: '800', marginTop: 6 },
-  heroTag: { color: 'rgba(255,255,255,0.9)', fontSize: 14, marginTop: 4 },
-  actions: { flexDirection: 'row', gap: 10, marginBottom: 16 },
-  actionBtn: { flex: 1, borderWidth: 1, borderColor: theme.border, borderRadius: 10, paddingVertical: 12, alignItems: 'center', backgroundColor: theme.card },
-  actionOn: { borderColor: theme.brand, backgroundColor: '#fbf1f0' },
-  actionText: { color: theme.ink, fontWeight: '600' },
-  actionTextOn: { color: theme.brand },
-  body: { color: theme.ink, fontSize: 15, lineHeight: 22 },
-  meta: { color: theme.ink, marginTop: 12, fontWeight: '600' },
-  section: { marginTop: 18 },
-  h2: { fontSize: 16, fontWeight: '700', color: theme.ink, marginTop: 18, marginBottom: 8 },
-  access: { color: theme.ink, fontSize: 14, marginBottom: 4 },
-  muted: { color: theme.muted, fontSize: 14, lineHeight: 20 },
-  timeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: theme.card, borderRadius: 10, padding: 14, borderWidth: 1, borderColor: theme.border, marginBottom: 8 },
-  time: { fontWeight: '800', color: theme.ink, fontSize: 16 },
-  badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
-  badgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  hero: { width: '100%', height: 300 },
+  heroImg: { width: '100%', height: 300 },
+  heroFallback: { color: '#fff', fontSize: 24, fontWeight: '800', textAlign: 'center', paddingHorizontal: 20 },
+  backBtn: { position: 'absolute', left: 14, width: 42, height: 42, borderRadius: 21, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
+  pad: { paddingHorizontal: 18 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 16 },
+  title: { flex: 1, fontSize: 26, fontWeight: '800' },
+  place: { fontSize: 15, marginTop: 3 },
+  status: { fontSize: 20, fontWeight: '800', marginTop: 10 },
+  centerH: { textAlign: 'center', fontSize: 19, fontWeight: '800' },
+  centerSub: { textAlign: 'center', fontSize: 13, marginTop: 3 },
+  times: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center', marginTop: 14 },
+  timeChip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 16 },
+  timeChipTxt: { fontSize: 15, fontWeight: '800' },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  findMap: { alignItems: 'center', gap: 8, paddingVertical: 4 },
+  findMapTxt: { fontSize: 15, fontWeight: '700' },
+  centerLabel: { textAlign: 'center', fontSize: 13 },
+  centerBig: { textAlign: 'center', fontSize: 21, fontWeight: '800', marginTop: 4 },
+  accessHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  accessTitle: { fontSize: 17, fontWeight: '700' },
+  accessItem: { fontSize: 15, marginBottom: 8 },
+  sensory: { fontSize: 14, marginTop: 6, lineHeight: 20 },
+  descLead: { fontSize: 16, fontWeight: '700', marginBottom: 8 },
+  desc: { fontSize: 15, lineHeight: 23 },
+  seenBtn: { borderWidth: 1.5, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  seenTxt: { fontWeight: '800', fontSize: 15 },
 });

@@ -32,7 +32,7 @@ export default function TicketsScreen() {
   );
 
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+    <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
       <Text style={styles.h1}>{t('tickets.title')}</Text>
 
       {/* Account */}

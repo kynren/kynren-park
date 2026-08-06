@@ -73,10 +73,11 @@ export class FoodService {
     this.realtime.emit(REALTIME_EVENTS.orderUpdated, { id: orderId, status });
 
     if (status === 'READY') {
-      await this.push.sendToUsers(
+      await this.push.sendTemplatedToUsers(
         [order.userId],
-        'Your order is ready 🍽️',
-        `Collect from ${order.restaurant.name} when you're ready.`,
+        'ORDER_READY',
+        { title: 'Your order is ready 🍽️', body: `Collect from ${order.restaurant.name} when you're ready.` },
+        { restaurant: order.restaurant.name },
         { type: 'order', orderId },
       );
     }

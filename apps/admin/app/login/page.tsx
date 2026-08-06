@@ -10,6 +10,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('kynren-admin');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPw, setShowPw] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -21,7 +22,7 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
       setSession(res.accessToken, res.staff);
-      router.replace('/schedule');
+      router.replace('/dashboard');
     } catch (err) {
       if (err instanceof ApiError && err.status === 0) {
         setError(`Can’t reach the API (${API_URL}). Is \`npm run dev:api\` running?`);
@@ -38,12 +39,18 @@ export default function LoginPage() {
   return (
     <div className="login-wrap">
       <form className="login-card" onSubmit={submit}>
-        <h1>◈ Kynren Staff</h1>
+        <div className="logo" style={{ fontSize: 30 }}>Kyn<b>ren</b></div>
         <p className="subtitle" style={{ textAlign: 'center' }}>The Storied Lands — Operations</p>
         <label>Email</label>
         <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" />
         <label>Password</label>
-        <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" />
+        <div style={{ position: 'relative' }}>
+          <input value={password} onChange={(e) => setPassword(e.target.value)} type={showPw ? 'text' : 'password'} style={{ width: '100%', paddingRight: 58 }} />
+          <button type="button" onClick={() => setShowPw((v) => !v)}
+            style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 0, color: 'var(--muted)', cursor: 'pointer', fontSize: 12, fontWeight: 700, padding: 0 }}>
+            {showPw ? 'Hide' : 'Show'}
+          </button>
+        </div>
         {error && <div className="error">{error}</div>}
         <button className="primary" style={{ width: '100%', marginTop: 18 }} disabled={loading}>
           {loading ? 'Signing in…' : 'Sign in'}

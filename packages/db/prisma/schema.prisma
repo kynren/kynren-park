@@ -103,6 +103,10 @@ model User {
   locale             String   @default("en-GB")
   // Accessibility preferences kept as a flexible JSON blob.
   accessibilityPrefs Json?
+  // Last known location, used to show who is in the park right now.
+  lastLat            Float?
+  lastLng            Float?
+  lastSeenAt         DateTime?
   pushTokens         PushToken[]
   refreshTokens      RefreshToken[]
   bookings           Booking[]
@@ -211,12 +215,41 @@ model PointOfInterest {
   lng        Float
   mapZone    String?
   icon       String?
+  color      String? // hotspot marker colour (admin-editable)
   attraction Attraction?
   restaurant Restaurant?
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
 
   @@index([type])
+}
+
+// Park base maps. Admin can add several; exactly one is the default that the
+// mobile app displays. Image can be changed or removed (illustrated fallback).
+model ParkMap {
+  id        String   @id @default(cuid())
+  name      String
+  imageUrl  String?
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isDefault])
+}
+
+// Singleton map configuration edited from the admin map editor.
+model MapConfig {
+  id          String   @id @default(cuid())
+  singleton   Boolean  @default(true) @unique
+  markerColor String   @default("#1a73e8")
+  markerStyle String   @default("pulse") // pulse | pin | dot
+  mapImageUrl String?
+  minLat      Float?
+  maxLat      Float?
+  minLng      Float?
+  maxLng      Float?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 // Pre-computed walking times (seconds) between POIs, used by the planner.
@@ -412,6 +445,20 @@ model Announcement {
   updatedAt   DateTime             @updatedAt
 
   @@index([targetDate])
+}
+
+// Reusable push-notification templates, assignable to app actions.
+model NotificationTemplate {
+  id        String   @id @default(cuid())
+  name      String
+  action    String   @default("CUSTOM") // SHOW_REMINDER | ORDER_READY | DELAY_ALERT | ANNOUNCEMENT | WELCOME | CUSTOM
+  title     String
+  body      String
+  deepLink  String?
+  sound     Boolean  @default(true)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model ContentPage {

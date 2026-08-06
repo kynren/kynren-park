@@ -19,6 +19,31 @@ export class PushService {
     await this.sendToTokens(tokens.map((t) => t.token), title, body, data);
   }
 
+  private interp(s: string, vars: Record<string, string>) {
+    return s.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
+  }
+
+  /**
+   * Resolve the active admin template for an action and interpolate {vars};
+   * falls back to the provided default copy when no template is assigned.
+   */
+  async resolveTemplate(action: string, vars: Record<string, string>, fallback: { title: string; body: string }) {
+    const t = await this.prisma.notificationTemplate.findFirst({
+      where: { action, active: true },
+      orderBy: { updatedAt: 'desc' },
+    });
+    if (!t) return fallback;
+    return { title: this.interp(t.title, vars), body: this.interp(t.body, vars) };
+  }
+
+  async sendTemplatedToUsers(
+    userIds: string[], action: string,
+    fallback: { title: string; body: string }, vars: Record<string, string>, data?: Record<string, unknown>,
+  ) {
+    const { title, body } = await this.resolveTemplate(action, vars, fallback);
+    await this.sendToUsers(userIds, title, body, data);
+  }
+
   async sendToAll(title: string, body: string, data?: Record<string, unknown>) {
     const tokens = await this.prisma.pushToken.findMany({ select: { token: true } });
     await this.sendToTokens(tokens.map((t) => t.token), title, body, data);

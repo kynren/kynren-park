@@ -5,7 +5,7 @@
     "scheme": "kynren",
     "version": "0.1.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "primaryColor": "#8f1d21",
     "description": "Your offline-first companion for Kynren – The Storied Lands: live show times, a smart itinerary planner, an offline park map, digital tickets and Click & Collect.",
     "icon": "./assets/icon.png",
@@ -56,13 +56,23 @@
           "icon": "./assets/notification-icon.png",
           "color": "#8f1d21"
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "buildToolsVersion": "35.0.0"
+          }
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": false
     },
     "extra": {
-      "apiUrl": "http://localhost:4000",
+      "apiUrl": "https://api.kynren.com",
       "router": {
         "origin": false
       },

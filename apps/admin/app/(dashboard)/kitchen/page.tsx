@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { api, API_URL } from '../../../lib/api';
+import { confirmDelete } from '../../../lib/confirm';
 import { REALTIME_EVENTS } from '@kynren/shared';
 
 interface Restaurant {
@@ -73,7 +74,7 @@ export default function KitchenPage() {
   }
 
   async function cancel(order: Order) {
-    if (!confirm('Cancel this order?')) return;
+    if (!(await confirmDelete('Cancel this order?', 'Cancel order?'))) return;
     await api(`/orders/${order.id}/status`, { method: 'PATCH', body: JSON.stringify({ status: 'CANCELLED' }) });
     load(restaurantId);
   }

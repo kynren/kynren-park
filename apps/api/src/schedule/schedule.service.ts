@@ -65,10 +65,12 @@ export class ScheduleService {
       });
       const userIds = [...new Set(items.map((i) => i.itinerary.userId))];
       const verb = input.status === 'CANCELLED' ? 'has been cancelled' : 'is delayed';
-      await this.push.sendToUsers(
+      const time = updated.revisedStart ? updated.revisedStart.toISOString().slice(11, 16) : '';
+      await this.push.sendTemplatedToUsers(
         userIds,
-        `${session.attraction.name} ${verb}`,
-        input.note || `Tap to see your updated plan for the day.`,
+        'DELAY_ALERT',
+        { title: `${session.attraction.name} ${verb}`, body: input.note || `Tap to see your updated plan for the day.` },
+        { show: session.attraction.name, status: input.status, time, note: input.note ?? '' },
         { type: 'session', sessionId: id },
       );
     }
