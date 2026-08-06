@@ -224,6 +224,19 @@ model PointOfInterest {
   @@index([type])
 }
 
+// Park base maps. Admin can add several; exactly one is the default that the
+// mobile app displays. Image can be changed or removed (illustrated fallback).
+model ParkMap {
+  id        String   @id @default(cuid())
+  name      String
+  imageUrl  String?
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isDefault])
+}
+
 // Singleton map configuration edited from the admin map editor.
 model MapConfig {
   id          String   @id @default(cuid())

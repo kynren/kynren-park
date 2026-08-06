@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api } from '../../../../lib/api';
+import { confirmDelete } from '../../../../lib/confirm';
 
 interface Poi { id: string; type: string; name: string; lat: number; lng: number; color: string | null; mapZone: string | null }
 
@@ -44,7 +45,7 @@ export default function Categories() {
     } catch { setError('Save failed.'); }
   }
   async function remove(p: Poi) {
-    if (!confirm(`Remove "${p.name}"?`)) return;
+    if (!(await confirmDelete(`Remove “${p.name}”?`))) return;
     await api(`/admin/pois/${p.id}`, { method: 'DELETE' }).catch(() => undefined);
     load();
   }

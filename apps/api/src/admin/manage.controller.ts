@@ -257,7 +257,54 @@ export class ManageController {
 
   @Delete('pois/:id')
   async deletePoi(@Param('id') id: string) {
+    // Disconnect any attraction/restaurant that references this POI, otherwise
+    // the foreign key blocks deletion ("unable to remove hotspot").
+    await this.prisma.attraction.updateMany({ where: { poiId: id }, data: { poiId: null } });
+    await this.prisma.restaurant.updateMany({ where: { poiId: id }, data: { poiId: null } });
     await this.prisma.pointOfInterest.delete({ where: { id } });
+    return { deleted: true };
+  }
+
+  // ---- Park maps (multiple; one default drives the mobile base map) ---------
+  @Get('maps')
+  listMaps() {
+    return this.prisma.parkMap.findMany({ orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }] });
+  }
+
+  @Post('maps')
+  async createMap(@Body() b: any) {
+    if (!b?.name) throw new BadRequestException('name is required');
+    const count = await this.prisma.parkMap.count();
+    const makeDefault = b.isDefault === true || count === 0; // first map is default
+    if (makeDefault) await this.prisma.parkMap.updateMany({ data: { isDefault: false } });
+    return this.prisma.parkMap.create({ data: { name: b.name, imageUrl: b.imageUrl || null, isDefault: makeDefault } });
+  }
+
+  @Patch('maps/:id')
+  updateMap(@Param('id') id: string, @Body() b: any) {
+    const data = pick(b, ['name']);
+    if (b.imageUrl !== undefined) data.imageUrl = b.imageUrl || null; // null clears the image
+    return this.prisma.parkMap.update({ where: { id }, data });
+  }
+
+  @Post('maps/:id/default')
+  async setDefaultMap(@Param('id') id: string) {
+    await this.prisma.$transaction([
+      this.prisma.parkMap.updateMany({ data: { isDefault: false } }),
+      this.prisma.parkMap.update({ where: { id }, data: { isDefault: true } }),
+    ]);
+    return { ok: true };
+  }
+
+  @Delete('maps/:id')
+  async deleteMap(@Param('id') id: string) {
+    const map = await this.prisma.parkMap.findUnique({ where: { id } });
+    await this.prisma.parkMap.delete({ where: { id } });
+    // Promote another map to default if we removed the default one.
+    if (map?.isDefault) {
+      const next = await this.prisma.parkMap.findFirst({ orderBy: { createdAt: 'asc' } });
+      if (next) await this.prisma.parkMap.update({ where: { id: next.id }, data: { isDefault: true } });
+    }
     return { deleted: true };
   }
 

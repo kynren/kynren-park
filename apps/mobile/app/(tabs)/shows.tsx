@@ -6,6 +6,7 @@ import { useSync, type Attraction, type Session } from '../../lib/sync';
 import { fmtTime } from '../../lib/format';
 import { theme, categoryColor } from '../../lib/theme';
 import { useThemePref } from '../../lib/theme-context';
+import { SkeletonRows } from '../../components/Shimmer';
 
 const HPAD = 14;
 
@@ -137,10 +138,12 @@ export default function ProgramScreen() {
       )}
 
       <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24 }}>
-        {rows.length === 0 && (
+        {!bundle ? (
+          <View style={{ padding: 16 }}><SkeletonRows count={6} height={54} /></View>
+        ) : rows.length === 0 ? (
           <Text style={[styles.empty, { color: pal.sub }]}>No shows scheduled for {fmtDate(date)}.</Text>
-        )}
-        {rows.map((r, idx) => (
+        ) : null}
+        {bundle && rows.map((r, idx) => (
           <ProgramRow
             key={r.a.id}
             attraction={r.a}

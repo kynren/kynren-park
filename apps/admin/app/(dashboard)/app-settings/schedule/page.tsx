@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { api } from '../../../../lib/api';
+import { confirmDelete } from '../../../../lib/confirm';
 
 interface Attraction { id: string; name: string; category: string; sortOrder?: number }
 interface Session {
@@ -86,7 +87,7 @@ export default function ScheduleAdmin() {
   }
 
   async function remove(s: Session) {
-    if (!confirm(`Delete the ${fmt(s.startTime)} ${s.attraction.name} session?`)) return;
+    if (!(await confirmDelete(`Delete the ${fmt(s.startTime)} ${s.attraction.name} session?`))) return;
     await api(`/admin/sessions/${s.id}`, { method: 'DELETE' }).catch(() => undefined);
     load(date);
   }

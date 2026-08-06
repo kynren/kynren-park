@@ -7,6 +7,7 @@ import { useSync, type Session } from '../../lib/sync';
 import { fmtTime } from '../../lib/format';
 import { theme, categoryColor, statusColor } from '../../lib/theme';
 import { useThemePref } from '../../lib/theme-context';
+import { SkeletonRows } from '../../components/Shimmer';
 
 const HERO_H = Math.min(520, Math.max(420, Dimensions.get('window').height * 0.56));
 
@@ -139,10 +140,15 @@ export default function HomeScreen() {
 
       <View style={styles.section}>
         <Text style={[styles.sectionH, { color: pal.text }]}>Coming up</Text>
-        {upcoming.length === 0 && <Text style={{ color: pal.sub, fontSize: 13 }}>No more shows today.</Text>}
-        {upcoming.map((s) => (
-          <SessionRow key={s.id} session={s} pal={pal} onPress={() => router.push(`/attraction/${s.attraction.slug}`)} />
-        ))}
+        {!bundle ? (
+          <SkeletonRows count={5} height={62} />
+        ) : upcoming.length === 0 ? (
+          <Text style={{ color: pal.sub, fontSize: 13 }}>No more shows today.</Text>
+        ) : (
+          upcoming.map((s) => (
+            <SessionRow key={s.id} session={s} pal={pal} onPress={() => router.push(`/attraction/${s.attraction.slug}`)} />
+          ))
+        )}
       </View>
     </ScrollView>
   );

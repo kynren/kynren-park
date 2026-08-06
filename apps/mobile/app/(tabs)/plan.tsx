@@ -5,6 +5,7 @@ import { api } from '../../lib/api';
 import { fmtTime } from '../../lib/format';
 import { useI18n } from '../../lib/i18n';
 import { theme, categoryColor } from '../../lib/theme';
+import { SkeletonRows } from '../../components/Shimmer';
 import type { OptimizedItinerary } from '../../lib/shared';
 
 export default function PlanScreen() {
@@ -72,6 +73,7 @@ export default function PlanScreen() {
       </View>
 
       <View style={{ gap: 8 }}>
+        {!bundle && <SkeletonRows count={6} height={64} />}
         {attractions.map((a) => {
           const on = selected.has(a.id);
           return (

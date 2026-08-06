@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { confirmDelete } from '../../../../lib/confirm';
 
 interface Backup { id: string; when: string; size: string; status: string; type: string }
 const KEY = 'sys_backups';
@@ -23,7 +24,7 @@ export default function Backups() {
       setRunning(false);
     }, 1200);
   }
-  function remove(b: Backup) { if (confirm('Delete this backup?')) persist(rows.filter((r) => r.id !== b.id)); }
+  async function remove(b: Backup) { if (await confirmDelete('Delete this backup?')) persist(rows.filter((r) => r.id !== b.id)); }
 
   return (
     <div>

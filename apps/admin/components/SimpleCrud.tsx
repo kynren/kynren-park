@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { confirmDelete } from '../lib/confirm';
 
 export interface Field {
   key: string;
@@ -50,7 +51,7 @@ export function SimpleCrud({
     else persist([...rows, { ...form, id: `${Date.now()}` }]);
     setForm(null);
   }
-  function remove(r: Row) { if (confirm('Remove this item?')) persist(rows.filter((x) => x.id !== r.id)); }
+  async function remove(r: Row) { if (await confirmDelete('Remove this item?')) persist(rows.filter((x) => x.id !== r.id)); }
 
   return (
     <div>

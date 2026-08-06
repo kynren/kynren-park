@@ -21,6 +21,12 @@ export interface MapConfig {
   markerStyle: string;
   mapImageUrl?: string | null;
 }
+export interface ParkMap {
+  id: string;
+  name: string;
+  imageUrl?: string | null;
+  isDefault: boolean;
+}
 export interface Attraction {
   id: string;
   slug: string;
@@ -65,6 +71,7 @@ export interface Bundle {
   announcements: Announcement[];
   sessions: Session[];
   mapConfig?: MapConfig | null;
+  defaultMap?: ParkMap | null;
 }
 
 interface SyncState {

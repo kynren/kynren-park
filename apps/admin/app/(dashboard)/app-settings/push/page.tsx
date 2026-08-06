@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api } from '../../../../lib/api';
+import { confirmDelete } from '../../../../lib/confirm';
 
 interface Template {
   id: string; name: string; action: string; title: string; body: string;
@@ -38,7 +39,7 @@ export default function PushTemplates() {
     } catch { setError('Save failed.'); }
   }
   async function remove(t: Template) {
-    if (!confirm(`Delete template "${t.name}"?`)) return;
+    if (!(await confirmDelete(`Delete template “${t.name}”?`))) return;
     await api(`/admin/notification-templates/${t.id}`, { method: 'DELETE' }).catch(() => undefined);
     load();
   }

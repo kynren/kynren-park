@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { api } from '../../../../lib/api';
+import { confirmDelete } from '../../../../lib/confirm';
 
 interface Poi { id: string; type: string; name: string; lat: number; lng: number; color: string | null; mapZone: string | null }
 interface MapConfig { markerColor: string; markerStyle: string; mapImageUrl: string | null }
+interface ParkMap { id: string; name: string; imageUrl: string | null; isDefault: boolean }
 
 const TYPES = ['ATTRACTION', 'RESTAURANT', 'RESTROOM', 'SHOP', 'FIRST_AID', 'ENTRANCE', 'PARKING', 'ACCESSIBILITY', 'BABY_CHANGING', 'PICNIC', 'INFO'];
 const TYPE_COLOR: Record<string, string> = {
@@ -18,6 +20,8 @@ const colorOf = (p: Poi) => p.color || TYPE_COLOR[p.type] || '#6b6460';
 export default function MapEditor() {
   const [pois, setPois] = useState<Poi[]>([]);
   const [config, setConfig] = useState<MapConfig>({ markerColor: '#1a73e8', markerStyle: 'pulse', mapImageUrl: null });
+  const [maps, setMaps] = useState<ParkMap[]>([]);
+  const [newMapName, setNewMapName] = useState('');
   const [selId, setSelId] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragId = useRef<string | null>(null);
@@ -26,8 +30,47 @@ export default function MapEditor() {
   const load = useCallback(() => {
     api<Poi[]>('/admin/pois').then(setPois).catch(() => undefined);
     api<MapConfig>('/admin/map-config').then((c) => setConfig({ markerColor: c.markerColor, markerStyle: c.markerStyle, mapImageUrl: c.mapImageUrl })).catch(() => undefined);
+    api<ParkMap[]>('/admin/maps').then(setMaps).catch(() => undefined);
   }, []);
   useEffect(load, [load]);
+
+  const refreshMaps = () => api<ParkMap[]>('/admin/maps').then(setMaps).catch(() => undefined);
+  async function addMap() {
+    if (!newMapName.trim()) return;
+    await api('/admin/maps', { method: 'POST', body: JSON.stringify({ name: newMapName.trim() }) }).catch(() => undefined);
+    setNewMapName(''); refreshMaps();
+  }
+  async function setDefaultMap(id: string) { await api(`/admin/maps/${id}/default`, { method: 'POST' }).catch(() => undefined); refreshMaps(); }
+  async function setMapImage(id: string, url: string | null) { await api(`/admin/maps/${id}`, { method: 'PATCH', body: JSON.stringify({ imageUrl: url }) }).catch(() => undefined); refreshMaps(); }
+  async function deleteMap(id: string) { if (!(await confirmDelete('Delete this map?'))) return; await api(`/admin/maps/${id}`, { method: 'DELETE' }).catch(() => undefined); refreshMaps(); }
+
+  // Upload an image file → resized data URL (keeps it reasonable for the app bundle).
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadTarget = useRef<string | null>(null);
+  function triggerUpload(id: string) { uploadTarget.current = id; fileInputRef.current?.click(); }
+  function resizeToDataUrl(file: File, maxDim: number): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new window.Image();
+        img.onload = () => {
+          const s = Math.min(1, maxDim / Math.max(img.width, img.height));
+          const w = Math.round(img.width * s), h = Math.round(img.height * s);
+          const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+          canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', 0.82));
+        };
+        img.onerror = reject; img.src = reader.result as string;
+      };
+      reader.onerror = reject; reader.readAsDataURL(file);
+    });
+  }
+  async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; const id = uploadTarget.current; e.target.value = '';
+    if (!file || !id) return;
+    if (file.size > 15 * 1024 * 1024) { alert('Please choose an image under 15 MB.'); return; }
+    try { await setMapImage(id, await resizeToDataUrl(file, 2400)); } catch { alert('Could not read that image.'); }
+  }
 
   // Bounds (with margin) drive the pixel↔lat/lng projection.
   const bounds = useMemo(() => {
@@ -80,7 +123,8 @@ export default function MapEditor() {
     await api(`/admin/pois/${selected.id}`, { method: 'PATCH', body: JSON.stringify(patch) }).catch(() => undefined);
   }
   async function removeSel() {
-    if (!selected || !confirm(`Delete hotspot "${selected.name}"?`)) return;
+    if (!selected) return;
+    if (!(await confirmDelete(`Delete hotspot “${selected.name}”? It will disappear from the app map.`))) return;
     await api(`/admin/pois/${selected.id}`, { method: 'DELETE' }).catch(() => undefined);
     setPois((prev) => prev.filter((p) => p.id !== selected.id));
     setSelId(null);
@@ -93,6 +137,7 @@ export default function MapEditor() {
 
   const entrance = pois.find((p) => p.type === 'ENTRANCE');
   const custPos = entrance ? proj(entrance) : { left: 50, top: 72 };
+  const defaultMap = maps.find((m) => m.isDefault) ?? null;
 
   return (
     <div>
@@ -104,6 +149,7 @@ export default function MapEditor() {
       <div className="mapedit">
         <div>
           <div ref={canvasRef} className="mapcanvas" onClick={onCanvasClick} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp}>
+            {defaultMap?.imageUrl && <img src={defaultMap.imageUrl} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
             <div className="grid" />
             {pois.map((p) => {
               const { left, top } = proj(p);
@@ -128,6 +174,37 @@ export default function MapEditor() {
 
         {/* Side panel */}
         <div style={{ display: 'grid', gap: 16 }}>
+          <div className="editcard">
+            <h3>Base maps</h3>
+            <p style={{ color: 'var(--muted)', fontSize: 12, margin: '0 0 12px', lineHeight: 1.5 }}>
+              The <b>default</b> map is what the mobile app shows. Recommended image: <b>2000–3000&nbsp;px</b> on the
+              longest edge, roughly <b>4:3</b>, <b>PNG or JPG</b>, under <b>5&nbsp;MB</b> — big enough to stay sharp when
+              guests zoom in, small enough to load fast.
+            </p>
+            <div style={{ display: 'grid', gap: 8 }}>
+              {maps.length === 0 && <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0 }}>No maps yet — add one below.</p>}
+              {maps.map((m) => (
+                <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid var(--line)', paddingBottom: 8 }}>
+                  <button onClick={() => setDefaultMap(m.id)} title="Set as default"
+                    style={{ width: 18, height: 18, borderRadius: '50%', border: 0, cursor: 'pointer', background: m.isDefault ? '#22b365' : '#fff', boxShadow: '0 0 0 1px var(--border)' }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{m.name} {m.isDefault && <span className="pillbadge on">Default</span>}</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.imageUrl ?? 'no image (illustrated map)'}</div>
+                  </div>
+                  <button className="tbtn" onClick={() => triggerUpload(m.id)}>Upload</button>
+                  <button className="tbtn" onClick={() => { const u = window.prompt('Image URL (leave blank to remove):', m.imageUrl ?? ''); if (u !== null) setMapImage(m.id, u.trim() || null); }}>URL</button>
+                  {m.imageUrl && <button className="tbtn" onClick={() => setMapImage(m.id, null)}>Remove</button>}
+                  <button className="tbtn danger" onClick={() => deleteMap(m.id)}>✕</button>
+                </div>
+              ))}
+            </div>
+            <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={onFileChange} />
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <input value={newMapName} onChange={(e) => setNewMapName(e.target.value)} placeholder="New map name" style={{ flex: 1 }} onKeyDown={(e) => e.key === 'Enter' && addMap()} />
+              <button className="primary" onClick={addMap}>Add map</button>
+            </div>
+          </div>
+
           <div className="editcard">
             <h3>{selected ? 'Edit hotspot' : 'Hotspot'}</h3>
             {!selected && <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0 }}>Select a hotspot on the map, or click an empty spot to add one.</p>}
@@ -166,7 +243,7 @@ export default function MapEditor() {
                 <option value="pulse">Pulsing dot</option><option value="dot">Solid dot</option><option value="pin">Pin</option>
               </select>
             </div>
-            <div className="form-row"><label>Base map image URL (optional)</label><input value={config.mapImageUrl ?? ''} placeholder="https://… (leave blank for illustrated map)" onChange={(e) => saveConfig({ mapImageUrl: e.target.value })} /></div>
+            <p style={{ color: 'var(--muted)', fontSize: 12, margin: 0 }}>Manage the base map image under <b>Base maps</b> above.</p>
           </div>
         </div>
       </div>

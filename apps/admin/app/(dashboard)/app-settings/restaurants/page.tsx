@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api } from '../../../../lib/api';
+import { confirmDelete } from '../../../../lib/confirm';
 
 interface Poi { id: string; name: string; type: string }
 interface Restaurant {
@@ -44,7 +45,7 @@ export default function RestaurantsAdmin() {
   }
 
   async function remove(r: Restaurant) {
-    if (!confirm(`Remove "${r.name}"? Guests will no longer see it.`)) return;
+    if (!(await confirmDelete(`Remove “${r.name}”? Guests will no longer see it.`))) return;
     await api(`/admin/restaurants/${r.id}`, { method: 'DELETE' }).catch(() => undefined);
     load();
   }

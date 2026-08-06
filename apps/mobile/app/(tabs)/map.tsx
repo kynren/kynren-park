@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, PanResponder, Animated, Image, type LayoutChangeEvent } from 'react-native';
+import { View, Text, StyleSheet, Pressable, PanResponder, Animated, Image, TextInput, Keyboard, type LayoutChangeEvent } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Rect, Circle, Ellipse, Path, G, Polygon, Line } from 'react-native-svg';
@@ -70,12 +70,22 @@ function distMeters(a: { lat: number; lng: number }, b: { lat: number; lng: numb
 const fmtDist = (m: number) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`);
 const walkMins = (m: number) => Math.max(1, Math.round(m / 80)); // ~80 m/min stroll
 
+// Two-finger pinch helpers (coords relative to the responder view).
+const lx = (p: any) => p.locationX ?? p.pageX ?? 0;
+const ly = (p: any) => p.locationY ?? p.pageY ?? 0;
+const touchDist = (t: any[]) => Math.hypot(lx(t[0]) - lx(t[1]), ly(t[0]) - ly(t[1]));
+const touchMid = (t: any[]) => ({ x: (lx(t[0]) + lx(t[1])) / 2, y: (ly(t[0]) + ly(t[1])) / 2 });
+const MIN_SCALE = 1;
+const MAX_SCALE = 4.5;
+
 export default function MapScreen() {
   const { bundle, date } = useSync();
   const router = useRouter();
   const params = useLocalSearchParams<{ focus?: string }>();
   const [cat, setCat] = useState<Cat>('shows');
   const [selected, setSelected] = useState<Pin | null>(null);
+  const [search, setSearch] = useState('');
+  const [pendingSelect, setPendingSelect] = useState<string | null>(null);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const appliedFocus = useRef<string | null>(null);
   const [favs, setFavs] = useState<Set<string>>(new Set());
@@ -83,17 +93,26 @@ export default function MapScreen() {
   const [vp, setVp] = useState({ w: 0, h: 0 });
   const [scale, setScale] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
-  const panStart = useRef({ x: 0, y: 0 });
+  // Live refs so the once-created PanResponder reads current values, not stale closures.
+  const scaleRef = useRef(1);
+  const panRef = useRef({ x: 0, y: 0 });
+  const vpRef = useRef({ w: 375, h: 680 });
+  const gestureRef = useRef({ mode: 'none' as 'none' | 'pan' | 'pinch', startPan: { x: 0, y: 0 }, startScale: 1, startDist: 0, focal: { x: 0, y: 0 } });
   const pulse = useRef(new Animated.Value(0)).current;
 
   const vw = vp.w || 375;
   const vh = vp.h || 680;
   const markerColor = bundle?.mapConfig?.markerColor ?? '#1a73e8';
-  const mapImageUrl = bundle?.mapConfig?.mapImageUrl || null;
+  const mapImageUrl = bundle?.defaultMap?.imageUrl || bundle?.mapConfig?.mapImageUrl || null;
 
+  const applyScale = (s: number) => { scaleRef.current = s; setScale(s); };
+  const applyPan = (p: { x: number; y: number }) => { panRef.current = p; setPan(p); };
+
+  // Free panning with a gentle boundary (map can't be fully lost) at any zoom.
   function clampPan(p: { x: number; y: number }, s: number) {
-    const maxX = ((s - 1) * vw) / 2;
-    const maxY = ((s - 1) * vh) / 2;
+    const w = vpRef.current.w || 375, h = vpRef.current.h || 680;
+    const maxX = ((s - 1) * w) / 2 + w * 0.45;
+    const maxY = ((s - 1) * h) / 2 + h * 0.45;
     return { x: Math.max(-maxX, Math.min(maxX, p.x)), y: Math.max(-maxY, Math.min(maxY, p.y)) };
   }
 
@@ -140,11 +159,41 @@ export default function MapScreen() {
 
   const responder = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 5 || Math.abs(g.dy) > 5,
-      onPanResponderGrant: () => {
-        panStart.current = pan;
+      // Let single taps reach the pins; claim on drag, or immediately on 2 fingers.
+      onStartShouldSetPanResponder: (e) => e.nativeEvent.touches.length >= 2,
+      onMoveShouldSetPanResponder: (e, g) => e.nativeEvent.touches.length >= 2 || Math.abs(g.dx) > 4 || Math.abs(g.dy) > 4,
+      onPanResponderGrant: (e) => {
+        const t = e.nativeEvent.touches as any[];
+        const gs = gestureRef.current;
+        gs.startPan = panRef.current;
+        gs.startScale = scaleRef.current;
+        if (t.length >= 2) { gs.mode = 'pinch'; gs.startDist = touchDist(t); gs.focal = touchMid(t); }
+        else gs.mode = 'pan';
       },
-      onPanResponderMove: (_e, g) => setPan(clampPan({ x: panStart.current.x + g.dx, y: panStart.current.y + g.dy }, scale)),
+      onPanResponderMove: (e, g) => {
+        const t = e.nativeEvent.touches as any[];
+        const gs = gestureRef.current;
+        if (t.length >= 2) {
+          // Entered / continuing a pinch.
+          if (gs.mode !== 'pinch') { gs.mode = 'pinch'; gs.startScale = scaleRef.current; gs.startPan = panRef.current; gs.startDist = touchDist(t); gs.focal = touchMid(t); }
+          if (gs.startDist <= 0) return;
+          const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, gs.startScale * (touchDist(t) / gs.startDist)));
+          const cx = vpRef.current.w / 2, cy = vpRef.current.h / 2;
+          const r = newScale / gs.startScale;
+          // Keep the pinch focal point anchored while scaling.
+          const np = {
+            x: gs.focal.x - cx - (gs.focal.x - cx - gs.startPan.x) * r,
+            y: gs.focal.y - cy - (gs.focal.y - cy - gs.startPan.y) * r,
+          };
+          applyScale(newScale);
+          applyPan(clampPan(np, newScale));
+          return;
+        }
+        if (gs.mode === 'pinch') return; // one finger lifted after a pinch — wait for release
+        applyPan(clampPan({ x: gs.startPan.x + g.dx, y: gs.startPan.y + g.dy }, scaleRef.current));
+      },
+      onPanResponderRelease: () => { gestureRef.current.mode = 'none'; },
+      onPanResponderTerminate: () => { gestureRef.current.mode = 'none'; },
     }),
   ).current;
 
@@ -228,6 +277,39 @@ export default function MapScreen() {
     return out;
   }, [cat, bundle, project, poiById, nextByAttraction, favs]);
 
+  // Searchable index of everything on the map.
+  const searchIndex = useMemo(() => {
+    const out: { id: string; name: string; kind: Cat; sub: string }[] = [];
+    for (const a of bundle?.attractions ?? []) out.push({ id: a.id, name: a.name, kind: 'shows', sub: a.category === 'EVENING_SHOW' ? 'Evening show' : 'Show' });
+    for (const r of bundle?.restaurants ?? []) out.push({ id: r.id, name: r.name, kind: 'restaurants', sub: r.cuisine ?? 'Restaurant' });
+    for (const p of pois) if (FACILITY_TYPES[p.type]) out.push({ id: p.id, name: p.name, kind: 'facilities', sub: p.type.replace('_', ' ').toLowerCase() });
+    return out;
+  }, [bundle, pois]);
+  const searchResults = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return [];
+    return searchIndex.filter((s) => s.name.toLowerCase().includes(q)).slice(0, 6);
+  }, [search, searchIndex]);
+
+  function goToResult(r: { id: string; kind: Cat }) {
+    setCat(r.kind);
+    setPendingSelect(r.id);
+    setSearch('');
+    Keyboard.dismiss();
+  }
+  // Once the pins for the chosen layer are ready, select & centre the result.
+  useEffect(() => {
+    if (!pendingSelect || vw === 0) return;
+    const pin = pins.find((p) => p.id === pendingSelect);
+    if (!pin) return;
+    setSelected(pin);
+    const s = 2.4;
+    applyScale(s);
+    applyPan(clampPan({ x: (vw / 2 - pin.x) * s, y: (vh / 2 - pin.y) * s }, s));
+    setPendingSelect(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingSelect, pins, vw, vh]);
+
   const entrance = pois.find((p) => p.type === 'ENTRANCE');
   const locationReal = !!(gps && project && project.inBounds(gps.lat, gps.lng));
   const youAreHere = useMemo(() => {
@@ -252,8 +334,8 @@ export default function MapScreen() {
     appliedFocus.current = params.focus;
     setSelected(pin);
     const s = 2.2;
-    setScale(s);
-    setPan(clampPan({ x: (vw / 2 - pin.x) * s, y: (vh / 2 - pin.y) * s }, s));
+    applyScale(s);
+    applyPan(clampPan({ x: (vw / 2 - pin.x) * s, y: (vh / 2 - pin.y) * s }, s));
   }, [params.focus, pins, vw, vh]);
 
   // Distance from the guest to the currently selected place.
@@ -263,18 +345,18 @@ export default function MapScreen() {
   }, [selected, gps, locationReal]);
 
   function zoomTo(next: number) {
-    const s = Math.max(1, Math.min(3, +next.toFixed(2)));
-    setScale(s);
-    setPan((p) => clampPan(p, s));
+    const s = Math.max(MIN_SCALE, Math.min(MAX_SCALE, +next.toFixed(2)));
+    applyScale(s);
+    applyPan(clampPan(panRef.current, s));
   }
   function recenter() {
     const s = 2;
-    setScale(s);
-    setPan(clampPan({ x: (vw / 2 - youAreHere.x) * s, y: (vh / 2 - youAreHere.y) * s }, s));
+    applyScale(s);
+    applyPan(clampPan({ x: (vw / 2 - youAreHere.x) * s, y: (vh / 2 - youAreHere.y) * s }, s));
   }
   function fitAll() {
-    setScale(1);
-    setPan({ x: 0, y: 0 });
+    applyScale(1);
+    applyPan({ x: 0, y: 0 });
   }
   function openDetail() {
     if (!selected?.slug) return;
@@ -283,6 +365,7 @@ export default function MapScreen() {
 
   function onLayout(e: LayoutChangeEvent) {
     const { width, height } = e.nativeEvent.layout;
+    vpRef.current = { w: width, h: height };
     setVp({ w: width, h: height });
   }
 
@@ -366,42 +449,44 @@ export default function MapScreen() {
             <View style={[styles.meDot, { backgroundColor: markerColor }]} />
           </View>
 
-          {/* Popup above the tapped pin */}
-          {selected && (
-            <View style={[styles.callout, { left: selected.x, top: selected.y }]}>
-              <Pressable style={styles.calloutCard} onPress={openDetail}>
-                <View style={[styles.calloutIcon, selected.kind === 'evening' && { backgroundColor: '#2c3e70' }]}>
-                  <Text style={{ fontSize: 18 }}>{selected.emoji ?? '🎭'}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.calloutTitle} numberOfLines={1}>{selected.title}</Text>
-                  {selected.subtitle && <Text style={styles.calloutSub} numberOfLines={1}>{selected.subtitle}</Text>}
-                  <Text style={styles.calloutMeta}>
-                    {selectedDist != null
-                      ? `📍 ${fmtDist(selectedDist)} away · ~${walkMins(selectedDist)} min walk`
-                      : selected.kind === 'restaurant'
-                        ? selected.zone ?? 'The Storied Lands'
-                        : selected.nextTime
-                          ? `Next show ${fmtTime(selected.nextTime)}`
-                          : 'No more shows today'}
-                  </Text>
-                  <Text style={styles.calloutHint}>Tap for details ›</Text>
-                </View>
-                {selected.attractionId && (
-                  <Pressable hitSlop={8} onPress={() => toggleFav(selected.attractionId!)}>
-                    <Text style={[styles.calloutHeart, favs.has(selected.attractionId) && { color: theme.brand }]}>
-                      {favs.has(selected.attractionId) ? '♥' : '♡'}
-                    </Text>
-                  </Pressable>
-                )}
-                <Pressable hitSlop={8} onPress={() => setSelected(null)}>
-                  <Text style={styles.calloutClose}>✕</Text>
-                </Pressable>
-              </Pressable>
-              <View style={styles.calloutTail} />
-            </View>
-          )}
         </View>
+
+        {/* Popup — rendered OUTSIDE the scaled map, anchored to the pin's
+            on-screen position, so it keeps a fixed size and stays on the spot. */}
+        {selected && (
+          <View style={[styles.callout, { left: vw / 2 + (selected.x - vw / 2) * scale + pan.x, top: vh / 2 + (selected.y - vh / 2) * scale + pan.y }]}>
+            <Pressable style={styles.calloutCard} onPress={openDetail}>
+              <View style={[styles.calloutIcon, selected.kind === 'evening' && { backgroundColor: '#2c3e70' }]}>
+                <Text style={{ fontSize: 18 }}>{selected.emoji ?? '🎭'}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.calloutTitle} numberOfLines={1}>{selected.title}</Text>
+                {selected.subtitle && <Text style={styles.calloutSub} numberOfLines={1}>{selected.subtitle}</Text>}
+                <Text style={styles.calloutMeta}>
+                  {selectedDist != null
+                    ? `📍 ${fmtDist(selectedDist)} away · ~${walkMins(selectedDist)} min walk`
+                    : selected.kind === 'restaurant'
+                      ? selected.zone ?? 'The Storied Lands'
+                      : selected.nextTime
+                        ? `Next show ${fmtTime(selected.nextTime)}`
+                        : 'No more shows today'}
+                </Text>
+                <Text style={styles.calloutHint}>Tap for details ›</Text>
+              </View>
+              {selected.attractionId && (
+                <Pressable hitSlop={8} onPress={() => toggleFav(selected.attractionId!)}>
+                  <Text style={[styles.calloutHeart, favs.has(selected.attractionId) && { color: theme.brand }]}>
+                    {favs.has(selected.attractionId) ? '♥' : '♡'}
+                  </Text>
+                </Pressable>
+              )}
+              <Pressable hitSlop={8} onPress={() => setSelected(null)}>
+                <Text style={styles.calloutClose}>✕</Text>
+              </Pressable>
+            </Pressable>
+            <View style={styles.calloutTail} />
+          </View>
+        )}
 
         {/* Location banner — the app needs GPS to show your position & distances */}
         {!locationReal && !bannerDismissed && (
@@ -422,6 +507,38 @@ export default function MapScreen() {
             <Text style={styles.hintText}>No favourites yet — open a show and tap ♡ to add it here.</Text>
           </View>
         )}
+
+        {/* Search */}
+        <View style={styles.searchWrap}>
+          <View style={styles.searchBar}>
+            <Text style={styles.searchIcon}>🔍</Text>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search the map…"
+              placeholderTextColor="#8a8a8a"
+              value={search}
+              onChangeText={setSearch}
+              returnKeyType="search"
+            />
+            {search.length > 0 && (
+              <Pressable onPress={() => setSearch('')} hitSlop={8}><Text style={styles.searchClear}>✕</Text></Pressable>
+            )}
+          </View>
+          {search.trim().length > 0 && (
+            <View style={styles.searchResults}>
+              {searchResults.length === 0 ? (
+                <Text style={styles.searchEmpty}>No matches</Text>
+              ) : (
+                searchResults.map((r) => (
+                  <Pressable key={`${r.kind}:${r.id}`} style={styles.searchRow} onPress={() => goToResult(r)}>
+                    <Text style={styles.searchName} numberOfLines={1}>{r.name}</Text>
+                    <Text style={styles.searchSub}>{r.sub}</Text>
+                  </Pressable>
+                ))
+              )}
+            </View>
+          )}
+        </View>
 
         {/* Profile */}
         <Pressable style={styles.profileBtn} onPress={() => router.push('/settings')}>
@@ -582,6 +699,16 @@ const styles = StyleSheet.create({
   hint: { position: 'absolute', top: 20, left: 24, right: 24, backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 12, padding: 14 },
   hintText: { textAlign: 'center', color: theme.ink, fontWeight: '600', fontSize: 13 },
   profileBtn: { position: 'absolute', right: 14, top: 14, width: 44, height: 44, borderRadius: 22, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 4, elevation: 4 },
+  searchWrap: { position: 'absolute', top: 14, left: 14, right: 66, zIndex: 60 },
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 12, height: 44, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
+  searchIcon: { fontSize: 14 },
+  searchInput: { flex: 1, fontSize: 15, color: theme.ink, padding: 0 },
+  searchClear: { color: theme.muted, fontSize: 14, fontWeight: '700' },
+  searchResults: { backgroundColor: '#fff', borderRadius: 12, marginTop: 6, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6, elevation: 6 },
+  searchRow: { paddingHorizontal: 14, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: theme.border },
+  searchName: { fontSize: 14, fontWeight: '700', color: theme.ink },
+  searchSub: { fontSize: 12, color: theme.muted, marginTop: 1, textTransform: 'capitalize' },
+  searchEmpty: { padding: 14, color: theme.muted, fontSize: 13 },
   ctrlCol: { position: 'absolute', right: 14, top: 70, gap: 8 },
   ctrlBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 3, elevation: 3 },
   ctrlTxt: { fontSize: 20, fontWeight: '700', color: theme.ink },

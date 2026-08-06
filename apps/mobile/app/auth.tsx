@@ -11,6 +11,7 @@ export default function AuthScreen() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -59,7 +60,12 @@ export default function AuthScreen() {
         autoCorrect={false}
       />
       <Text style={styles.label}>Password</Text>
-      <TextInput style={styles.input} value={password} onChangeText={setPassword} placeholder="At least 8 characters" secureTextEntry />
+      <View style={styles.pwWrap}>
+        <TextInput style={[styles.input, styles.pwInput]} value={password} onChangeText={setPassword} placeholder="At least 8 characters" secureTextEntry={!showPw} autoCapitalize="none" autoCorrect={false} />
+        <Pressable style={styles.pwToggle} onPress={() => setShowPw((v) => !v)} hitSlop={8}>
+          <Text style={styles.pwToggleTxt}>{showPw ? 'Hide' : 'Show'}</Text>
+        </Pressable>
+      </View>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -82,6 +88,10 @@ const styles = StyleSheet.create({
   muted: { color: theme.muted, fontSize: 14, marginBottom: 8 },
   label: { fontSize: 13, color: theme.muted, marginTop: 14, marginBottom: 4 },
   input: { backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border, borderRadius: 10, padding: 12, fontSize: 15 },
+  pwWrap: { position: 'relative', justifyContent: 'center' },
+  pwInput: { paddingRight: 64 },
+  pwToggle: { position: 'absolute', right: 12, paddingVertical: 6, paddingHorizontal: 4 },
+  pwToggleTxt: { color: theme.brand, fontWeight: '700', fontSize: 13 },
   error: { color: theme.danger, marginTop: 12, fontSize: 13 },
   cta: { backgroundColor: theme.brand, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 22 },
   ctaText: { color: '#fff', fontWeight: '700', fontSize: 15 },
