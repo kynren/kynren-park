@@ -1,0 +1,61 @@
+name: kynren-park
+
+# Kynren admin + API for the shared Hostinger VPS (168.231.115.199), which also
+# hosts the Asset Register app behind a Caddy reverse proxy. These containers
+# join the existing Caddy network so the proxy reaches them by name; no host
+# ports are bound, so nothing collides with the other stacks.
+#
+# Caddy (in /root/kynren-asset-register/Caddyfile) routes:
+#   app-park.kynren.com {
+#       @kynrenapi path /api/* /socket.io/*
+#       handle @kynrenapi { reverse_proxy kynren-api:4000 }
+#       handle           { reverse_proxy kynren-admin:3000 }
+#   }
+# so the admin and API are same-origin (no CORS, one domain, one TLS cert).
+#
+# Redeploy after pushing changes:
+#   cd /root/kynren-park && git pull \
+#     && docker compose -f docker-compose.vps.yml build \
+#     && docker compose -f docker-compose.vps.yml up -d
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: kynren-redis
+    restart: unless-stopped
+    networks: [assetnet]
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: kynren-api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: redis://kynren-redis:6379
+      API_PORT: "4000"
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      TICKET_QR_SECRET: ${TICKET_QR_SECRET}
+    depends_on: [redis]
+    networks: [assetnet]
+    expose: ["4000"]
+
+  admin:
+    build:
+      context: .
+      dockerfile: apps/admin/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    container_name: kynren-admin
+    restart: unless-stopped
+    depends_on: [api]
+    networks: [assetnet]
+    expose: ["3000"]
+
+networks:
+  assetnet:
+    external: true
+    name: kynren-asset-register_default
