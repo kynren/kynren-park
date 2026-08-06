@@ -74,7 +74,7 @@ export default function KitchenPage() {
   }
 
   async function cancel(order: Order) {
-    if (!(await confirmDelete('Cancel this order?', 'Cancel order?'))) return;
+    if (!(await confirmDelete('Cancel this order?', 'Cancel order?', { confirmLabel: 'Cancel order', danger: true }))) return;
     await api(`/orders/${order.id}/status`, { method: 'PATCH', body: JSON.stringify({ status: 'CANCELLED' }) });
     load(restaurantId);
   }

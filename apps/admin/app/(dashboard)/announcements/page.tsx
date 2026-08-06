@@ -82,7 +82,7 @@ export default function AnnouncementsPage() {
     setForm(null); load();
   }
   async function resend(a: Announcement) {
-    if (!(await confirmDelete(`Resend “${a.title}” to all guests now?`, 'Resend now?'))) return;
+    if (!(await confirmDelete(`Resend “${a.title}” to all guests now?`, 'Resend now?', { confirmLabel: 'Resend', danger: false }))) return;
     await api(`/announcements/manage/${a.id}/resend`, { method: 'POST' }).catch(() => undefined);
     setForm(null); load();
   }

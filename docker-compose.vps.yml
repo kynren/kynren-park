@@ -39,6 +39,14 @@ services:
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       TICKET_QR_SECRET: ${TICKET_QR_SECRET}
+      # Public URL used in staff-invite email links.
+      PUBLIC_ADMIN_URL: ${PUBLIC_ADMIN_URL:-https://app-park.kynren.com}
+      # SMTP for staff-invite emails (reused from the Asset Register mailbox).
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
     depends_on: [redis]
     networks: [assetnet]
     expose: ["4000"]

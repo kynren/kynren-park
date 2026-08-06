@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Post, UsePipes } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, UsePipes } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { registerSchema, loginSchema, refreshSchema } from '@kynren/shared';
 import type { RegisterInput, LoginInput } from '@kynren/shared';
@@ -45,6 +45,19 @@ export class AuthController {
   @UsePipes(new ZodValidationPipe(loginSchema))
   staffLogin(@Body() body: LoginInput) {
     return this.auth.staffLogin(body);
+  }
+
+  // ---- Email-invite acceptance (public) ------------------------------------
+  @Public()
+  @Get('staff/invite/:token')
+  inviteInfo(@Param('token') token: string) {
+    return this.auth.inviteInfo(token);
+  }
+
+  @Public()
+  @Post('staff/accept-invite')
+  acceptInvite(@Body() body: { token?: string; name?: string; password?: string }) {
+    return this.auth.acceptInvite(body);
   }
 
   // ---- Signed-in staff: own account ----------------------------------------

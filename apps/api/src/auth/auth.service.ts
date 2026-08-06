@@ -98,6 +98,30 @@ export class AuthService {
     return { accessToken, staff: { id: staff.id, name: staff.name, email: staff.email, role: staff.role } };
   }
 
+  // ---- Staff email invites --------------------------------------------------
+  async inviteInfo(token: string) {
+    const s = await this.prisma.staffUser.findUnique({ where: { inviteToken: token } });
+    if (!s || !s.inviteExpiresAt || s.inviteExpiresAt < new Date()) {
+      throw new NotFoundException('This invitation is invalid or has expired');
+    }
+    return { email: s.email, role: s.role };
+  }
+
+  async acceptInvite(b: { token?: string; name?: string; password?: string }) {
+    if (!b.token) throw new BadRequestException('Missing invite token');
+    const s = await this.prisma.staffUser.findUnique({ where: { inviteToken: b.token } });
+    if (!s || !s.inviteExpiresAt || s.inviteExpiresAt < new Date()) {
+      throw new BadRequestException('This invitation is invalid or has expired');
+    }
+    if (!b.name?.trim()) throw new BadRequestException('Name is required');
+    if (!b.password || b.password.length < 8) throw new BadRequestException('Password must be at least 8 characters');
+    await this.prisma.staffUser.update({
+      where: { id: s.id },
+      data: { name: b.name.trim(), passwordHash: hashPassword(b.password), active: true, inviteToken: null, inviteExpiresAt: null },
+    });
+    return this.staffLogin({ email: s.email, password: b.password });
+  }
+
   // ---- Staff self-service ---------------------------------------------------
   private async staffProfile(id: string) {
     const s = await this.prisma.staffUser.findUnique({ where: { id } });

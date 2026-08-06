@@ -142,14 +142,18 @@ model RefreshToken {
 }
 
 model StaffUser {
-  id           String    @id @default(cuid())
-  email        String    @unique
-  name         String
-  passwordHash String
-  role         StaffRole @default(OPS)
-  active       Boolean   @default(true)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  email           String    @unique
+  name            String
+  passwordHash    String
+  role            StaffRole @default(OPS)
+  active          Boolean   @default(true)
+  // Email-invite flow: a pending invite is inactive until the person accepts
+  // (opens the tokened link, sets their name + password).
+  inviteToken     String?   @unique
+  inviteExpiresAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 }
 
 // Editable role→permission matrix that drives both the admin UI and the API

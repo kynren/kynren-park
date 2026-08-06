@@ -6,7 +6,7 @@ import { ROLES } from '../../../../lib/perms';
 import { confirmDelete, promptText } from '../../../../lib/confirm';
 
 interface StaffMember {
-  id: string; name: string; email: string; role: string; active: boolean; createdAt: string;
+  id: string; name: string; email: string; role: string; active: boolean; pending?: boolean; createdAt: string;
 }
 const EMPTY = { name: '', email: '', role: 'OPS', password: '', active: true };
 type Form = typeof EMPTY & { id?: string };
@@ -24,6 +24,9 @@ export default function StaffPage() {
   const [error, setError] = useState('');
   const [formError, setFormError] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [invite, setInvite] = useState<{ email: string; role: string } | null>(null);
+  const [inviteMsg, setInviteMsg] = useState('');
+  const [inviteErr, setInviteErr] = useState('');
 
   const load = useCallback(() => {
     api<StaffMember[]>('/admin/staff').then(setList).catch(() => setError('Could not load staff. You need the “System administration” permission.'));
@@ -74,16 +77,39 @@ export default function StaffPage() {
     catch (e) { setError((e as Error).message || 'Delete failed.'); }
   }
 
+  async function sendInvite() {
+    if (!invite) return;
+    setInviteErr(''); setInviteMsg('');
+    if (!invite.email.trim()) { setInviteErr('Email is required.'); return; }
+    try {
+      const r = await api<{ emailSent: boolean; inviteUrl: string }>('/admin/staff/invite', { method: 'POST', body: JSON.stringify({ email: invite.email, role: invite.role }) });
+      setInvite(null);
+      setInviteMsg(r.emailSent ? `Invitation emailed to ${invite.email}.` : `Invite created, but email failed to send. Share this link: ${r.inviteUrl}`);
+      setTimeout(() => setInviteMsg(''), 8000);
+      load();
+    } catch (e) { setInviteErr((e as Error).message || 'Could not send invite.'); }
+  }
+
+  async function resendInvite(s: StaffMember) {
+    try {
+      const r = await api<{ emailSent: boolean; inviteUrl: string }>(`/admin/staff/${s.id}/invite`, { method: 'POST' });
+      setInviteMsg(r.emailSent ? `Invitation re-sent to ${s.email}.` : `Email failed. Link: ${r.inviteUrl}`);
+      setTimeout(() => setInviteMsg(''), 8000);
+    } catch (e) { setError((e as Error).message || 'Resend failed.'); }
+  }
+
   return (
     <div>
       <div className="page-actions" style={{ marginTop: 0 }}>
         <div><h1 style={{ margin: 0 }}>Staff accounts</h1><p className="subtitle" style={{ margin: 0 }}>Create staff, change their email, assign a role, or reset a password.</p></div>
         <div style={{ display: 'flex', gap: 8 }}>
           {selected.size > 0 && <button className="tbtn danger" onClick={bulkRemove}>Delete selected ({selected.size})</button>}
+          <button className="btn-ghost" onClick={() => { setInvite({ email: '', role: 'OPS' }); setInviteErr(''); }}>✉ Invite by email</button>
           <button className="primary" onClick={openNew}>+ New staff</button>
         </div>
       </div>
       {error && !form && <div className="error">{error}</div>}
+      {inviteMsg && <div className="ok-banner" style={{ background: 'var(--green-soft)', color: 'var(--green)', padding: '10px 14px', borderRadius: 10, marginBottom: 12, fontSize: 14 }}>{inviteMsg}</div>}
 
       <table className="dtable">
         <thead><tr>
@@ -98,10 +124,11 @@ export default function StaffPage() {
               <td><b>{s.name}</b></td>
               <td>{s.email}</td>
               <td><span className="pillbadge" style={roleBadge[s.role]}>{s.role}</span></td>
-              <td>{s.active ? <span className="pillbadge on">Active</span> : <span className="pillbadge off">Disabled</span>}</td>
+              <td>{s.pending ? <span className="pillbadge" style={{ background: '#fbf1dd', color: 'var(--warn)' }}>Invited</span> : s.active ? <span className="pillbadge on">Active</span> : <span className="pillbadge off">Disabled</span>}</td>
               <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
-                <button className="tbtn" onClick={() => openEdit(s)}>Edit</button>{' '}
-                <button className="tbtn" onClick={() => resetPassword(s)}>Reset password</button>{' '}
+                {s.pending
+                  ? <><button className="tbtn" onClick={() => resendInvite(s)}>Resend invite</button>{' '}</>
+                  : <><button className="tbtn" onClick={() => openEdit(s)}>Edit</button>{' '}<button className="tbtn" onClick={() => resetPassword(s)}>Reset password</button>{' '}</>}
                 <button className="tbtn danger" onClick={() => remove(s)}>Delete</button>
               </td>
             </tr>
@@ -135,6 +162,28 @@ export default function StaffPage() {
             <div className="modal-foot">
               <button className="btn-ghost" onClick={() => setForm(null)}>Cancel</button>
               <button className="primary" onClick={save}>{form.id ? 'Save' : 'Create staff'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {invite && (
+        <div className="modal-back" onClick={(e) => e.target === e.currentTarget && setInvite(null)}>
+          <div className="modal" style={{ width: 440 }}>
+            <h2>Invite a staff member</h2>
+            <p className="subtitle" style={{ marginTop: 0 }}>They’ll get an email to set their own name and password.</p>
+            <div className="form-grid">
+              <div className="form-row full"><label>Email *</label><input type="email" autoFocus value={invite.email} onChange={(e) => setInvite({ ...invite, email: e.target.value })} placeholder="name@kynren.com" /></div>
+              <div className="form-row full"><label>Role</label>
+                <select value={invite.role} onChange={(e) => setInvite({ ...invite, role: e.target.value })}>
+                  {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+            </div>
+            {inviteErr && <div className="error">{inviteErr}</div>}
+            <div className="modal-foot">
+              <button className="btn-ghost" onClick={() => setInvite(null)}>Cancel</button>
+              <button className="primary" onClick={sendInvite}>Send invite</button>
             </div>
           </div>
         </div>

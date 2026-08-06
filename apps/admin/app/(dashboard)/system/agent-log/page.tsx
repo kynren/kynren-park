@@ -21,7 +21,7 @@ export default function AgentLog() {
     if (raw) setLines(JSON.parse(raw));
     else { setLines(SEED); localStorage.setItem(KEY, JSON.stringify(SEED)); }
   }, []);
-  async function clear() { if (await confirmDelete('Clear the agent log?', 'Clear log?')) { setLines([]); localStorage.setItem(KEY, '[]'); } }
+  async function clear() { if (await confirmDelete('Clear the agent log?', 'Clear log?', { confirmLabel: 'Clear log', danger: true })) { setLines([]); localStorage.setItem(KEY, '[]'); } }
 
   return (
     <div>

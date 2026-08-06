@@ -3,17 +3,27 @@
 import { useEffect, useState } from 'react';
 
 type Req =
-  | { kind: 'confirm'; title: string; message: string; resolve: (ok: boolean) => void }
+  | { kind: 'confirm'; title: string; message: string; confirmLabel: string; danger: boolean; resolve: (ok: boolean) => void }
   | { kind: 'prompt'; title: string; message: string; def: string; resolve: (v: string | null) => void };
 
 let openFn: ((req: Req) => void) | null = null;
 
-/** Show a delete-confirmation popup; resolves true if the user confirms. */
-export function confirmDelete(message = 'This action cannot be undone.', title = 'Delete?'): Promise<boolean> {
+interface ConfirmOpts { confirmLabel?: string; danger?: boolean }
+
+/** Confirmation popup; resolves true if the user confirms. Defaults to a
+ *  red “Delete” action — pass `confirmLabel`/`danger` for other actions. */
+export function confirmDelete(message = 'This action cannot be undone.', title = 'Delete?', opts: ConfirmOpts = {}): Promise<boolean> {
+  const confirmLabel = opts.confirmLabel ?? 'Delete';
+  const danger = opts.danger ?? true;
   return new Promise((resolve) => {
-    if (openFn) openFn({ kind: 'confirm', title, message, resolve });
+    if (openFn) openFn({ kind: 'confirm', title, message, confirmLabel, danger, resolve });
     else resolve(typeof window !== 'undefined' ? window.confirm(`${title}\n\n${message}`) : false);
   });
+}
+
+/** Non-destructive confirmation (neutral button, custom label). */
+export function confirmAction(message: string, title: string, confirmLabel = 'Confirm'): Promise<boolean> {
+  return confirmDelete(message, title, { confirmLabel, danger: false });
 }
 
 /** In-app replacement for window.prompt() (which Next/the sandbox block). */
@@ -48,7 +58,7 @@ export function ConfirmHost() {
         <p style={{ color: 'var(--muted)', margin: 0, lineHeight: 1.5 }}>{req.message}</p>
         <div className="modal-foot">
           <button className="btn-ghost" onClick={() => done(false)}>Cancel</button>
-          <button className="primary" style={{ background: 'var(--danger)' }} onClick={() => done(true)}>Delete</button>
+          <button className="primary" style={req.danger ? { background: 'var(--danger)' } : undefined} onClick={() => done(true)}>{req.confirmLabel}</button>
         </div>
       </>,
       () => done(false),
