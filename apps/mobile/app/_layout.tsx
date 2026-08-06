@@ -1,12 +1,14 @@
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
+import { useEffect } from 'react';
 import { Alert, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
 import { AnnouncementMegaphone } from '../components/AnnouncementMegaphone';
+import { LoadingOverlay } from '../components/LoadingOverlay';
 import * as Notifications from 'expo-notifications';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { SyncProvider } from '../lib/sync';
-import { AuthProvider } from '../lib/auth';
+import { AuthProvider, registerPushToken } from '../lib/auth';
 import { I18nProvider } from '../lib/i18n';
 import { ThemeProvider, useThemePref } from '../lib/theme-context';
 import { theme } from '../lib/theme';
@@ -46,6 +48,19 @@ Notifications.setNotificationHandler({
 function RootNav() {
   const { scheme } = useThemePref();
   const dark = scheme === 'dark';
+  const router = useRouter();
+
+  // Register this device for push on launch (guests included); route on tap.
+  useEffect(() => {
+    registerPushToken().catch(() => undefined);
+    const sub = Notifications.addNotificationResponseReceivedListener((resp) => {
+      const data = resp.notification.request.content.data as { type?: string; deepLink?: string } | undefined;
+      if (data?.deepLink) router.push(data.deepLink as never);
+      else if (data?.type === 'announcement') router.push('/notifications');
+    });
+    return () => sub.remove();
+  }, [router]);
+
   return (
     <View style={{ flex: 1 }}>
       <StatusBar style={dark ? 'light' : 'light'} />
@@ -69,6 +84,7 @@ function RootNav() {
         <Stack.Screen name="language" options={{ title: 'Language', presentation: 'modal' }} />
       </Stack>
       <AnnouncementMegaphone />
+      <LoadingOverlay />
     </View>
   );
 }

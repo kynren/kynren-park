@@ -1,9 +1,14 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import {
+  Injectable, UnauthorizedException, ConflictException,
+  ForbiddenException, BadRequestException, NotFoundException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { createHash, randomBytes } from 'node:crypto';
 import type { RegisterInput, LoginInput } from '@kynren/shared';
 import { hashPassword, verifyPassword } from '@kynren/shared/crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { PermissionsService } from '../permissions/permissions.service.js';
+import type { AuthPrincipal } from '../common/decorators.js';
 
 function sha256(v: string) {
   return createHash('sha256').update(v).digest('hex');
@@ -14,6 +19,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly permissions: PermissionsService,
   ) {}
 
   private signAccess(payload: object) {
@@ -90,6 +96,72 @@ export class AuthService {
       { secret: process.env.JWT_ACCESS_SECRET, expiresIn: '12h' },
     );
     return { accessToken, staff: { id: staff.id, name: staff.name, email: staff.email, role: staff.role } };
+  }
+
+  // ---- Staff email invites --------------------------------------------------
+  async inviteInfo(token: string) {
+    const s = await this.prisma.staffUser.findUnique({ where: { inviteToken: token } });
+    if (!s || !s.inviteExpiresAt || s.inviteExpiresAt < new Date()) {
+      throw new NotFoundException('This invitation is invalid or has expired');
+    }
+    return { email: s.email, role: s.role };
+  }
+
+  async acceptInvite(b: { token?: string; name?: string; password?: string }) {
+    if (!b.token) throw new BadRequestException('Missing invite token');
+    const s = await this.prisma.staffUser.findUnique({ where: { inviteToken: b.token } });
+    if (!s || !s.inviteExpiresAt || s.inviteExpiresAt < new Date()) {
+      throw new BadRequestException('This invitation is invalid or has expired');
+    }
+    if (!b.name?.trim()) throw new BadRequestException('Name is required');
+    if (!b.password || b.password.length < 8) throw new BadRequestException('Password must be at least 8 characters');
+    await this.prisma.staffUser.update({
+      where: { id: s.id },
+      data: { name: b.name.trim(), passwordHash: hashPassword(b.password), active: true, inviteToken: null, inviteExpiresAt: null },
+    });
+    return this.staffLogin({ email: s.email, password: b.password });
+  }
+
+  // ---- Staff self-service ---------------------------------------------------
+  private async staffProfile(id: string) {
+    const s = await this.prisma.staffUser.findUnique({ where: { id } });
+    if (!s) throw new NotFoundException('Staff not found');
+    const permissions = await this.permissions.forRole(s.role);
+    return { id: s.id, name: s.name, email: s.email, role: s.role, active: s.active, permissions };
+  }
+
+  async staffMe(principal?: AuthPrincipal) {
+    if (!principal || principal.type !== 'staff') throw new ForbiddenException('Staff access required');
+    return this.staffProfile(principal.sub);
+  }
+
+  async updateStaffMe(principal: AuthPrincipal | undefined, b: { name?: string; email?: string }) {
+    if (!principal || principal.type !== 'staff') throw new ForbiddenException('Staff access required');
+    const data: Record<string, unknown> = {};
+    if (b.name !== undefined) data.name = String(b.name).trim();
+    if (b.email !== undefined) {
+      const email = String(b.email).trim().toLowerCase();
+      if (!email) throw new BadRequestException('Email cannot be empty');
+      const other = await this.prisma.staffUser.findUnique({ where: { email } });
+      if (other && other.id !== principal.sub) throw new ConflictException('That email is already in use');
+      data.email = email;
+    }
+    await this.prisma.staffUser.update({ where: { id: principal.sub }, data });
+    return this.staffProfile(principal.sub);
+  }
+
+  async changeStaffPassword(principal: AuthPrincipal | undefined, b: { currentPassword?: string; newPassword?: string }) {
+    if (!principal || principal.type !== 'staff') throw new ForbiddenException('Staff access required');
+    const s = await this.prisma.staffUser.findUnique({ where: { id: principal.sub } });
+    if (!s) throw new NotFoundException('Staff not found');
+    if (!b.currentPassword || !verifyPassword(b.currentPassword, s.passwordHash)) {
+      throw new BadRequestException('Current password is incorrect');
+    }
+    if (!b.newPassword || String(b.newPassword).length < 8) {
+      throw new BadRequestException('New password must be at least 8 characters');
+    }
+    await this.prisma.staffUser.update({ where: { id: principal.sub }, data: { passwordHash: hashPassword(b.newPassword) } });
+    return { ok: true };
   }
 
   private async buildSession(userId: string, email: string | null, name: string | null) {

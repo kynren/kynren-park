@@ -1,54 +1,58 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-
-const ROLES = ['ADMIN', 'OPS', 'FNB', 'CONTENT'] as const;
-const PERMS = [
-  { key: 'schedule', label: 'Manage schedule' },
-  { key: 'food', label: 'Manage food orders' },
-  { key: 'content', label: 'Manage content & app settings' },
-  { key: 'announce', label: 'Send announcements' },
-  { key: 'analytics', label: 'View analytics' },
-  { key: 'system', label: 'System administration' },
-];
-const DEFAULTS: Record<string, Record<string, boolean>> = {
-  ADMIN: { schedule: true, food: true, content: true, announce: true, analytics: true, system: true },
-  OPS: { schedule: true, food: false, content: false, announce: true, analytics: true, system: false },
-  FNB: { schedule: false, food: true, content: false, announce: false, analytics: true, system: false },
-  CONTENT: { schedule: false, food: false, content: true, announce: true, analytics: true, system: false },
-};
-const KEY = 'sys_roles_matrix';
+import { api } from '../../../../lib/api';
+import { PERMISSIONS, ROLES, DEFAULT_MATRIX, type PermMatrix } from '../../../../lib/perms';
 
 export default function RolesPermissions() {
-  const [matrix, setMatrix] = useState<Record<string, Record<string, boolean>>>(DEFAULTS);
+  const [matrix, setMatrix] = useState<PermMatrix>(DEFAULT_MATRIX);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
 
-  useEffect(() => { const raw = localStorage.getItem(KEY); if (raw) setMatrix(JSON.parse(raw)); }, []);
+  useEffect(() => {
+    api<PermMatrix>('/admin/permissions')
+      .then((m) => setMatrix(m))
+      .catch(() => setError('Could not load permissions. Showing defaults.'))
+      .finally(() => setLoading(false));
+  }, []);
 
   function toggle(role: string, perm: string) {
     if (role === 'ADMIN') return; // Admin always has everything.
     setMatrix((m) => ({ ...m, [role]: { ...m[role], [perm]: !m[role]?.[perm] } }));
     setSaved(false);
   }
-  function save() { localStorage.setItem(KEY, JSON.stringify(matrix)); setSaved(true); setTimeout(() => setSaved(false), 1600); }
+
+  async function save() {
+    setSaving(true); setError('');
+    try {
+      const next = await api<PermMatrix>('/admin/permissions', { method: 'PUT', body: JSON.stringify({ matrix }) });
+      setMatrix(next);
+      setSaved(true); setTimeout(() => setSaved(false), 1800);
+    } catch {
+      setError('Save failed — you need the “System administration” permission.');
+    } finally { setSaving(false); }
+  }
 
   return (
     <div>
       <div className="page-actions" style={{ marginTop: 0 }}>
-        <p className="subtitle" style={{ margin: 0 }}>Permissions granted to each staff role.</p>
-        <button className="primary" onClick={save}>{saved ? '✓ Saved' : 'Save matrix'}</button>
+        <p className="subtitle" style={{ margin: 0 }}>Permissions granted to each staff role. Enforced across the API and this console.</p>
+        <button className="primary" onClick={save} disabled={saving || loading}>{saving ? 'Saving…' : saved ? '✓ Saved' : 'Save matrix'}</button>
       </div>
+      {error && <div className="error">{error}</div>}
       <table className="dtable">
         <thead><tr><th>Permission</th>{ROLES.map((r) => <th key={r} style={{ textAlign: 'center' }}>{r}</th>)}</tr></thead>
         <tbody>
-          {PERMS.map((p) => (
+          {PERMISSIONS.map((p) => (
             <tr key={p.key}>
-              <td><b>{p.label}</b></td>
+              <td><b>{p.label}</b><div style={{ color: 'var(--muted)', fontSize: 11 }}>{p.key}</div></td>
               {ROLES.map((r) => {
                 const on = r === 'ADMIN' ? true : !!matrix[r]?.[p.key];
                 return (
                   <td key={r} style={{ textAlign: 'center' }}>
-                    <button className={`switch ${on ? 'on' : ''}`} disabled={r === 'ADMIN'} onClick={() => toggle(r, p.key)} aria-label={`${r} ${p.label}`} />
+                    <button className={`switch ${on ? 'on' : ''}`} disabled={r === 'ADMIN' || loading} onClick={() => toggle(r, p.key)} aria-label={`${r} ${p.label}`} />
                   </td>
                 );
               })}
@@ -56,7 +60,7 @@ export default function RolesPermissions() {
           ))}
         </tbody>
       </table>
-      <p className="hint">ADMIN always has full access. Save writes the matrix for this workspace.</p>
+      <p className="hint">ADMIN always has full access. Changes take effect immediately after saving.</p>
     </div>
   );
 }

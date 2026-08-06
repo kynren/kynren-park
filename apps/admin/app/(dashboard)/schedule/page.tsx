@@ -68,7 +68,7 @@ export default function SchedulePage() {
       note = `Delayed by ${n} minutes.`;
     }
     if (status === 'CANCELLED') {
-      if (!(await confirmDelete(`Cancel “${session.attraction.name}” at ${fmt(session.startTime)}?`, 'Cancel show?'))) return;
+      if (!(await confirmDelete(`Cancel “${session.attraction.name}” at ${fmt(session.startTime)}?`, 'Cancel show?', { confirmLabel: 'Cancel show', danger: true }))) return;
       note = (await promptText('Reason (optional)', '', 'Cancellation note')) || undefined;
     }
     // Optimistic update; the socket echo will confirm.

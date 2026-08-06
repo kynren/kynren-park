@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ScrollView, View, Text, StyleSheet } from 'react-native';
 import { Touchable } from '../components/Touchable';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Path, Circle } from 'react-native-svg';
@@ -68,6 +69,7 @@ function PinLetter({ letter, color, text }: { letter: string; color: string; tex
 export default function RestaurantsScreen() {
   const { bundle, date } = useSync();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const pal = usePalette();
   const { slot } = useLocalSearchParams<{ slot?: string }>();
   const [favs, setFavs] = useState<Set<string>>(new Set());
@@ -95,7 +97,7 @@ export default function RestaurantsScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: pal.screen }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={styles.topRow}>
+      <View style={[styles.topRow, { paddingTop: insets.top + 8 }]}>
         <Touchable onPress={() => router.back()} style={styles.backBtn}>
           <BackIcon color="#111" />
         </Touchable>

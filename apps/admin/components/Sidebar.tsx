@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { clearSession } from '../lib/api';
+import { usePerms } from '../lib/perms';
+import { useBranding } from '../lib/branding';
 
 function Icon({ d }: { d: string }) {
   return (
@@ -12,12 +14,12 @@ function Icon({ d }: { d: string }) {
   );
 }
 
-const NAV: { href: string; label: string; icon: string; badge?: number }[] = [
+const NAV: { href: string; label: string; icon: string; badge?: number; perm?: string }[] = [
   { href: '/dashboard', label: 'Dashboard', icon: 'M3 11l9-8 9 8|M5 10v10h14V10' },
-  { href: '/schedule', label: 'Live Schedule', icon: 'M4 5h16v16H4z|M8 3v4M16 3v4M4 10h16' },
-  { href: '/kitchen', label: 'Kitchen', icon: 'M6 3v8a3 3 0 0 0 6 0V3|M9 11v10|M17 3c-1.5 2-1.5 6 0 8.5V21' },
-  { href: '/announcements', label: 'Announcements', icon: 'M3 11l14-6v14L3 13z|M3 11v2M8 12v5a2 2 0 0 0 4 0' },
-  { href: '/analytics', label: 'Analytics', icon: 'M4 20V10|M10 20V4|M16 20v-7|M21 20H3' },
+  { href: '/schedule', label: 'Live Schedule', icon: 'M4 5h16v16H4z|M8 3v4M16 3v4M4 10h16', perm: 'schedule' },
+  { href: '/kitchen', label: 'Kitchen', icon: 'M6 3v8a3 3 0 0 0 6 0V3|M9 11v10|M17 3c-1.5 2-1.5 6 0 8.5V21', perm: 'food' },
+  { href: '/announcements', label: 'Announcements', icon: 'M3 11l14-6v14L3 13z|M3 11v2M8 12v5a2 2 0 0 0 4 0', perm: 'announce' },
+  { href: '/analytics', label: 'Analytics', icon: 'M4 20V10|M10 20V4|M16 20v-7|M21 20H3', perm: 'analytics' },
 ];
 
 // App Settings sub-sections (prefix match highlights the parent).
@@ -26,6 +28,8 @@ const APP_SETTINGS = '/app-settings';
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { can } = usePerms();
+  const brand = useBranding();
 
   const item = (href: string, label: string, icon: string, opts?: { badge?: number; match?: (p: string) => boolean }) => {
     const active = opts?.match ? opts.match(pathname) : pathname === href || (href === '/dashboard' && pathname === '/');
@@ -40,13 +44,17 @@ export function Sidebar() {
 
   return (
     <aside className="sidebar">
-      <div className="logo">Kyn<b>ren</b></div>
+      <div className="logo">
+        {brand.logoUrl
+          ? <img src={brand.logoUrl} alt={brand.appName} style={{ maxHeight: 34, maxWidth: 170 }} />
+          : <>{brand.appName}</>}
+      </div>
       <nav className="nav">
-        {NAV.map((n) => item(n.href, n.label, n.icon, { badge: n.badge }))}
-        {item(APP_SETTINGS, 'App Settings', 'M12 2l2.4 2.4H18v3.6L20.4 12 18 14.4V18h-3.6L12 20.4 9.6 18H6v-3.6L3.6 12 6 9.6V6h3.6z|M9.5 12a2.5 2.5 0 1 0 5 0 2.5 2.5 0 0 0-5 0', {
+        {NAV.filter((n) => !n.perm || can(n.perm)).map((n) => item(n.href, n.label, n.icon, { badge: n.badge }))}
+        {can('content') && item(APP_SETTINGS, 'App Settings', 'M12 2l2.4 2.4H18v3.6L20.4 12 18 14.4V18h-3.6L12 20.4 9.6 18H6v-3.6L3.6 12 6 9.6V6h3.6z|M9.5 12a2.5 2.5 0 1 0 5 0 2.5 2.5 0 0 0-5 0', {
           match: (p) => p.startsWith(APP_SETTINGS),
         })}
-        {item('/system/organizations', 'System', 'M4 4h16v6H4z|M4 14h16v6H4z|M8 7h.01M8 17h.01', {
+        {can('system') && item('/system/organizations', 'System', 'M4 4h16v6H4z|M4 14h16v6H4z|M8 7h.01M8 17h.01', {
           match: (p) => p.startsWith('/system'),
         })}
       </nav>

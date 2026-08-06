@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 export const SYSTEM_TABS: { href: string; label: string }[] = [
   { href: '/system/organizations', label: 'Organizations' },
   { href: '/system/users', label: 'Users' },
+  { href: '/system/staff', label: 'Staff' },
   { href: '/system/roles', label: 'Roles & Permissions' },
   { href: '/system/backups', label: 'Backups' },
   { href: '/system/settings', label: 'System Settings' },

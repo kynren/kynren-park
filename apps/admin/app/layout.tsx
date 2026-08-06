@@ -1,5 +1,6 @@
 import './globals.css';
 import type { ReactNode } from 'react';
+import { FaviconManager } from '../components/FaviconManager';
 
 export const metadata = {
   title: 'Kynren Park — Staff Dashboard',
@@ -9,7 +10,10 @@ export const metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en-GB">
-      <body>{children}</body>
+      <body>
+        <FaviconManager />
+        {children}
+      </body>
     </html>
   );
 }

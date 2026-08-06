@@ -122,8 +122,10 @@ model PushToken {
   id        String   @id @default(cuid())
   token     String   @unique
   platform  String // ios | android
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Optional: device tokens register on launch (guests included); linked to a
+  // user once they sign in, so we can target either everyone or specific users.
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
 
   @@index([userId])
@@ -142,14 +144,31 @@ model RefreshToken {
 }
 
 model StaffUser {
-  id           String    @id @default(cuid())
-  email        String    @unique
-  name         String
-  passwordHash String
-  role         StaffRole @default(OPS)
-  active       Boolean   @default(true)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  email           String    @unique
+  name            String
+  passwordHash    String
+  role            StaffRole @default(OPS)
+  active          Boolean   @default(true)
+  // Email-invite flow: a pending invite is inactive until the person accepts
+  // (opens the tokened link, sets their name + password).
+  inviteToken     String?   @unique
+  inviteExpiresAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// Editable role→permission matrix that drives both the admin UI and the API
+// PermissionsGuard. One row per (role, permission); ADMIN is always allowed.
+model RolePermission {
+  id         String    @id @default(cuid())
+  role       StaffRole
+  permission String
+  allowed    Boolean   @default(false)
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([role, permission])
+  @@index([role])
 }
 
 // ---------------------------------------------------------------------------
@@ -239,6 +258,25 @@ model ParkMap {
 }
 
 // Singleton map configuration edited from the admin map editor.
+// Workspace branding (logo + icon + colours), shown across the admin and the
+// mobile app. Singleton row.
+model Branding {
+  id        String   @id @default(cuid())
+  singleton Boolean  @default(true) @unique
+  appName   String   @default("Kynren")
+  tagline   String   @default("The Storied Lands")
+  primary   String   @default("#8f1d21")
+  accent    String   @default("#22b365")
+  logoUrl    String?  @db.Text
+  iconUrl    String?  @db.Text
+  faviconUrl String?  @db.Text
+  // In-app loading screen: type = none | photo | gif | video, media = data URL
+  // (photo/gif) or a hosted URL (recommended for video).
+  splashType     String  @default("none")
+  splashMediaUrl String? @db.Text
+  updatedAt  DateTime @updatedAt
+}
+
 model MapConfig {
   id          String   @id @default(cuid())
   singleton   Boolean  @default(true) @unique

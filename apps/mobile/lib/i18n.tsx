@@ -32,7 +32,7 @@ const en: Dict = {
   'today.noMoreShows': 'No more shows scheduled today.',
   'today.planCta': 'Plan my perfect day →',
   'tickets.title': 'My Tickets',
-  'tickets.prices': 'Prices',
+  'tickets.prices': 'Ticket Prices',
   'tickets.book': '＋ Book tickets',
   'tickets.signInToBook': 'Sign in to book and hold tickets.',
   'common.signIn': 'Sign in',

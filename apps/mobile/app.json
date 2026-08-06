@@ -12,7 +12,7 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#8f1d21"
+      "backgroundColor": "#ffffff"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -29,10 +29,11 @@
       }
     },
     "android": {
+      "googleServicesFile": "./google-services.json",
       "package": "com.kynren.storiedlands",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#8f1d21"
+        "backgroundColor": "#ffffff"
       },
       "permissions": [
         "ACCESS_FINE_LOCATION",
@@ -67,7 +68,7 @@
       "typedRoutes": false
     },
     "extra": {
-      "apiUrl": "https://api.kynren.com",
+      "apiUrl": "https://app-park.kynren.com",
       "router": {
         "origin": false
       },

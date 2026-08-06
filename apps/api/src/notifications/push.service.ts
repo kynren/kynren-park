@@ -61,12 +61,24 @@ export class PushService {
       data: data ?? {},
     }));
 
-    try {
-      for (const chunk of this.expo.chunkPushNotifications(messages)) {
-        await this.expo.sendPushNotificationsAsync(chunk);
+    const dead: string[] = [];
+    for (const chunk of this.expo.chunkPushNotifications(messages)) {
+      try {
+        const tickets = await this.expo.sendPushNotificationsAsync(chunk);
+        tickets.forEach((ticket, i) => {
+          if (ticket.status === 'error' && (ticket.details as { error?: string } | undefined)?.error === 'DeviceNotRegistered') {
+            dead.push((chunk[i] as ExpoPushMessage).to as string);
+          }
+        });
+      } catch (err) {
+        this.logger.error(`Push send failed: ${(err as Error).message}`);
       }
-    } catch (err) {
-      this.logger.error(`Push send failed: ${(err as Error).message}`);
+    }
+
+    // Prune tokens Expo reports as uninstalled/unregistered so the list stays clean.
+    if (dead.length > 0) {
+      await this.prisma.pushToken.deleteMany({ where: { token: { in: dead } } }).catch(() => undefined);
+      this.logger.log(`Pruned ${dead.length} unregistered push token(s).`);
     }
   }
 }

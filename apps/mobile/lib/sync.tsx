@@ -28,6 +28,17 @@ export interface ParkMap {
   imageUrl?: string | null;
   isDefault: boolean;
 }
+export interface Branding {
+  appName: string;
+  tagline: string;
+  primary: string;
+  accent: string;
+  logoUrl?: string | null;
+  iconUrl?: string | null;
+  faviconUrl?: string | null;
+  splashType?: 'none' | 'photo' | 'gif' | 'video';
+  splashMediaUrl?: string | null;
+}
 export interface Attraction {
   id: string;
   slug: string;
@@ -76,6 +87,7 @@ export interface Bundle {
   sessions: Session[];
   mapConfig?: MapConfig | null;
   defaultMap?: ParkMap | null;
+  branding?: Branding | null;
 }
 
 interface SyncState {

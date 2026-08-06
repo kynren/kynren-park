@@ -6,8 +6,8 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { RealtimeGateway } from '../realtime/realtime.gateway.js';
 import { PushService } from '../notifications/push.service.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
-import { Public, Roles } from '../common/decorators.js';
-import { RolesGuard } from '../common/guards.js';
+import { Public, Roles, RequirePermission } from '../common/decorators.js';
+import { RolesGuard, PermissionsGuard } from '../common/guards.js';
 
 function pick<T extends Record<string, unknown>>(b: T, keys: string[]): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -72,16 +72,16 @@ export class AnnouncementsController {
   }
 
   @ApiBearerAuth()
-  @Roles('ADMIN', 'OPS', 'CONTENT')
-  @UseGuards(RolesGuard)
+  @RequirePermission('announce')
+  @UseGuards(PermissionsGuard)
   @Get('manage')
   listAll() {
     return this.prisma.announcement.findMany({ orderBy: [{ scheduledAt: 'asc' }, { createdAt: 'desc' }], take: 200 });
   }
 
   @ApiBearerAuth()
-  @Roles('ADMIN', 'OPS', 'CONTENT')
-  @UseGuards(RolesGuard)
+  @RequirePermission('announce')
+  @UseGuards(PermissionsGuard)
   @Post('manage')
   async createManaged(@Body() b: any) {
     const sendNow = !b.scheduledAt;
@@ -104,8 +104,8 @@ export class AnnouncementsController {
   }
 
   @ApiBearerAuth()
-  @Roles('ADMIN', 'OPS', 'CONTENT')
-  @UseGuards(RolesGuard)
+  @RequirePermission('announce')
+  @UseGuards(PermissionsGuard)
   @Patch('manage/:id')
   updateManaged(@Param('id') id: string, @Body() b: any) {
     const data = pick(b, ['title', 'body', 'audience', 'deepLink', 'recurrence']);
@@ -117,8 +117,8 @@ export class AnnouncementsController {
   }
 
   @ApiBearerAuth()
-  @Roles('ADMIN', 'OPS', 'CONTENT')
-  @UseGuards(RolesGuard)
+  @RequirePermission('announce')
+  @UseGuards(PermissionsGuard)
   @Delete('manage/:id')
   async deleteManaged(@Param('id') id: string) {
     await this.prisma.announcement.delete({ where: { id } });
@@ -126,8 +126,8 @@ export class AnnouncementsController {
   }
 
   @ApiBearerAuth()
-  @Roles('ADMIN', 'OPS', 'CONTENT')
-  @UseGuards(RolesGuard)
+  @RequirePermission('announce')
+  @UseGuards(PermissionsGuard)
   @Post('manage/:id/resend')
   async resend(@Param('id') id: string) {
     const a = await this.prisma.announcement.update({ where: { id }, data: { sentAt: new Date(), scheduledAt: null } });

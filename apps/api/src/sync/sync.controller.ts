@@ -26,7 +26,7 @@ export class SyncController {
     const start = new Date(`${day}T00:00:00.000Z`);
     const end = new Date(`${day}T23:59:59.999Z`);
 
-    const [attractions, pois, walkEdges, restaurants, ticketTypes, content, announcements, sessions, mapConfig, defaultMap] =
+    const [attractions, pois, walkEdges, restaurants, ticketTypes, content, announcements, sessions, mapConfig, defaultMap, branding] =
       await Promise.all([
         this.prisma.attraction.findMany({ where: { active: true }, orderBy: { sortOrder: 'asc' } }),
         this.prisma.pointOfInterest.findMany(),
@@ -49,6 +49,7 @@ export class SyncController {
         }),
         this.prisma.mapConfig.findFirst(),
         this.prisma.parkMap.findFirst({ where: { isDefault: true } }),
+        this.prisma.branding.findFirst(),
       ]);
 
     const payload = {
@@ -64,6 +65,7 @@ export class SyncController {
       sessions,
       mapConfig,
       defaultMap,
+      branding,
     };
 
     const body = JSON.stringify(payload);

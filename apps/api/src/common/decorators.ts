@@ -22,3 +22,7 @@ export const Roles = (...roles: string[]) => SetMetadata(ROLES_KEY, roles);
 export const PUBLIC_KEY = 'isPublic';
 /** Marks a route as accessible without authentication. */
 export const Public = () => SetMetadata(PUBLIC_KEY, true);
+
+export const PERMISSION_KEY = 'permission';
+/** Require the staff member's role to hold a permission (per the role matrix). */
+export const RequirePermission = (permission: string) => SetMetadata(PERMISSION_KEY, permission);

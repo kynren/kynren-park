@@ -2,14 +2,18 @@ import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // API base URL resolution:
-//  1. EXPO_PUBLIC_API_URL — set per-environment (local `.env` for dev, the EAS
-//     build profile's env for preview/production builds).
-//  2. app.json `extra.apiUrl` — the built-in fallback (points at production).
+//  • Dev builds (__DEV__): honour EXPO_PUBLIC_API_URL from the local `.env`
+//    (e.g. http://localhost:4010) so on-device dev hits your machine.
+//  • Production builds / OTA updates: ALWAYS use app.json `extra.apiUrl`
+//    (the hosted API). Gating the dev override behind __DEV__ lets Metro
+//    dead-code-eliminate the localhost value, so it can never leak into a
+//    production bundle regardless of which .env happens to be present at export.
 // Trailing slashes are stripped so paths join cleanly.
+const extraApiUrl = Constants.expoConfig?.extra?.apiUrl as string | undefined;
 export const API_URL = (
-  process.env.EXPO_PUBLIC_API_URL ||
-  (Constants.expoConfig?.extra?.apiUrl as string) ||
-  'https://api.kynren.com'
+  __DEV__
+    ? process.env.EXPO_PUBLIC_API_URL || extraApiUrl || 'http://localhost:4010'
+    : extraApiUrl || 'https://app-park.kynren.com'
 ).replace(/\/+$/, '');
 
 const TOKEN_KEY = 'kynren_access_token';
