@@ -15,6 +15,7 @@ import { TicketsModule } from './tickets/tickets.module.js';
 import { FoodModule } from './food/food.module.js';
 import { AnnouncementsModule } from './announcements/announcements.module.js';
 import { ContentModule } from './content/content.module.js';
+import { BrandingModule } from './branding/branding.module.js';
 import { UsersModule } from './users/users.module.js';
 import { AdminModule } from './admin/admin.module.js';
 import { HealthController } from './health/health.controller.js';
@@ -38,6 +39,7 @@ import { JwtAuthGuard } from './common/guards.js';
     FoodModule,
     AnnouncementsModule,
     ContentModule,
+    BrandingModule,
     UsersModule,
     AdminModule,
   ],

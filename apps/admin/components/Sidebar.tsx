@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { clearSession } from '../lib/api';
 import { usePerms } from '../lib/perms';
+import { useBranding } from '../lib/branding';
 
 function Icon({ d }: { d: string }) {
   return (
@@ -28,6 +29,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { can } = usePerms();
+  const brand = useBranding();
 
   const item = (href: string, label: string, icon: string, opts?: { badge?: number; match?: (p: string) => boolean }) => {
     const active = opts?.match ? opts.match(pathname) : pathname === href || (href === '/dashboard' && pathname === '/');
@@ -42,7 +44,11 @@ export function Sidebar() {
 
   return (
     <aside className="sidebar">
-      <div className="logo">Kyn<b>ren</b></div>
+      <div className="logo">
+        {brand.logoUrl
+          ? <img src={brand.logoUrl} alt={brand.appName} style={{ maxHeight: 34, maxWidth: 170 }} />
+          : <>{brand.appName}</>}
+      </div>
       <nav className="nav">
         {NAV.filter((n) => !n.perm || can(n.perm)).map((n) => item(n.href, n.label, n.icon, { badge: n.badge }))}
         {can('content') && item(APP_SETTINGS, 'App Settings', 'M12 2l2.4 2.4H18v3.6L20.4 12 18 14.4V18h-3.6L12 20.4 9.6 18H6v-3.6L3.6 12 6 9.6V6h3.6z|M9.5 12a2.5 2.5 0 1 0 5 0 2.5 2.5 0 0 0-5 0', {

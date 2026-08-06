@@ -256,6 +256,20 @@ model ParkMap {
 }
 
 // Singleton map configuration edited from the admin map editor.
+// Workspace branding (logo + icon + colours), shown across the admin and the
+// mobile app. Singleton row.
+model Branding {
+  id        String   @id @default(cuid())
+  singleton Boolean  @default(true) @unique
+  appName   String   @default("Kynren")
+  tagline   String   @default("The Storied Lands")
+  primary   String   @default("#8f1d21")
+  accent    String   @default("#22b365")
+  logoUrl   String?  @db.Text
+  iconUrl   String?  @db.Text
+  updatedAt DateTime @updatedAt
+}
+
 model MapConfig {
   id          String   @id @default(cuid())
   singleton   Boolean  @default(true) @unique

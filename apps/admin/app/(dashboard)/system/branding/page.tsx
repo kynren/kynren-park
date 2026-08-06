@@ -1,41 +1,92 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-
-interface Branding { appName: string; tagline: string; primary: string; accent: string; logoText: string }
-const DEFAULT: Branding = { appName: 'Kynren', tagline: 'The Storied Lands', primary: '#8f1d21', accent: '#22b365', logoText: 'Kynren' };
-const KEY = 'sys_branding';
+import { useEffect, useRef, useState } from 'react';
+import { api } from '../../../../lib/api';
+import { DEFAULT_BRANDING, resizeToDataUrl, type Branding } from '../../../../lib/branding';
 
 export default function BrandingPage() {
-  const [b, setB] = useState<Branding>(DEFAULT);
+  const [b, setB] = useState<Branding>(DEFAULT_BRANDING);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const logoInput = useRef<HTMLInputElement>(null);
+  const iconInput = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { const raw = localStorage.getItem(KEY); if (raw) setB({ ...DEFAULT, ...JSON.parse(raw) }); }, []);
+  useEffect(() => {
+    api<Branding>('/branding').then((v) => setB({ ...DEFAULT_BRANDING, ...v })).catch(() => setError('Could not load branding.'));
+  }, []);
+
   const set = <K extends keyof Branding>(k: K, v: Branding[K]) => { setB((p) => ({ ...p, [k]: v })); setSaved(false); };
-  function save() { localStorage.setItem(KEY, JSON.stringify(b)); setSaved(true); setTimeout(() => setSaved(false), 1600); }
+
+  async function pick(kind: 'logo' | 'icon', file?: File | null) {
+    if (!file) return;
+    try {
+      const url = await resizeToDataUrl(file, kind === 'logo' ? 640 : 512);
+      set(kind === 'logo' ? 'logoUrl' : 'iconUrl', url);
+    } catch { setError('Could not read that image.'); }
+  }
+
+  async function save() {
+    setSaving(true); setError('');
+    try {
+      const next = await api<Branding>('/admin/branding', {
+        method: 'PATCH',
+        body: JSON.stringify({ appName: b.appName, tagline: b.tagline, primary: b.primary, accent: b.accent, logoUrl: b.logoUrl ?? null, iconUrl: b.iconUrl ?? null }),
+      });
+      setB({ ...DEFAULT_BRANDING, ...next });
+      localStorage.setItem('kynren_branding', JSON.stringify(next));
+      setSaved(true); setTimeout(() => setSaved(false), 1800);
+    } catch { setError('Save failed — you need the “System administration” permission.'); }
+    finally { setSaving(false); }
+  }
 
   return (
     <div>
       <div className="page-actions" style={{ marginTop: 0 }}>
-        <p className="subtitle" style={{ margin: 0 }}>Branding applied across the admin and mobile app.</p>
-        <button className="primary" onClick={save}>{saved ? '✓ Saved' : 'Save branding'}</button>
+        <p className="subtitle" style={{ margin: 0 }}>Logo, icon and colours — applied across the admin and the mobile app.</p>
+        <button className="primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : saved ? '✓ Saved' : 'Save branding'}</button>
       </div>
+      {error && <div className="error">{error}</div>}
       <div className="grid-2">
         <div className="panel">
           <div className="form-grid">
             <div className="form-row"><label>App name</label><input value={b.appName} onChange={(e) => set('appName', e.target.value)} /></div>
-            <div className="form-row"><label>Logo wordmark</label><input value={b.logoText} onChange={(e) => set('logoText', e.target.value)} /></div>
             <div className="form-row full"><label>Tagline</label><input value={b.tagline} onChange={(e) => set('tagline', e.target.value)} /></div>
             <div className="form-row"><label>Primary colour</label><input type="color" value={b.primary} onChange={(e) => set('primary', e.target.value)} style={{ height: 42, padding: 4 }} /></div>
             <div className="form-row"><label>Accent colour</label><input type="color" value={b.accent} onChange={(e) => set('accent', e.target.value)} style={{ height: 42, padding: 4 }} /></div>
           </div>
+
+          <div className="panel-title" style={{ margin: '18px 0 10px' }}>Logo (wordmark)</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ height: 48, minWidth: 120, borderRadius: 8, border: '1px solid var(--line)', background: '#fff', display: 'grid', placeItems: 'center', padding: 6 }}>
+              {b.logoUrl ? <img src={b.logoUrl} alt="logo" style={{ maxHeight: 40, maxWidth: 160 }} /> : <span style={{ color: 'var(--muted)', fontSize: 12 }}>No logo</span>}
+            </div>
+            <input ref={logoInput} type="file" accept="image/*" hidden onChange={(e) => pick('logo', e.target.files?.[0])} />
+            <button className="tbtn" onClick={() => logoInput.current?.click()}>Upload</button>
+            {b.logoUrl && <button className="tbtn danger" onClick={() => set('logoUrl', null)}>Remove</button>}
+          </div>
+
+          <div className="panel-title" style={{ margin: '18px 0 10px' }}>Icon (square)</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 48, height: 48, borderRadius: 10, border: '1px solid var(--line)', background: '#fff', display: 'grid', placeItems: 'center', overflow: 'hidden' }}>
+              {b.iconUrl ? <img src={b.iconUrl} alt="icon" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ color: 'var(--muted)', fontSize: 12 }}>None</span>}
+            </div>
+            <input ref={iconInput} type="file" accept="image/*" hidden onChange={(e) => pick('icon', e.target.files?.[0])} />
+            <button className="tbtn" onClick={() => iconInput.current?.click()}>Upload</button>
+            {b.iconUrl && <button className="tbtn danger" onClick={() => set('iconUrl', null)}>Remove</button>}
+          </div>
+          <p className="hint" style={{ marginTop: 14 }}>Best results: logo ~640px wide PNG (transparent), icon a 512×512 square. The phone’s home-screen launcher icon is set at build time and needs an app rebuild to change.</p>
         </div>
+
         <div className="panel">
           <div className="panel-title" style={{ marginBottom: 14 }}>Preview</div>
           <div style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid var(--line)' }}>
-            <div style={{ background: b.primary, color: '#fff', padding: '22px 18px' }}>
-              <div style={{ fontSize: 24, fontWeight: 800 }}>{b.logoText}</div>
-              <div style={{ opacity: 0.9 }}>{b.tagline}</div>
+            <div style={{ background: b.primary, color: '#fff', padding: '22px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
+              {b.iconUrl && <img src={b.iconUrl} alt="" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover' }} />}
+              <div>
+                {b.logoUrl ? <img src={b.logoUrl} alt="" style={{ maxHeight: 34, maxWidth: 180 }} /> : <div style={{ fontSize: 24, fontWeight: 800 }}>{b.appName}</div>}
+                <div style={{ opacity: 0.9, fontSize: 13 }}>{b.tagline}</div>
+              </div>
             </div>
             <div style={{ padding: 16, display: 'flex', gap: 10 }}>
               <span style={{ background: b.primary, color: '#fff', padding: '8px 16px', borderRadius: 999, fontWeight: 700, fontSize: 13 }}>{b.appName}</span>

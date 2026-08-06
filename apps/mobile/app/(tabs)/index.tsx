@@ -1,4 +1,4 @@
-import { ScrollView, View, Text, StyleSheet, RefreshControl, Dimensions } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, RefreshControl, Dimensions, Image } from 'react-native';
 import { Touchable } from '../../components/Touchable';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -158,8 +158,14 @@ export default function HomeScreen() {
         </Svg>
         <View style={[styles.fixedBarRow, { paddingTop: insets.top + 8 }]} pointerEvents="box-none">
           <View>
-            <Text style={styles.wordmark}>KYNREN</Text>
-            <View style={styles.wordmarkRule} />
+            {bundle?.branding?.logoUrl ? (
+              <Image source={{ uri: bundle.branding.logoUrl }} style={styles.logoImg} resizeMode="contain" />
+            ) : (
+              <>
+                <Text style={styles.wordmark}>{bundle?.branding?.appName?.toUpperCase() ?? 'KYNREN'}</Text>
+                <View style={styles.wordmarkRule} />
+              </>
+            )}
           </View>
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <Touchable style={styles.avatar} onPress={() => router.push('/notifications')}>
@@ -262,6 +268,7 @@ const styles = StyleSheet.create({
   heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   wordmark: { color: '#fff', fontSize: 24, fontWeight: '800', letterSpacing: 3 },
   wordmarkRule: { height: 3, width: 96, backgroundColor: '#fff', borderRadius: 2, marginTop: 3, opacity: 0.9 },
+  logoImg: { height: 40, width: 170 },
   avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   tagline: { color: '#fff', fontSize: 34, fontWeight: '800', lineHeight: 38, textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 8 },
   actions: { paddingHorizontal: 18, marginTop: -6, gap: 12 },
