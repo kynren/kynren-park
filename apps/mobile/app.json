@@ -67,7 +67,7 @@
       "typedRoutes": false
     },
     "extra": {
-      "apiUrl": "https://api.kynren.com",
+      "apiUrl": "https://app-park.kynren.com",
       "router": {
         "origin": false
       },
