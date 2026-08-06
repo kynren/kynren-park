@@ -152,6 +152,19 @@ model StaffUser {
   updatedAt    DateTime  @updatedAt
 }
 
+// Editable role→permission matrix that drives both the admin UI and the API
+// PermissionsGuard. One row per (role, permission); ADMIN is always allowed.
+model RolePermission {
+  id         String    @id @default(cuid())
+  role       StaffRole
+  permission String
+  allowed    Boolean   @default(false)
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([role, permission])
+  @@index([role])
+}
+
 // ---------------------------------------------------------------------------
 // Attractions, sessions & map
 // ---------------------------------------------------------------------------

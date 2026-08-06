@@ -5,8 +5,8 @@ import type { UpdateSessionStatusInput } from '@kynren/shared';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ScheduleService } from './schedule.service.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
-import { Public, Roles } from '../common/decorators.js';
-import { RolesGuard } from '../common/guards.js';
+import { Public, RequirePermission } from '../common/decorators.js';
+import { PermissionsGuard } from '../common/guards.js';
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -29,8 +29,8 @@ export class ScheduleController {
 
   /** Staff: change a session's live status → realtime + push. */
   @ApiBearerAuth()
-  @Roles('OPS')
-  @UseGuards(RolesGuard)
+  @RequirePermission('schedule')
+  @UseGuards(PermissionsGuard)
   @Patch(':id/status')
   updateStatus(
     @Param('id') id: string,

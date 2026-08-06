@@ -1,9 +1,10 @@
-import { Body, Controller, Post, UsePipes } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Patch, Post, UsePipes } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { registerSchema, loginSchema, refreshSchema } from '@kynren/shared';
 import type { RegisterInput, LoginInput } from '@kynren/shared';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
-import { Public } from '../common/decorators.js';
+import { Public, CurrentUser } from '../common/decorators.js';
+import type { AuthPrincipal } from '../common/decorators.js';
 import { AuthService } from './auth.service.js';
 
 @ApiTags('auth')
@@ -44,5 +45,24 @@ export class AuthController {
   @UsePipes(new ZodValidationPipe(loginSchema))
   staffLogin(@Body() body: LoginInput) {
     return this.auth.staffLogin(body);
+  }
+
+  // ---- Signed-in staff: own account ----------------------------------------
+  @ApiBearerAuth()
+  @Get('staff/me')
+  me(@CurrentUser() user?: AuthPrincipal) {
+    return this.auth.staffMe(user);
+  }
+
+  @ApiBearerAuth()
+  @Patch('staff/me')
+  updateMe(@CurrentUser() user: AuthPrincipal | undefined, @Body() body: { name?: string; email?: string }) {
+    return this.auth.updateStaffMe(user, body);
+  }
+
+  @ApiBearerAuth()
+  @Post('staff/me/password')
+  changePassword(@CurrentUser() user: AuthPrincipal | undefined, @Body() body: { currentPassword?: string; newPassword?: string }) {
+    return this.auth.changeStaffPassword(user, body);
   }
 }

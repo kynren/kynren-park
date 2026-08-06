@@ -1,8 +1,8 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { Roles } from '../common/decorators.js';
-import { RolesGuard } from '../common/guards.js';
+import { RequirePermission } from '../common/decorators.js';
+import { PermissionsGuard } from '../common/guards.js';
 
 function slugify(s: string): string {
   return (s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'item';
@@ -28,8 +28,8 @@ function timeOn(d: string, hhmm: string) {
  */
 @ApiTags('admin-manage')
 @ApiBearerAuth()
-@Roles('ADMIN', 'CONTENT')
-@UseGuards(RolesGuard)
+@RequirePermission('content')
+@UseGuards(PermissionsGuard)
 @Controller('admin')
 export class ManageController {
   constructor(private readonly prisma: PrismaService) {}

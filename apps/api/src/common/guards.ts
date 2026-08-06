@@ -7,8 +7,9 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
-import { PUBLIC_KEY, ROLES_KEY } from './decorators.js';
+import { PUBLIC_KEY, ROLES_KEY, PERMISSION_KEY } from './decorators.js';
 import type { AuthPrincipal } from './decorators.js';
+import { PermissionsService } from '../permissions/permissions.service.js';
 
 function extractToken(req: any): string | null {
   const header = req.headers?.authorization as string | undefined;
@@ -67,6 +68,31 @@ export class RolesGuard implements CanActivate {
     if (user.role === 'ADMIN') return true;
     if (!user.role || !roles.includes(user.role)) {
       throw new ForbiddenException('Insufficient role');
+    }
+    return true;
+  }
+}
+
+/** Requires the staff member's role to hold the @RequirePermission() permission. */
+@Injectable()
+export class PermissionsGuard implements CanActivate {
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly permissions: PermissionsService,
+  ) {}
+
+  async canActivate(ctx: ExecutionContext): Promise<boolean> {
+    const permission = this.reflector.getAllAndOverride<string>(PERMISSION_KEY, [
+      ctx.getHandler(),
+      ctx.getClass(),
+    ]);
+    if (!permission) return true;
+
+    const user = ctx.switchToHttp().getRequest().user as AuthPrincipal | undefined;
+    if (!user || user.type !== 'staff') throw new ForbiddenException('Staff access required');
+    if (user.role === 'ADMIN') return true;
+    if (!(await this.permissions.can(user.role, permission))) {
+      throw new ForbiddenException(`Missing permission: ${permission}`);
     }
     return true;
   }

@@ -3,9 +3,9 @@ import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { createOrderSchema, orderStatus } from '@kynren/shared';
 import type { CreateOrderInput, OrderStatusValue } from '@kynren/shared';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
-import { CurrentUser, Public, Roles } from '../common/decorators.js';
+import { CurrentUser, Public, RequirePermission } from '../common/decorators.js';
 import type { AuthPrincipal } from '../common/decorators.js';
-import { RolesGuard } from '../common/guards.js';
+import { PermissionsGuard } from '../common/guards.js';
 import { FoodService } from './food.service.js';
 
 @ApiTags('food')
@@ -36,16 +36,16 @@ export class FoodController {
 
   // --- Staff (F&B) ----------------------------------------------------------
   @ApiBearerAuth()
-  @Roles('FNB')
-  @UseGuards(RolesGuard)
+  @RequirePermission('food')
+  @UseGuards(PermissionsGuard)
   @Get('kitchen/orders')
   kitchenQueue(@Query('restaurantId') restaurantId: string) {
     return this.food.listForRestaurant(restaurantId);
   }
 
   @ApiBearerAuth()
-  @Roles('FNB')
-  @UseGuards(RolesGuard)
+  @RequirePermission('food')
+  @UseGuards(PermissionsGuard)
   @Patch('orders/:id/status')
   updateStatus(@Param('id') id: string, @Body('status', new ZodValidationPipe(orderStatus)) status: OrderStatusValue) {
     return this.food.updateStatus(id, status);

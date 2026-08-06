@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { PrismaModule } from './prisma/prisma.module.js';
+import { PermissionsModule } from './permissions/permissions.module.js';
 import { RealtimeModule } from './realtime/realtime.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 import { AuthModule } from './auth/auth.module.js';
@@ -23,6 +24,7 @@ import { JwtAuthGuard } from './common/guards.js';
     // Global JWT so guards can verify tokens everywhere.
     JwtModule.register({ global: true }),
     PrismaModule,
+    PermissionsModule,
     RealtimeModule,
     NotificationsModule,
     AuthModule,
