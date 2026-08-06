@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, PanResponder, Animated, Image, TextInput, Keyboard, type LayoutChangeEvent } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Animated, Image, TextInput, Keyboard, type LayoutChangeEvent } from 'react-native';
+import Reanimated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Rect, Circle, Ellipse, Path, G, Polygon, Line } from 'react-native-svg';
@@ -8,6 +10,8 @@ import { api, getToken } from '../../lib/api';
 import { useSync } from '../../lib/sync';
 import { fmtTime } from '../../lib/format';
 import { theme } from '../../lib/theme';
+import { Touchable } from '../../components/Touchable';
+import { selection } from '../../lib/haptics';
 
 // Authoring coordinate system for the illustrated basemap (a viewBox). The SVG
 // is stretched to exactly fill the measured screen, and pins are projected into
@@ -71,11 +75,6 @@ function distMeters(a: { lat: number; lng: number }, b: { lat: number; lng: numb
 const fmtDist = (m: number) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`);
 const walkMins = (m: number) => Math.max(1, Math.round(m / 80)); // ~80 m/min stroll
 
-// Two-finger pinch helpers (coords relative to the responder view).
-const lx = (p: any) => p.locationX ?? p.pageX ?? 0;
-const ly = (p: any) => p.locationY ?? p.pageY ?? 0;
-const touchDist = (t: any[]) => Math.hypot(lx(t[0]) - lx(t[1]), ly(t[0]) - ly(t[1]));
-const touchMid = (t: any[]) => ({ x: (lx(t[0]) + lx(t[1])) / 2, y: (ly(t[0]) + ly(t[1])) / 2 });
 const MIN_SCALE = 1;
 const MAX_SCALE = 4.5;
 
@@ -93,29 +92,36 @@ export default function MapScreen() {
   const [favs, setFavs] = useState<Set<string>>(new Set());
   const [gps, setGps] = useState<{ lat: number; lng: number } | null>(null);
   const [vp, setVp] = useState({ w: 0, h: 0 });
-  const [scale, setScale] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  // Live refs so the once-created PanResponder reads current values, not stale closures.
-  const scaleRef = useRef(1);
-  const panRef = useRef({ x: 0, y: 0 });
-  const vpRef = useRef({ w: 375, h: 680 });
-  const gestureRef = useRef({ mode: 'none' as 'none' | 'pan' | 'pinch', startPan: { x: 0, y: 0 }, startScale: 1, startDist: 0, focal: { x: 0, y: 0 } });
   const pulse = useRef(new Animated.Value(0)).current;
+
+  // Pan/zoom live on the UI thread as reanimated shared values → native-smooth.
+  const scale = useSharedValue(1);
+  const panX = useSharedValue(0);
+  const panY = useSharedValue(0);
+  const startScale = useSharedValue(1);
+  const startX = useSharedValue(0);
+  const startY = useSharedValue(0);
+  const vpw = useSharedValue(375);
+  const vph = useSharedValue(680);
 
   const vw = vp.w || 375;
   const vh = vp.h || 680;
   const markerColor = bundle?.mapConfig?.markerColor ?? '#1a73e8';
   const mapImageUrl = bundle?.defaultMap?.imageUrl || bundle?.mapConfig?.mapImageUrl || null;
 
-  const applyScale = (s: number) => { scaleRef.current = s; setScale(s); };
-  const applyPan = (p: { x: number; y: number }) => { panRef.current = p; setPan(p); };
-
   // Free panning with a gentle boundary (map can't be fully lost) at any zoom.
-  function clampPan(p: { x: number; y: number }, s: number) {
-    const w = vpRef.current.w || 375, h = vpRef.current.h || 680;
+  // JS-thread version for programmatic moves (buttons, deep links).
+  function clampPanJS(x: number, y: number, s: number) {
+    const w = vw, h = vh;
     const maxX = ((s - 1) * w) / 2 + w * 0.45;
     const maxY = ((s - 1) * h) / 2 + h * 0.45;
-    return { x: Math.max(-maxX, Math.min(maxX, p.x)), y: Math.max(-maxY, Math.min(maxY, p.y)) };
+    return { x: Math.max(-maxX, Math.min(maxX, x)), y: Math.max(-maxY, Math.min(maxY, y)) };
+  }
+  // Animate to a scale + pan (used by zoom/recenter/fit and deep links).
+  function animateTo(s: number, x: number, y: number, ms = 220) {
+    scale.value = withTiming(s, { duration: ms });
+    panX.value = withTiming(x, { duration: ms });
+    panY.value = withTiming(y, { duration: ms });
   }
 
   useEffect(() => {
@@ -159,45 +165,54 @@ export default function MapScreen() {
     });
   }
 
-  const responder = useRef(
-    PanResponder.create({
-      // Let single taps reach the pins; claim on drag, or immediately on 2 fingers.
-      onStartShouldSetPanResponder: (e) => e.nativeEvent.touches.length >= 2,
-      onMoveShouldSetPanResponder: (e, g) => e.nativeEvent.touches.length >= 2 || Math.abs(g.dx) > 4 || Math.abs(g.dy) > 4,
-      onPanResponderGrant: (e) => {
-        const t = e.nativeEvent.touches as any[];
-        const gs = gestureRef.current;
-        gs.startPan = panRef.current;
-        gs.startScale = scaleRef.current;
-        if (t.length >= 2) { gs.mode = 'pinch'; gs.startDist = touchDist(t); gs.focal = touchMid(t); }
-        else gs.mode = 'pan';
-      },
-      onPanResponderMove: (e, g) => {
-        const t = e.nativeEvent.touches as any[];
-        const gs = gestureRef.current;
-        if (t.length >= 2) {
-          // Entered / continuing a pinch.
-          if (gs.mode !== 'pinch') { gs.mode = 'pinch'; gs.startScale = scaleRef.current; gs.startPan = panRef.current; gs.startDist = touchDist(t); gs.focal = touchMid(t); }
-          if (gs.startDist <= 0) return;
-          const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, gs.startScale * (touchDist(t) / gs.startDist)));
-          const cx = vpRef.current.w / 2, cy = vpRef.current.h / 2;
-          const r = newScale / gs.startScale;
-          // Keep the pinch focal point anchored while scaling.
-          const np = {
-            x: gs.focal.x - cx - (gs.focal.x - cx - gs.startPan.x) * r,
-            y: gs.focal.y - cy - (gs.focal.y - cy - gs.startPan.y) * r,
-          };
-          applyScale(newScale);
-          applyPan(clampPan(np, newScale));
-          return;
-        }
-        if (gs.mode === 'pinch') return; // one finger lifted after a pinch — wait for release
-        applyPan(clampPan({ x: gs.startPan.x + g.dx, y: gs.startPan.y + g.dy }, scaleRef.current));
-      },
-      onPanResponderRelease: () => { gestureRef.current.mode = 'none'; },
-      onPanResponderTerminate: () => { gestureRef.current.mode = 'none'; },
-    }),
-  ).current;
+  // Native pinch + pan (UI thread). One finger pans; two fingers pinch-zoom
+  // with the focal point anchored, which also gives natural two-finger panning.
+  const gesture = useMemo(() => {
+    const clamp = (x: number, y: number, s: number) => {
+      'worklet';
+      const w = vpw.value || 375, h = vph.value || 680;
+      const maxX = ((s - 1) * w) / 2 + w * 0.45;
+      const maxY = ((s - 1) * h) / 2 + h * 0.45;
+      return { x: Math.max(-maxX, Math.min(maxX, x)), y: Math.max(-maxY, Math.min(maxY, y)) };
+    };
+    const pan = Gesture.Pan()
+      .maxPointers(1)
+      .onStart(() => { startX.value = panX.value; startY.value = panY.value; })
+      .onUpdate((e) => {
+        const c = clamp(startX.value + e.translationX, startY.value + e.translationY, scale.value);
+        panX.value = c.x; panY.value = c.y;
+      });
+    const pinch = Gesture.Pinch()
+      .onStart(() => { startScale.value = scale.value; })
+      .onUpdate((e) => {
+        const target = Math.max(MIN_SCALE, Math.min(MAX_SCALE, startScale.value * e.scale));
+        const r = target / scale.value;
+        const cx = (vpw.value || 375) / 2, cy = (vph.value || 680) / 2;
+        const nx = e.focalX - cx - (e.focalX - cx - panX.value) * r;
+        const ny = e.focalY - cy - (e.focalY - cy - panY.value) * r;
+        scale.value = target;
+        const c = clamp(nx, ny, target);
+        panX.value = c.x; panY.value = c.y;
+      });
+    return Gesture.Simultaneous(pan, pinch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const canvasStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: panX.value }, { translateY: panY.value }, { scale: scale.value }],
+  }));
+  // The callout is anchored to its pin's on-screen position and follows the map
+  // on the UI thread, but keeps a fixed size (it's outside the scaled canvas).
+  const calloutStyle = useAnimatedStyle(() => {
+    const sx = selected ? selected.x : 0;
+    const sy = selected ? selected.y : 0;
+    return {
+      transform: [
+        { translateX: vw / 2 + (sx - vw / 2) * scale.value + panX.value },
+        { translateY: vh / 2 + (sy - vh / 2) * scale.value + panY.value },
+      ],
+    };
+  });
 
   const pois = bundle?.pois ?? [];
 
@@ -306,8 +321,8 @@ export default function MapScreen() {
     if (!pin) return;
     setSelected(pin);
     const s = 2.4;
-    applyScale(s);
-    applyPan(clampPan({ x: (vw / 2 - pin.x) * s, y: (vh / 2 - pin.y) * s }, s));
+    const c = clampPanJS((vw / 2 - pin.x) * s, (vh / 2 - pin.y) * s, s);
+    animateTo(s, c.x, c.y);
     setPendingSelect(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingSelect, pins, vw, vh]);
@@ -339,8 +354,8 @@ export default function MapScreen() {
     appliedFocus.current = params.focus;
     setSelected(pin);
     const s = 2.2;
-    applyScale(s);
-    applyPan(clampPan({ x: (vw / 2 - pin.x) * s, y: (vh / 2 - pin.y) * s }, s));
+    const c = clampPanJS((vw / 2 - pin.x) * s, (vh / 2 - pin.y) * s, s);
+    animateTo(s, c.x, c.y);
   }, [params.focus, pins, vw, vh]);
 
   // Distance from the guest to the currently selected place.
@@ -351,17 +366,16 @@ export default function MapScreen() {
 
   function zoomTo(next: number) {
     const s = Math.max(MIN_SCALE, Math.min(MAX_SCALE, +next.toFixed(2)));
-    applyScale(s);
-    applyPan(clampPan(panRef.current, s));
+    const c = clampPanJS(panX.value, panY.value, s);
+    animateTo(s, c.x, c.y, 160);
   }
   function recenter() {
     const s = 2;
-    applyScale(s);
-    applyPan(clampPan({ x: (vw / 2 - youAreHere.x) * s, y: (vh / 2 - youAreHere.y) * s }, s));
+    const c = clampPanJS((vw / 2 - youAreHere.x) * s, (vh / 2 - youAreHere.y) * s, s);
+    animateTo(s, c.x, c.y);
   }
   function fitAll() {
-    applyScale(1);
-    applyPan({ x: 0, y: 0 });
+    animateTo(1, 0, 0);
   }
   function openDetail() {
     if (!selected?.slug) return;
@@ -370,14 +384,15 @@ export default function MapScreen() {
 
   function onLayout(e: LayoutChangeEvent) {
     const { width, height } = e.nativeEvent.layout;
-    vpRef.current = { w: width, h: height };
+    vpw.value = width; vph.value = height;
     setVp({ w: width, h: height });
   }
 
   return (
     <View style={styles.root} onLayout={onLayout}>
-      <View style={styles.viewport} {...responder.panHandlers}>
-        <View style={[styles.canvas, { width: vw, height: vh, transform: [{ translateX: pan.x }, { translateY: pan.y }, { scale }] }]}>
+      <View style={styles.viewport}>
+        <GestureDetector gesture={gesture}>
+        <Reanimated.View style={[styles.canvas, { width: vw, height: vh }, canvasStyle]}>
           {mapImageUrl ? (
             <Image source={{ uri: mapImageUrl }} style={{ position: 'absolute', width: vw, height: vh }} resizeMode="cover" />
           ) : (
@@ -396,7 +411,7 @@ export default function MapScreen() {
             const isSel = selected?.id === pin.id;
             if (pin.kind === 'evening') {
               return (
-                <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => setSelected(pin)}>
+                <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => { selection(); setSelected(pin); }}>
                   <View style={[styles.pinHead, styles.pinEvening, isSel && styles.pinSel]}>
                     {pin.image ? <Image source={{ uri: pin.image }} style={styles.pinImg} /> : <Text style={styles.pinEmoji}>🌙</Text>}
                   </View>
@@ -409,7 +424,7 @@ export default function MapScreen() {
             }
             if (pin.kind === 'restaurant') {
               return (
-                <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => setSelected(pin)}>
+                <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => { selection(); setSelected(pin); }}>
                   <View style={[styles.pinHead, isSel && styles.pinSel]}>
                     {pin.image ? <Image source={{ uri: pin.image }} style={styles.pinImg} /> : <Text style={styles.pinEmoji}>🍴</Text>}
                   </View>
@@ -419,7 +434,7 @@ export default function MapScreen() {
             }
             if (pin.kind === 'facility') {
               return (
-                <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => setSelected(pin)}>
+                <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => { selection(); setSelected(pin); }}>
                   <View style={[styles.pinHead, { backgroundColor: pin.color ?? '#6b6460' }, isSel && styles.pinSel]}>
                     {pin.image ? <Image source={{ uri: pin.image }} style={styles.pinImg} /> : <Text style={styles.pinEmoji}>{pin.emoji}</Text>}
                   </View>
@@ -428,7 +443,7 @@ export default function MapScreen() {
               );
             }
             return (
-              <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => setSelected(pin)}>
+              <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => { selection(); setSelected(pin); }}>
                 <View style={[styles.pinHead, isSel && styles.pinSel]}>
                   {pin.image ? <Image source={{ uri: pin.image }} style={styles.pinImg} /> : <Text style={styles.pinNum}>{pin.number}</Text>}
                 </View>
@@ -456,13 +471,14 @@ export default function MapScreen() {
             <View style={[styles.meDot, { backgroundColor: markerColor }]} />
           </View>
 
-        </View>
+        </Reanimated.View>
+        </GestureDetector>
 
         {/* Popup — rendered OUTSIDE the scaled map, anchored to the pin's
             on-screen position, so it keeps a fixed size and stays on the spot. */}
         {selected && (
-          <View style={[styles.callout, { left: vw / 2 + (selected.x - vw / 2) * scale + pan.x, top: vh / 2 + (selected.y - vh / 2) * scale + pan.y }]}>
-            <Pressable style={styles.calloutCard} onPress={openDetail}>
+          <Reanimated.View style={[styles.callout, calloutStyle]}>
+            <Touchable style={styles.calloutCard} onPress={openDetail}>
               <View style={[styles.calloutIcon, selected.kind === 'evening' && { backgroundColor: '#2c3e70' }]}>
                 <Text style={{ fontSize: 18 }}>{selected.emoji ?? '🎭'}</Text>
               </View>
@@ -490,9 +506,9 @@ export default function MapScreen() {
               <Pressable hitSlop={8} onPress={() => setSelected(null)}>
                 <Text style={styles.calloutClose}>✕</Text>
               </Pressable>
-            </Pressable>
+            </Touchable>
             <View style={styles.calloutTail} />
-          </View>
+          </Reanimated.View>
         )}
 
         {/* Location banner — the app needs GPS to show your position & distances */}
@@ -528,7 +544,7 @@ export default function MapScreen() {
               returnKeyType="search"
             />
             {search.length > 0 && (
-              <Pressable onPress={() => setSearch('')} hitSlop={8}><Text style={styles.searchClear}>✕</Text></Pressable>
+              <Touchable onPress={() => setSearch('')} hitSlop={8}><Text style={styles.searchClear}>✕</Text></Touchable>
             )}
           </View>
           {search.trim().length > 0 && (
@@ -537,10 +553,10 @@ export default function MapScreen() {
                 <Text style={styles.searchEmpty}>No matches</Text>
               ) : (
                 searchResults.map((r) => (
-                  <Pressable key={`${r.kind}:${r.id}`} style={styles.searchRow} onPress={() => goToResult(r)}>
+                  <Touchable key={`${r.kind}:${r.id}`} haptic="selection" style={styles.searchRow} onPress={() => goToResult(r)}>
                     <Text style={styles.searchName} numberOfLines={1}>{r.name}</Text>
                     <Text style={styles.searchSub}>{r.sub}</Text>
-                  </Pressable>
+                  </Touchable>
                 ))
               )}
             </View>
@@ -548,32 +564,32 @@ export default function MapScreen() {
         </View>
 
         {/* Profile */}
-        <Pressable style={styles.profileBtn} onPress={() => router.push('/settings')}>
+        <Touchable style={styles.profileBtn} onPress={() => router.push('/settings')}>
           <Text style={{ fontSize: 18 }}>👤</Text>
-        </Pressable>
+        </Touchable>
 
         {/* Zoom + locate controls */}
         <View style={styles.ctrlCol}>
-          <Pressable style={styles.ctrlBtn} onPress={() => zoomTo(scale + 0.4)}>
+          <Touchable style={styles.ctrlBtn} onPress={() => zoomTo(scale.value + 0.4)}>
             <Text style={styles.ctrlTxt}>＋</Text>
-          </Pressable>
-          <Pressable style={styles.ctrlBtn} onPress={() => zoomTo(scale - 0.4)}>
+          </Touchable>
+          <Touchable style={styles.ctrlBtn} onPress={() => zoomTo(scale.value - 0.4)}>
             <Text style={styles.ctrlTxt}>－</Text>
-          </Pressable>
-          <Pressable style={styles.ctrlBtn} onPress={fitAll}>
+          </Touchable>
+          <Touchable style={styles.ctrlBtn} onPress={fitAll}>
             <Text style={{ fontSize: 15 }}>🗺️</Text>
-          </Pressable>
-          <Pressable style={styles.ctrlBtn} onPress={recenter}>
+          </Touchable>
+          <Touchable style={styles.ctrlBtn} onPress={recenter}>
             <Text style={{ fontSize: 17 }}>📍</Text>
-          </Pressable>
+          </Touchable>
         </View>
 
         {/* "Tap the map to explore" hint, until the guest opens something */}
         {!selected && !hintDismissed && (
           <View style={styles.hintWrap} pointerEvents="box-none">
-            <Pressable style={styles.hintChip} onPress={() => setHintDismissed(true)}>
+            <Touchable style={styles.hintChip} onPress={() => setHintDismissed(true)}>
               <Text style={styles.hintChipTxt}>TAP THE MAP TO EXPLORE</Text>
-            </Pressable>
+            </Touchable>
           </View>
         )}
 
@@ -589,10 +605,10 @@ export default function MapScreen() {
           {PILLS.map((p) => {
             const on = cat === p.key;
             return (
-              <Pressable key={p.key} style={[styles.pill, on && styles.pillOn]} onPress={() => { setCat(p.key); setSelected(null); }}>
+              <Touchable key={p.key} haptic="selection" style={[styles.pill, on && styles.pillOn]} onPress={() => { setCat(p.key); setSelected(null); }}>
                 <Text style={[styles.pillEmoji, on && { color: '#fff' }]}>{p.emoji}</Text>
                 <Text style={[styles.pillLabel, on && styles.pillLabelOn]} numberOfLines={1}>{p.label}</Text>
-              </Pressable>
+              </Touchable>
             );
           })}
         </View>
