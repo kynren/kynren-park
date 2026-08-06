@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ScrollView, View, Text, StyleSheet, Image, Dimensions, type LayoutChangeEvent } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Touchable } from '../../components/Touchable';
 import { useRouter } from 'expo-router';
 import Svg, { Circle, Polyline, Line } from 'react-native-svg';
@@ -44,6 +45,7 @@ function ClockIcon({ color, size = 20 }: { color: string; size?: number }) {
 export default function ProgramScreen() {
   const { bundle, date, setDate } = useSync();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const pal = usePalette();
   const [trackW, setTrackW] = useState(Dimensions.get('window').width - HPAD * 2);
 
@@ -94,7 +96,7 @@ export default function ProgramScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: pal.screen }]}>
       {/* Custom top bar */}
-      <View style={[styles.topBar, { backgroundColor: pal.header }]}>
+      <View style={[styles.topBar, { backgroundColor: pal.header, paddingTop: insets.top + 8 }]}>
         <Text style={styles.brand}>KYNREN</Text>
         <View style={{ flexDirection: 'row', gap: 6 }}>
           <Touchable onPress={() => router.push('/notifications')} hitSlop={8} style={styles.avatar}>

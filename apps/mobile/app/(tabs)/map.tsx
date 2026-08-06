@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Animated, Image, TextInput, Keyboard, type LayoutChangeEvent } from 'react-native';
 import Reanimated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Rect, Circle, Ellipse, Path, G, Polygon, Line } from 'react-native-svg';
@@ -81,6 +82,7 @@ const MAX_SCALE = 4.5;
 export default function MapScreen() {
   const { bundle, date } = useSync();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ focus?: string }>();
   const [cat, setCat] = useState<Cat>('shows');
   const [selected, setSelected] = useState<Pin | null>(null);
@@ -513,7 +515,7 @@ export default function MapScreen() {
 
         {/* Location banner — the app needs GPS to show your position & distances */}
         {!locationReal && !bannerDismissed && (
-          <View style={styles.geoBanner}>
+          <View style={[styles.geoBanner, { paddingTop: insets.top + 12 }]}>
             <Text style={styles.geoIcon}>📱</Text>
             <Text style={styles.geoTxt}>
               {gps ? 'You seem to be outside the park' : 'Turn on location to see where you are and how far things are'}
@@ -532,7 +534,7 @@ export default function MapScreen() {
         )}
 
         {/* Search */}
-        <View style={styles.searchWrap}>
+        <View style={[styles.searchWrap, { top: insets.top + 8 }]}>
           <View style={styles.searchBar}>
             <Text style={styles.searchIcon}>🔍</Text>
             <TextInput
@@ -564,12 +566,12 @@ export default function MapScreen() {
         </View>
 
         {/* Profile */}
-        <Touchable style={styles.profileBtn} onPress={() => router.push('/settings')}>
+        <Touchable style={[styles.profileBtn, { top: insets.top + 8 }]} onPress={() => router.push('/settings')}>
           <Text style={{ fontSize: 18 }}>👤</Text>
         </Touchable>
 
         {/* Zoom + locate controls */}
-        <View style={styles.ctrlCol}>
+        <View style={[styles.ctrlCol, { top: insets.top + 62 }]}>
           <Touchable style={styles.ctrlBtn} onPress={() => zoomTo(scale.value + 0.4)}>
             <Text style={styles.ctrlTxt}>＋</Text>
           </Touchable>
