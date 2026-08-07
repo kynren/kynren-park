@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { api } from '../../../../lib/api';
+import { api, friendlyError } from '../../../../lib/api';
 import { confirmDelete, promptText } from '../../../../lib/confirm';
 import { QrButton } from '../../../../components/QrButton';
 
@@ -25,6 +25,7 @@ export default function MapEditor() {
   const [newMapName, setNewMapName] = useState('');
   const [showLabels, setShowLabels] = useState(true);
   const [selId, setSelId] = useState<string | null>(null);
+  const [err, setErr] = useState('');
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragId = useRef<string | null>(null);
   const moved = useRef(false);
@@ -43,7 +44,11 @@ export default function MapEditor() {
     setNewMapName(''); refreshMaps();
   }
   async function setDefaultMap(id: string) { await api(`/admin/maps/${id}/default`, { method: 'POST' }).catch(() => undefined); refreshMaps(); }
-  async function setMapImage(id: string, url: string | null) { await api(`/admin/maps/${id}`, { method: 'PATCH', body: JSON.stringify({ imageUrl: url }) }).catch(() => undefined); refreshMaps(); }
+  async function setMapImage(id: string, url: string | null) {
+    try { await api(`/admin/maps/${id}`, { method: 'PATCH', body: JSON.stringify({ imageUrl: url }) }); setErr(''); }
+    catch (e) { setErr(friendlyError(e, 'Could not update the map image.')); }
+    refreshMaps();
+  }
   async function deleteMap(id: string) { if (!(await confirmDelete('Delete this map?'))) return; await api(`/admin/maps/${id}`, { method: 'DELETE' }).catch(() => undefined); refreshMaps(); }
 
   // Upload an image file → resized data URL (keeps it reasonable for the app bundle).
@@ -106,12 +111,16 @@ export default function MapEditor() {
 
   async function createAt(clientX: number, clientY: number) {
     const { lat, lng } = unproj(clientX, clientY);
-    const created = await api<Poi>('/admin/pois', { method: 'POST', body: JSON.stringify({ name: 'New hotspot', type: 'INFO', lat, lng }) }).catch(() => null);
-    if (created) { setPois((p) => [...p, created]); setSelId(created.id); }
+    try {
+      const created = await api<Poi>('/admin/pois', { method: 'POST', body: JSON.stringify({ name: 'New hotspot', type: 'INFO', lat, lng }) });
+      setPois((p) => [...p, created]); setSelId(created.id); setErr('');
+    } catch (e) { setErr(friendlyError(e, 'Could not add the hotspot.')); }
   }
   function onCanvasClick(e: React.MouseEvent) {
     if (moved.current) { moved.current = false; return; }
-    if (e.target !== canvasRef.current && !(e.target as HTMLElement).classList.contains('grid')) return;
+    // Allow clicks on the canvas, the grid overlay, or the base-map image itself.
+    const t = e.target as HTMLElement;
+    if (t !== canvasRef.current && !t.classList.contains('grid') && t.tagName !== 'IMG') return;
     createAt(e.clientX, e.clientY);
   }
   function onPointerMove(e: React.PointerEvent) {
@@ -131,14 +140,17 @@ export default function MapEditor() {
   async function patchSel(patch: Partial<Poi>) {
     if (!selected) return;
     setPois((prev) => prev.map((p) => (p.id === selected.id ? { ...p, ...patch } : p)));
-    await api(`/admin/pois/${selected.id}`, { method: 'PATCH', body: JSON.stringify(patch) }).catch(() => undefined);
+    try { await api(`/admin/pois/${selected.id}`, { method: 'PATCH', body: JSON.stringify(patch) }); setErr(''); }
+    catch (e) { setErr(friendlyError(e, 'Could not save the change.')); }
   }
   async function removeSel() {
     if (!selected) return;
     if (!(await confirmDelete(`Delete hotspot “${selected.name}”? It will disappear from the app map.`))) return;
-    await api(`/admin/pois/${selected.id}`, { method: 'DELETE' }).catch(() => undefined);
-    setPois((prev) => prev.filter((p) => p.id !== selected.id));
-    setSelId(null);
+    try {
+      await api(`/admin/pois/${selected.id}`, { method: 'DELETE' });
+      setPois((prev) => prev.filter((p) => p.id !== selected.id));
+      setSelId(null); setErr('');
+    } catch (e) { setErr(friendlyError(e, 'Could not delete the hotspot.')); }
   }
   async function saveConfig(patch: Partial<MapConfig>) {
     const next = { ...config, ...patch };
@@ -157,6 +169,7 @@ export default function MapEditor() {
         <div><h1>Map &amp; Hotspots</h1><p className="subtitle" style={{ margin: 0 }}>Click the map to add a hotspot; drag to move. Changes sync to the app map.</p></div>
         <label className="checkline"><input type="checkbox" checked={showLabels} onChange={(e) => setShowLabels(e.target.checked)} /> Show labels</label>
       </div>
+      {err && <div className="error" onClick={() => setErr('')} style={{ cursor: 'pointer' }}>{err}</div>}
 
       <div className="mapedit">
         <div>
