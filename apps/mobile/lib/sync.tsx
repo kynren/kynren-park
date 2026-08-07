@@ -26,6 +26,7 @@ export interface ParkMap {
   id: string;
   name: string;
   imageUrl?: string | null;
+  bgColor?: string | null;
   isDefault: boolean;
 }
 export interface Branding {

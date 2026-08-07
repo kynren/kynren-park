@@ -160,6 +160,9 @@ export default function MapScreen() {
   const vh = vp.h || win.height;
   const markerColor = bundle?.mapConfig?.markerColor ?? '#1a73e8';
   const mapImageUrl = bundle?.defaultMap?.imageUrl || bundle?.mapConfig?.mapImageUrl || null;
+  // Fill the screen edges (letterbox around a "contain" image) with the map's
+  // own average colour so they blend, instead of a flat mismatched green.
+  const mapBg = bundle?.defaultMap?.bgColor || GRASS;
 
   // Free panning with a gentle boundary (map can't be fully lost) at any zoom.
   // JS-thread version for programmatic moves (buttons, deep links).
@@ -485,8 +488,8 @@ export default function MapScreen() {
   }
 
   return (
-    <View style={styles.root} onLayout={onLayout}>
-      <View style={styles.viewport}>
+    <View style={[styles.root, { backgroundColor: mapBg }]} onLayout={onLayout}>
+      <View style={[styles.viewport, { backgroundColor: mapBg }]}>
         <GestureDetector gesture={gesture}>
         <Reanimated.View style={[styles.canvas, { width: vw, height: vh }, canvasStyle]}>
           {mapImageUrl ? (

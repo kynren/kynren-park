@@ -250,6 +250,7 @@ model ParkMap {
   id        String   @id @default(cuid())
   name      String
   imageUrl  String?
+  bgColor   String? // average colour of the image; fills the map screen edges
   isDefault Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

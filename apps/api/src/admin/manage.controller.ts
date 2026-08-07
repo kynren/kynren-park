@@ -286,6 +286,7 @@ export class ManageController {
   updateMap(@Param('id') id: string, @Body() b: any) {
     const data = pick(b, ['name']);
     if (b.imageUrl !== undefined) data.imageUrl = b.imageUrl || null; // null clears the image
+    if (b.bgColor !== undefined) data.bgColor = b.bgColor || null; // edge fill colour
     return this.prisma.parkMap.update({ where: { id }, data });
   }
 
