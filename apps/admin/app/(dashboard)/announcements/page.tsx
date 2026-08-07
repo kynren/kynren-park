@@ -1,8 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { api } from '../../../lib/api';
+import { api, ApiError } from '../../../lib/api';
 import { confirmDelete } from '../../../lib/confirm';
+
+const errText = (e: unknown, fallback: string) =>
+  e instanceof ApiError ? `${fallback} — ${e.message} (${e.status || 'network'})` : fallback;
 
 interface Announcement {
   id: string; title: string; body: string; audience: string; deepLink: string | null;
@@ -39,7 +42,7 @@ export default function AnnouncementsPage() {
   const [form, setForm] = useState<Form | null>(null);
   const [error, setError] = useState('');
 
-  const load = useCallback(() => { api<Announcement[]>('/announcements/manage').then(setList).catch(() => setError('Could not load announcements.')); }, []);
+  const load = useCallback(() => { api<Announcement[]>('/announcements/manage').then(setList).catch((e) => setError(errText(e, 'Could not load announcements'))); }, []);
   useEffect(load, [load]);
 
   const nextUpId = useMemo(() => {
@@ -74,7 +77,7 @@ export default function AnnouncementsPage() {
       if (form.id) await api(`/announcements/manage/${form.id}`, { method: 'PATCH', body: JSON.stringify(payload) });
       else await api('/announcements/manage', { method: 'POST', body: JSON.stringify(payload) });
       setForm(null); load();
-    } catch { setError('Save failed.'); }
+    } catch (e) { setError(errText(e, 'Save failed')); }
   }
   async function remove(a: Announcement) {
     if (!(await confirmDelete(`Delete announcement “${a.title}”?`))) return;

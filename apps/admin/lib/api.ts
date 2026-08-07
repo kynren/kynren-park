@@ -60,7 +60,21 @@ export async function api<T = unknown>(path: string, options: RequestInit = {}):
     throw new ApiError(`Cannot reach the API at ${API_URL}. Is it running?`, 0);
   }
   if (!res.ok) {
-    const message = await res.text().catch(() => res.statusText);
+    const raw = await res.text().catch(() => res.statusText);
+    // Nest returns JSON errors ({ message, error, statusCode }); pull the message out.
+    let message = raw;
+    try {
+      const j = JSON.parse(raw);
+      if (j?.message) message = Array.isArray(j.message) ? j.message.join(', ') : j.message;
+    } catch {
+      /* not JSON — keep raw text */
+    }
+    // An expired/invalid staff session should return to login, not strand the
+    // user on a dashboard where every call silently fails.
+    if (res.status === 401 && typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+      clearSession();
+      window.location.replace('/login?expired=1');
+    }
     throw new ApiError(message || `Request failed (${res.status})`, res.status);
   }
   if (res.status === 204) return undefined as T;
