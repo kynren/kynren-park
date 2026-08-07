@@ -3,6 +3,7 @@ import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RequirePermission } from '../common/decorators.js';
 import { PermissionsGuard } from '../common/guards.js';
+import { DEFAULT_HOME_SECTIONS, resolveHomeScreen } from './home-screen.util.js';
 
 function slugify(s: string): string {
   return (s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'item';
@@ -352,6 +353,78 @@ export class ManageController {
   @Delete('notification-templates/:id')
   async deleteTemplate(@Param('id') id: string) {
     await this.prisma.notificationTemplate.delete({ where: { id } });
+    return { deleted: true };
+  }
+
+  // ---- Mobile home-screen designer ------------------------------------------
+  @Get('home-screens')
+  async listHomeScreens() {
+    await resolveHomeScreen(this.prisma); // promote any due scheduled screens first
+    return this.prisma.homeScreen.findMany({ orderBy: [{ isDefault: 'desc' }, { updatedAt: 'desc' }] });
+  }
+
+  @Post('home-screens')
+  async createHomeScreen(@Body() b: any) {
+    if (!b?.name) throw new BadRequestException('name is required');
+    const count = await this.prisma.homeScreen.count();
+    const makeDefault = b.isDefault === true || count === 0;
+    if (makeDefault) await this.prisma.homeScreen.updateMany({ data: { isDefault: false } });
+    return this.prisma.homeScreen.create({
+      data: {
+        name: b.name,
+        isDefault: makeDefault,
+        status: 'draft',
+        heroType: b.heroType ?? 'none',
+        heroMediaUrl: b.heroMediaUrl ?? null,
+        tagline: b.tagline ?? null,
+        greeting: b.greeting ?? null,
+        greetingSub: b.greetingSub ?? null,
+        primaryColor: b.primaryColor ?? null,
+        accentColor: b.accentColor ?? null,
+        sections: b.sections ?? DEFAULT_HOME_SECTIONS,
+      },
+    });
+  }
+
+  @Patch('home-screens/:id')
+  updateHomeScreen(@Param('id') id: string, @Body() b: any) {
+    const data = pick(b, ['name', 'heroType', 'heroMediaUrl', 'tagline', 'greeting', 'greetingSub', 'primaryColor', 'accentColor', 'sections']);
+    // Editing a published screen returns it to draft until re-published.
+    if (Object.keys(data).length) data.status = 'draft';
+    return this.prisma.homeScreen.update({ where: { id }, data });
+  }
+
+  @Post('home-screens/:id/default')
+  async setDefaultHomeScreen(@Param('id') id: string) {
+    await this.prisma.$transaction([
+      this.prisma.homeScreen.updateMany({ data: { isDefault: false } }),
+      this.prisma.homeScreen.update({ where: { id }, data: { isDefault: true } }),
+    ]);
+    return { ok: true };
+  }
+
+  /** Publish now (no `at`) or schedule for a future ISO time (`at`). */
+  @Post('home-screens/:id/publish')
+  async publishHomeScreen(@Param('id') id: string, @Body() b: any) {
+    const at = b?.at ? new Date(b.at) : null;
+    if (at && at.getTime() > Date.now()) {
+      return this.prisma.homeScreen.update({ where: { id }, data: { status: 'scheduled', publishAt: at } });
+    }
+    await this.prisma.homeScreen.updateMany({ data: { isDefault: false } });
+    return this.prisma.homeScreen.update({
+      where: { id },
+      data: { status: 'published', isDefault: true, publishedAt: new Date(), publishAt: null },
+    });
+  }
+
+  @Delete('home-screens/:id')
+  async deleteHomeScreen(@Param('id') id: string) {
+    const screen = await this.prisma.homeScreen.findUnique({ where: { id } });
+    await this.prisma.homeScreen.delete({ where: { id } });
+    if (screen?.isDefault) {
+      const next = await this.prisma.homeScreen.findFirst({ orderBy: { updatedAt: 'desc' } });
+      if (next) await this.prisma.homeScreen.update({ where: { id: next.id }, data: { isDefault: true } });
+    }
     return { deleted: true };
   }
 

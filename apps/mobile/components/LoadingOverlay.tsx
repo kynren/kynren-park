@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { View, Image, StyleSheet, Animated, ActivityIndicator } from 'react-native';
+import { Image, StyleSheet, Animated } from 'react-native';
 import { ResizeMode, Video } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSync } from '../lib/sync';
-import { theme } from '../lib/theme';
+import { SplashSequence } from './SplashSequence';
 
 const CACHE = 'kynren_splash';
-const MIN_MS = 1600; // keep the splash up at least this long (avoids a flash)
+const MIN_MS = 3400; // long enough for the crest montage + mark reveal to play out
 const MAX_MS = 6000; // hard cap so a slow video/network never traps the user
 
 type SplashCfg = { type: 'none' | 'photo' | 'gif' | 'video'; url?: string | null };
@@ -73,18 +73,13 @@ export function LoadingOverlay() {
       ) : hasMedia ? (
         <Image source={{ uri: url! }} style={StyleSheet.absoluteFill} resizeMode="cover" />
       ) : (
-        // Default branded splash: the cross mark + a spinner.
-        <View style={[styles.fill, styles.default]}>
-          <Image source={require('../assets/icon.png')} style={styles.mark} resizeMode="contain" />
-          <ActivityIndicator color={theme.brand} style={{ marginTop: 24 }} />
-        </View>
+        // Default: the cinematic Kynren splash sequence.
+        <SplashSequence />
       )}
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  fill: { ...StyleSheet.absoluteFillObject, zIndex: 1000, backgroundColor: '#ffffff' },
-  default: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff' },
-  mark: { width: 132, height: 132 },
+  fill: { ...StyleSheet.absoluteFillObject, zIndex: 1000, backgroundColor: '#0a0616' },
 });

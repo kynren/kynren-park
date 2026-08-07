@@ -36,10 +36,15 @@ Brand icons and splash are generated (`assets/generate-assets.mjs` — re-run `n
 
 - `icon.png` 1024² · `adaptive-icon.png` 1024² · `splash.png` 1242² · `favicon.png` · `notification-icon.png`
 
-**Still to produce (design task):** store **screenshots** — capture from a device/simulator:
-- iPhone 6.7" (1290×2796) and 6.5" — 3–6 shots
-- Android phone (1080×1920+) — 2–8 shots
-- Suggested screens: Today, Itinerary planner (optimised route), Offline map, Digital ticket QR, Click & Collect
+**Store screenshots — done ✓** Five 1290×2796 marketing screenshots (iPhone 6.7", also valid for
+Play) are in `store/screenshots/` — planner, offline map, live times, ticket QR, Click & Collect.
+Regenerate with `node store/make-screenshots.mjs` (needs `@resvg/resvg-js`; set `RESVG_PATH` to its
+`index.js` if it isn't installed locally). Apple accepts these framed/captioned shots. If you'd
+rather use literal device captures, grab them from the iOS Simulator at the same 1290×2796 size.
+
+**Privacy — done ✓ (needs your details filled in):**
+- `store/PRIVACY-POLICY.md` — host at `https://kynren.com/privacy`; fill the bracketed legal details.
+- `store/APP-PRIVACY.md` — exact answers for Apple's App Privacy + Google Play Data Safety forms.
 
 ## 5. Build
 
@@ -56,6 +61,26 @@ eas build --platform android --profile preview
 eas submit --platform ios --profile production --latest
 eas submit --platform android --profile production --latest
 ```
+
+### iOS submit credentials (App Store Connect API key — no password)
+
+`eas.json → submit.production.ios` is pre-wired for the API-key method. Fill these three
+placeholders and drop the key file next to `eas.json`:
+
+1. In [App Store Connect → Users and Access → Integrations → App Store Connect API](https://appstoreconnect.apple.com/access/integrations/api),
+   create a key with the **App Manager** role. Download the `.p8` **once** (Apple only lets you
+   download it a single time) and save it as `apps/mobile/appstore-api-key.p8`
+   *(already git-ignored — never commit it)*.
+2. Map the values into `eas.json`:
+
+   | `eas.json` field | Where to find it |
+   |---|---|
+   | `ascApiKeyIssuerId` | the **Issuer ID** shown at the top of that same API keys page |
+   | `ascApiKeyId` | the **Key ID** column for the key you just made |
+   | `ascAppId` | App Store Connect → your app → **App Information → General → Apple ID** (a numeric id) |
+
+The `ascAppId` only exists after you've created the app record (step 2 below), so create the app
+first, then fill it in. The `.p8` path stays as `./appstore-api-key.p8`.
 
 ## 7. Store listing metadata
 

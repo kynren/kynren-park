@@ -18,6 +18,7 @@ import { ContentModule } from './content/content.module.js';
 import { BrandingModule } from './branding/branding.module.js';
 import { UsersModule } from './users/users.module.js';
 import { AdminModule } from './admin/admin.module.js';
+import { StatusModule } from './status/status.module.js';
 import { HealthController } from './health/health.controller.js';
 import { JwtAuthGuard } from './common/guards.js';
 
@@ -42,6 +43,7 @@ import { JwtAuthGuard } from './common/guards.js';
     BrandingModule,
     UsersModule,
     AdminModule,
+    StatusModule,
   ],
   controllers: [HealthController],
   providers: [

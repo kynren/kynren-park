@@ -11,6 +11,7 @@ export const SYSTEM_TABS: { href: string; label: string }[] = [
   { href: '/system/backups', label: 'Backups' },
   { href: '/system/settings', label: 'System Settings' },
   { href: '/system/branding', label: 'Branding' },
+  { href: '/system/home', label: 'Home Screen' },
   { href: '/system/database', label: 'Database' },
   { href: '/system/media', label: 'Media Center' },
   { href: '/system/integrations', label: 'Integrations' },

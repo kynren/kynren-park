@@ -17,6 +17,8 @@ function Icon({ d }: { d: string }) {
 const NAV: { href: string; label: string; icon: string; badge?: number; perm?: string }[] = [
   { href: '/dashboard', label: 'Dashboard', icon: 'M3 11l9-8 9 8|M5 10v10h14V10' },
   { href: '/schedule', label: 'Live Schedule', icon: 'M4 5h16v16H4z|M8 3v4M16 3v4M4 10h16', perm: 'schedule' },
+  { href: '/attractions', label: 'Attractions', icon: 'M4 20l6-11 4 7 3-5 3 9|M4 20h16', perm: 'content' },
+  { href: '/shows', label: 'Shows', icon: 'M3 5h18v12H3z|M3 21h18|M8 9l4 3-4 3', perm: 'content' },
   { href: '/kitchen', label: 'Kitchen', icon: 'M6 3v8a3 3 0 0 0 6 0V3|M9 11v10|M17 3c-1.5 2-1.5 6 0 8.5V21', perm: 'food' },
   { href: '/announcements', label: 'Announcements', icon: 'M3 11l14-6v14L3 13z|M3 11v2M8 12v5a2 2 0 0 0 4 0', perm: 'announce' },
   { href: '/analytics', label: 'Analytics', icon: 'M4 20V10|M10 20V4|M16 20v-7|M21 20H3', perm: 'analytics' },

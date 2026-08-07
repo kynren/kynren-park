@@ -11,6 +11,12 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPw, setShowPw] = useState(false);
+  // Shown when the dashboard bounced us here on an expired/invalid session.
+  const [notice] = useState(() =>
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('expired')
+      ? 'Your session expired — please sign in again.'
+      : '',
+  );
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -41,6 +47,7 @@ export default function LoginPage() {
       <form className="login-card" onSubmit={submit}>
         <div className="logo" style={{ fontSize: 30 }}>Kyn<b>ren</b></div>
         <p className="subtitle" style={{ textAlign: 'center' }}>The Storied Lands — Operations</p>
+        {notice && <div className="error" style={{ background: '#fbf1dd', color: 'var(--warn)' }}>{notice}</div>}
         <label>Email</label>
         <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" />
         <label>Password</label>

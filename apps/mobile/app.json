@@ -3,7 +3,7 @@
     "name": "Kynren",
     "slug": "kynren-storied-lands",
     "scheme": "kynren",
-    "version": "0.1.0",
+    "version": "0.3.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "primaryColor": "#8f1d21",
@@ -25,7 +25,8 @@
         "UIBackgroundModes": [
           "remote-notification"
         ],
-        "NSLocationWhenInUseUsageDescription": "Kynren uses your location to show where you are on the park map and time your show reminders."
+        "NSLocationWhenInUseUsageDescription": "Kynren uses your location to show where you are on the park map and time your show reminders.",
+        "NSCameraUsageDescription": "Kynren uses the camera to scan spot QR codes so it can show them on the map."
       }
     },
     "android": {
@@ -38,7 +39,8 @@
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
-        "POST_NOTIFICATIONS"
+        "POST_NOTIFICATIONS",
+        "CAMERA"
       ]
     },
     "web": {
@@ -54,12 +56,18 @@
         }
       ],
       [
+        "expo-camera",
+        {
+          "cameraPermission": "Kynren uses the camera to scan spot QR codes so it can show them on the map."
+        }
+      ],
+      [
         "expo-build-properties",
         {
           "android": {
-            "compileSdkVersion": 34,
-            "targetSdkVersion": 34,
-            "buildToolsVersion": "34.0.0"
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "buildToolsVersion": "35.0.0"
           }
         }
       ]

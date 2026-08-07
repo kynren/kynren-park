@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api } from '../../../../lib/api';
 import { confirmDelete } from '../../../../lib/confirm';
+import { QrButton } from '../../../../components/QrButton';
 
 interface Poi { id: string; name: string; type: string }
 interface Restaurant {
@@ -77,6 +78,7 @@ export default function RestaurantsAdmin() {
               <td>{r._count?.menuItems ?? 0} items</td>
               <td>{r.active ? <span className="tag-on">Active</span> : <span className="tag-off">Hidden</span>}</td>
               <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
+                <QrButton type="restaurant" id={r.id} label={r.name} />{' '}
                 <button className="tbtn" onClick={() => openEdit(r)}>Edit</button>{' '}
                 <button className="tbtn danger" onClick={() => remove(r)}>Remove</button>
               </td>

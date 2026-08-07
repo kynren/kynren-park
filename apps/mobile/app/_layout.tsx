@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
 import { AnnouncementMegaphone } from '../components/AnnouncementMegaphone';
 import { LoadingOverlay } from '../components/LoadingOverlay';
+import { FloatingScanner } from '../components/FloatingScanner';
 import * as Notifications from 'expo-notifications';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { SyncProvider } from '../lib/sync';
@@ -39,7 +40,8 @@ if (g.ErrorUtils?.setGlobalHandler && !g.__kynrenErrorHandler) {
 // Show notifications while the app is foregrounded.
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
   }),
@@ -82,7 +84,9 @@ function RootNav() {
         <Stack.Screen name="orders" options={{ title: 'My Orders' }} />
         <Stack.Screen name="settings" options={{ headerShown: false }} />
         <Stack.Screen name="language" options={{ title: 'Language', presentation: 'modal' }} />
+        <Stack.Screen name="scan" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
       </Stack>
+      <FloatingScanner />
       <AnnouncementMegaphone />
       <LoadingOverlay />
     </View>

@@ -1,4 +1,5 @@
 import { Tabs } from 'expo-router';
+import type { JSX } from 'react';
 import { Text, View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Line, Rect, Circle, Polyline } from 'react-native-svg';
