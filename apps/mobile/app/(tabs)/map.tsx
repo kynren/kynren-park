@@ -168,8 +168,8 @@ export default function MapScreen() {
   // JS-thread version for programmatic moves (buttons, deep links).
   function clampPanJS(x: number, y: number, s: number) {
     const w = vw, h = vh;
-    const maxX = ((s - 1) * w) / 2 + w * 0.45;
-    const maxY = ((s - 1) * h) / 2 + h * 0.45;
+    const maxX = ((s - 1) * w) / 2;
+    const maxY = ((s - 1) * h) / 2;
     return { x: Math.max(-maxX, Math.min(maxX, x)), y: Math.max(-maxY, Math.min(maxY, y)) };
   }
   // Animate to a scale + pan (used by zoom/recenter/fit and deep links).
@@ -493,7 +493,7 @@ export default function MapScreen() {
         <GestureDetector gesture={gesture}>
         <Reanimated.View style={[styles.canvas, { width: vw, height: vh }, canvasStyle]}>
           {mapImageUrl ? (
-            <Image source={{ uri: mapImageUrl }} style={{ position: 'absolute', width: vw, height: vh }} resizeMode="contain" />
+            <Image source={{ uri: mapImageUrl }} style={{ position: 'absolute', width: vw, height: vh }} resizeMode="cover" />
           ) : (
             <ParkBasemap vw={vw} vh={vh} />
           )}
