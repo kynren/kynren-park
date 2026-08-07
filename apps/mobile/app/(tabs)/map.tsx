@@ -278,7 +278,8 @@ export default function MapScreen() {
       const poi = poiById.get(a.poiId);
       if (!poi) return;
       const { x, y } = project.toXY(poi.lat, poi.lng);
-      out.push({ id: a.id, attractionId: a.id, x, y, lat: poi.lat, lng: poi.lng, slug: a.slug, image: poi.image, kind: 'show', number: i + 1, title: a.name, subtitle: a.tagline ?? undefined, nextTime: nextByAttraction.get(a.id), zone: poi.mapZone });
+      // Prefer the attraction's featured image so the admin's hero image drives the map pin.
+      out.push({ id: a.id, attractionId: a.id, x, y, lat: poi.lat, lng: poi.lng, slug: a.slug, image: a.heroImage || poi.image, kind: 'show', number: i + 1, title: a.name, subtitle: a.tagline ?? undefined, nextTime: nextByAttraction.get(a.id), zone: poi.mapZone });
     });
     if (cat === 'shows') {
       const evening = (bundle?.attractions ?? []).find((a) => a.category === 'EVENING_SHOW');
@@ -286,7 +287,7 @@ export default function MapScreen() {
         const poi = poiById.get(evening.poiId);
         if (poi) {
           const { x, y } = project.toXY(poi.lat, poi.lng);
-          out.push({ id: evening.id, attractionId: evening.id, x, y, lat: poi.lat, lng: poi.lng, slug: evening.slug, image: poi.image, kind: 'evening', emoji: '🌙', title: evening.name, subtitle: evening.tagline ?? undefined, nextTime: nextByAttraction.get(evening.id), zone: poi.mapZone });
+          out.push({ id: evening.id, attractionId: evening.id, x, y, lat: poi.lat, lng: poi.lng, slug: evening.slug, image: evening.heroImage || poi.image, kind: 'evening', emoji: '🌙', title: evening.name, subtitle: evening.tagline ?? undefined, nextTime: nextByAttraction.get(evening.id), zone: poi.mapZone });
         }
       }
     }
