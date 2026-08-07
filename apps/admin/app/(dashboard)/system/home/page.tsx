@@ -24,7 +24,34 @@ const DEFAULT_SECTIONS: Section[] = [
   { key: 'actions', visible: true }, { key: 'welcome', visible: true }, { key: 'visit', visible: true },
   { key: 'announcement', visible: true }, { key: 'alerts', visible: true }, { key: 'comingUp', visible: true },
 ];
-const MAX_MB = 4;
+const MAX_MB = 8; // source cap; still images are resized down before upload
+
+function readAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = reject; reader.readAsDataURL(file);
+  });
+}
+// Resize a still image to a capped dimension → compact JPEG data URL (keeps the
+// hero upload small enough to POST reliably). GIFs are left untouched.
+function resizeToDataUrl(file: File, maxDim: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new window.Image();
+      img.onload = () => {
+        const s = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const w = Math.round(img.width * s), h = Math.round(img.height * s);
+        const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+        canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      img.onerror = reject; img.src = reader.result as string;
+    };
+    reader.onerror = reject; reader.readAsDataURL(file);
+  });
+}
 
 const EMPTY = {
   name: '', heroType: 'none', heroMediaUrl: '', tagline: 'An epic tale\nof England',
@@ -63,13 +90,17 @@ export default function HomeDesigner() {
     setError(''); setScheduleAt('');
   }
 
-  function onPickMedia(e: React.ChangeEvent<HTMLInputElement>) {
+  async function onPickMedia(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-picking the same file
     if (!file || !form) return;
     if (file.size > MAX_MB * 1024 * 1024) { setError(`File must be under ${MAX_MB} MB (use a hosted URL for larger video).`); return; }
-    const reader = new FileReader();
-    reader.onload = () => setForm((f) => (f ? { ...f, heroMediaUrl: String(reader.result) } : f));
-    reader.readAsDataURL(file);
+    try {
+      // GIFs must keep their frames; still images get resized down for a small upload.
+      const url = form.heroType === 'gif' ? await readAsDataUrl(file) : await resizeToDataUrl(file, 1600);
+      setForm((f) => (f ? { ...f, heroMediaUrl: url } : f));
+      setError('');
+    } catch { setError('Could not read that file.'); }
   }
 
   function moveSection(i: number, dir: -1 | 1) {

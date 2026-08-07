@@ -8,7 +8,7 @@ import { QrButton } from '../../../../components/QrButton';
 
 interface Poi { id: string; type: string; name: string; lat: number; lng: number; color: string | null; mapZone: string | null; image: string | null }
 interface MapConfig { markerColor: string; markerStyle: string; mapImageUrl: string | null }
-interface ParkMap { id: string; name: string; imageUrl: string | null; isDefault: boolean }
+interface ParkMap { id: string; name: string; imageUrl: string | null; bgColor: string | null; isDefault: boolean }
 
 const TYPES = ['ATTRACTION', 'RESTAURANT', 'RESTROOM', 'SHOP', 'FIRST_AID', 'ENTRANCE', 'PARKING', 'ACCESSIBILITY', 'BABY_CHANGING', 'PICNIC', 'INFO'];
 const TYPE_COLOR: Record<string, string> = {
@@ -56,8 +56,10 @@ export default function MapEditor() {
     triggerUpload(target.id);
   }
   async function setDefaultMap(id: string) { await api(`/admin/maps/${id}/default`, { method: 'POST' }).catch((e) => setErr(friendlyError(e, 'Could not set the default map.'))); refreshMaps(); }
-  async function setMapImage(id: string, url: string | null) {
-    try { await api(`/admin/maps/${id}`, { method: 'PATCH', body: JSON.stringify({ imageUrl: url }) }); setErr(''); }
+  async function setMapImage(id: string, url: string | null, bgColor?: string | null) {
+    const body: Record<string, unknown> = { imageUrl: url };
+    if (bgColor !== undefined) body.bgColor = bgColor;
+    try { await api(`/admin/maps/${id}`, { method: 'PATCH', body: JSON.stringify(body) }); setErr(''); }
     catch (e) { setErr(friendlyError(e, 'Could not update the map image.')); }
     refreshMaps();
   }
@@ -74,7 +76,9 @@ export default function MapEditor() {
   const uploadKind = useRef<'map' | 'spot'>('map');
   function triggerUpload(id: string) { uploadKind.current = 'map'; uploadTarget.current = id; fileInputRef.current?.click(); }
   function triggerSpotUpload() { uploadKind.current = 'spot'; fileInputRef.current?.click(); }
-  function resizeToDataUrl(file: File, maxDim: number): Promise<string> {
+  // Returns the resized JPEG data URL plus the image's average colour (used to
+  // fill the map screen's edges on mobile so they blend with the map).
+  function resizeToDataUrl(file: File, maxDim: number): Promise<{ url: string; color: string }> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => {
@@ -83,8 +87,17 @@ export default function MapEditor() {
           const s = Math.min(1, maxDim / Math.max(img.width, img.height));
           const w = Math.round(img.width * s), h = Math.round(img.height * s);
           const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
-          canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
-          resolve(canvas.toDataURL('image/jpeg', 0.82));
+          const ctx = canvas.getContext('2d')!;
+          ctx.drawImage(img, 0, 0, w, h);
+          const url = canvas.toDataURL('image/jpeg', 0.82);
+          let r = 0, g = 0, b = 0, n = 0;
+          try {
+            const d = ctx.getImageData(0, 0, w, h).data;
+            const step = Math.max(1, Math.floor((w * h) / 3000)) * 4;
+            for (let i = 0; i < d.length; i += step) { r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; }
+          } catch { n = 0; }
+          const color = n ? '#' + [r, g, b].map((v) => Math.round(v / n).toString(16).padStart(2, '0')).join('') : '#a9c97f';
+          resolve({ url, color });
         };
         img.onerror = reject; img.src = reader.result as string;
       };
@@ -98,9 +111,11 @@ export default function MapEditor() {
     try {
       if (uploadKind.current === 'spot') {
         if (!selected) return;
-        await patchSel({ image: await resizeToDataUrl(file, 512) }); // small — it sits inside a marker
+        const { url } = await resizeToDataUrl(file, 512); // small — it sits inside a marker
+        await patchSel({ image: url });
       } else if (uploadTarget.current) {
-        await setMapImage(uploadTarget.current, await resizeToDataUrl(file, 2400));
+        const { url, color } = await resizeToDataUrl(file, 2400);
+        await setMapImage(uploadTarget.current, url, color);
       }
     } catch { alert('Could not read that image.'); }
   }
@@ -238,7 +253,7 @@ export default function MapEditor() {
                   </div>
                   <button className="tbtn" onClick={() => triggerUpload(m.id)}>Upload</button>
                   <button className="tbtn" onClick={async () => { const u = await promptText('Image URL (leave blank to remove)', m.imageUrl ?? '', 'Map image URL'); if (u !== null) setMapImage(m.id, u.trim() || null); }}>URL</button>
-                  {m.imageUrl && <button className="tbtn" onClick={() => setMapImage(m.id, null)}>Remove</button>}
+                  {m.imageUrl && <button className="tbtn" onClick={() => setMapImage(m.id, null, null)}>Remove</button>}
                   <button className="tbtn danger" onClick={() => deleteMap(m.id)}>✕</button>
                 </div>
               ))}
