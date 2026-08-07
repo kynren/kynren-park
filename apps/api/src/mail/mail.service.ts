@@ -27,6 +27,18 @@ export class MailService {
     return this.transporter;
   }
 
+  /** Health probe: verifies the SMTP connection for the status page. */
+  async verify(): Promise<{ ok: boolean; detail: string }> {
+    const tx = this.tx;
+    if (!tx) return { ok: false, detail: 'SMTP not configured — email disabled.' };
+    try {
+      await tx.verify();
+      return { ok: true, detail: 'SMTP connection verified.' };
+    } catch (e) {
+      return { ok: false, detail: `SMTP error: ${(e as Error).message}` };
+    }
+  }
+
   async send(to: string, subject: string, html: string): Promise<{ sent: boolean }> {
     const tx = this.tx;
     if (!tx) {

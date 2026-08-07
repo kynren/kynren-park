@@ -514,3 +514,25 @@ model ContentPage {
   updatedAt DateTime @updatedAt
   createdAt DateTime @default(now())
 }
+
+// One recorded result of a system health probe (API, DB, SMTP, push, realtime),
+// kept ~90 days to draw the status-page uptime history.
+model HealthCheck {
+  id        String   @id @default(cuid())
+  component String // api | database | email | push | realtime
+  status    String // up | down | degraded
+  latencyMs Int?
+  detail    String?
+  checkedAt DateTime @default(now())
+
+  @@index([component, checkedAt])
+  @@index([checkedAt])
+}
+
+// Generic key/value store for small operational settings (e.g. the status-page
+// check interval). Not for secrets.
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}

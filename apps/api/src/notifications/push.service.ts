@@ -10,6 +10,16 @@ export class PushService {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Health probe: Expo push has no ping, so report readiness + device count. */
+  async healthCheck(): Promise<{ ok: boolean; detail: string }> {
+    try {
+      const n = await this.prisma.pushToken.count();
+      return { ok: true, detail: `Expo push ready · ${n} device${n === 1 ? '' : 's'} registered.` };
+    } catch {
+      return { ok: true, detail: 'Expo push ready.' };
+    }
+  }
+
   async sendToUsers(userIds: string[], title: string, body: string, data?: Record<string, unknown>) {
     if (userIds.length === 0) return;
     const tokens = await this.prisma.pushToken.findMany({
