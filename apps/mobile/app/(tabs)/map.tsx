@@ -79,6 +79,7 @@ const walkMins = (m: number) => Math.max(1, Math.round(m / 80)); // ~80 m/min st
 
 const MIN_SCALE = 1;
 const MAX_SCALE = 4.5;
+const MILE_M = 1609.34; // hide the location beacon beyond this distance from the park
 
 export default function MapScreen() {
   const { bundle, date } = useSync();
@@ -330,6 +331,21 @@ export default function MapScreen() {
 
   const entrance = pois.find((p) => p.type === 'ENTRANCE');
   const locationReal = !!(gps && project && project.inBounds(gps.lat, gps.lng));
+  // Centre of the park, used to decide whether the guest is actually near it.
+  const parkCenter = useMemo(() => {
+    if (pois.length === 0) return null;
+    return {
+      lat: pois.reduce((s, p) => s + p.lat, 0) / pois.length,
+      lng: pois.reduce((s, p) => s + p.lng, 0) / pois.length,
+    };
+  }, [pois]);
+  const distToPark = useMemo(
+    () => (gps && parkCenter ? distMeters(gps, parkCenter) : null),
+    [gps, parkCenter],
+  );
+  // Only show the "you are here" beacon when we can't tell (no GPS yet) or the
+  // guest is genuinely near the park — never plant a dot when they're miles away.
+  const showMe = distToPark == null ? true : distToPark <= MILE_M;
   const youAreHere = useMemo(() => {
     if (!project) return { x: vw / 2, y: vh * 0.7 };
     if (locationReal && gps) return project.toXY(gps.lat, gps.lng);
@@ -452,21 +468,23 @@ export default function MapScreen() {
             );
           })}
 
-          {/* You are here — glowing location beacon */}
-          <View style={[styles.meWrap, { left: youAreHere.x, top: youAreHere.y }]} pointerEvents="none">
-            <View style={[styles.meGlow, { backgroundColor: markerColor }]} />
-            <Animated.View
-              style={[
-                styles.mePulse,
-                {
-                  backgroundColor: markerColor,
-                  opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.45, 0] }),
-                  transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.6, 2.6] }) }],
-                },
-              ]}
-            />
-            <View style={[styles.meDot, { backgroundColor: markerColor }]} />
-          </View>
+          {/* You are here — glowing location beacon (hidden when far from the park) */}
+          {showMe && (
+            <View style={[styles.meWrap, { left: youAreHere.x, top: youAreHere.y }]} pointerEvents="none">
+              <View style={[styles.meGlow, { backgroundColor: markerColor }]} />
+              <Animated.View
+                style={[
+                  styles.mePulse,
+                  {
+                    backgroundColor: markerColor,
+                    opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.45, 0] }),
+                    transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.6, 2.6] }) }],
+                  },
+                ]}
+              />
+              <View style={[styles.meDot, { backgroundColor: markerColor }]} />
+            </View>
+          )}
 
         </Reanimated.View>
         </GestureDetector>
