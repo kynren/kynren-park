@@ -536,3 +536,25 @@ model AppSetting {
   value     String
   updatedAt DateTime @updatedAt
 }
+
+// A designed mobile home screen. Admins can keep several layouts but exactly one
+// is the live default. Publishing applies it now; scheduling makes it the
+// default at publishAt. The mobile app renders the live default from the bundle.
+model HomeScreen {
+  id           String    @id @default(cuid())
+  name         String
+  isDefault    Boolean   @default(false)
+  status       String    @default("draft") // draft | scheduled | published
+  heroType     String    @default("none") // none | image | gif | video
+  heroMediaUrl String?   @db.Text
+  tagline      String? // large hero text
+  greeting     String? // welcome heading
+  greetingSub  String? // welcome subtitle
+  primaryColor String?
+  accentColor  String?
+  sections     Json? // ordered [{ key, visible }]
+  publishAt    DateTime?
+  publishedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}

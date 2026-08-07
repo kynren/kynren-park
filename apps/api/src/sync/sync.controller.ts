@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import type { Request, Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { Public } from '../common/decorators.js';
+import { resolveHomeScreen } from '../admin/home-screen.util.js';
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -52,6 +53,10 @@ export class SyncController {
         this.prisma.branding.findFirst(),
       ]);
 
+    // The live, admin-designed home screen (published default), or null → the
+    // app falls back to its built-in home look.
+    const home = await resolveHomeScreen(this.prisma);
+
     const payload = {
       date: day,
       generatedAt: new Date().toISOString(),
@@ -66,6 +71,7 @@ export class SyncController {
       mapConfig,
       defaultMap,
       branding,
+      home,
     };
 
     const body = JSON.stringify(payload);

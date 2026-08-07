@@ -1,4 +1,5 @@
 import { ScrollView, View, Text, StyleSheet, RefreshControl, Dimensions, Image } from 'react-native';
+import { ResizeMode, Video } from 'expo-av';
 import { Touchable } from '../../components/Touchable';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -11,6 +12,7 @@ import { useThemePref } from '../../lib/theme-context';
 import { SkeletonRows } from '../../components/Shimmer';
 
 const HERO_H = Math.min(520, Math.max(420, Dimensions.get('window').height * 0.56));
+const DEFAULT_SECTIONS = ['actions', 'welcome', 'visit', 'announcement', 'alerts', 'comingUp'];
 
 function usePalette() {
   const dark = useThemePref().scheme === 'dark';
@@ -54,6 +56,101 @@ export default function HomeScreen() {
     setRefreshing(false);
   }
 
+  // Admin-designed home screen (published default), if any.
+  const home = bundle?.home ?? null;
+  const primary = home?.primaryColor || theme.brand;
+  const tagline = home?.tagline || 'An epic tale\nof England';
+  const greeting = home?.greeting || 'Welcome';
+  const sectionOrder = home?.sections?.length ? home.sections.filter((s) => s.visible).map((s) => s.key) : DEFAULT_SECTIONS;
+
+  const renderSection = (key: string) => {
+    switch (key) {
+      case 'actions':
+        return (
+          <View style={styles.actions} key={key}>
+            <Touchable style={[styles.primaryBtn, { backgroundColor: primary }]} onPress={() => router.push('/book')}>
+              <Text style={styles.primaryTxt}>Buy tickets</Text>
+            </Touchable>
+            <Touchable style={[styles.outlineBtn, { borderColor: pal.outline }]} onPress={() => router.push('/auth')}>
+              <Text style={[styles.outlineTxt, { color: pal.text }]}>Create an account</Text>
+            </Touchable>
+          </View>
+        );
+      case 'welcome':
+        return (
+          <View style={styles.welcomeRow} key={key}>
+            <Text style={styles.wave}>👋</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.welcomeH, { color: pal.text }]}>{greeting}</Text>
+              <View style={styles.welcomeSub}>
+                <View style={[styles.greenDot, { backgroundColor: home?.accentColor || '#3bbf6a' }]} />
+                <Text style={[styles.welcomeTxt, { color: pal.sub }]}>
+                  {home?.greetingSub
+                    ? home.greetingSub
+                    : hours ? `Today, the park will be open from ${hours.open} to ${hours.close}` : 'Plan your day at Kynren – The Storied Lands'}
+                </Text>
+              </View>
+            </View>
+          </View>
+        );
+      case 'visit':
+        return (
+          <Touchable style={[styles.visitCard, { backgroundColor: pal.card }]} key={key} onPress={() => router.push('/plan')}>
+            <View style={styles.visitIcon}>
+              <Svg width={30} height={30} viewBox="0 0 24 24" fill="none" stroke={pal.text} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+                <Rect x="4" y="5" width="16" height="16" rx="2.4" />
+                <Path d="M4 9.5h16M8 3v4M16 3v4M8 13h2M12 13h2M8 16.5h2" />
+              </Svg>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.visitTitle, { color: pal.text }]}>Add your visit dates</Text>
+              <Text style={[styles.visitSub, { color: pal.sub }]}>Tell us the dates of your visit to Kynren</Text>
+            </View>
+            <Text style={[styles.chev, { color: pal.sub }]}>›</Text>
+          </Touchable>
+        );
+      case 'announcement':
+        return bundle?.announcements?.[0] ? (
+          <View style={[styles.notice, { backgroundColor: pal.card, borderColor: pal.line }]} key={key}>
+            <Text style={[styles.noticeTitle, { color: pal.text }]}>📣 {bundle.announcements[0].title}</Text>
+            <Text style={[styles.noticeBody, { color: pal.sub }]}>{bundle.announcements[0].body}</Text>
+          </View>
+        ) : null;
+      case 'alerts':
+        return alerts.length > 0 ? (
+          <View style={styles.section} key={key}>
+            <Text style={[styles.sectionH, { color: pal.text }]}>Today’s changes</Text>
+            {alerts.map((s) => (
+              <View key={s.id} style={[styles.alert, { backgroundColor: pal.card, borderColor: pal.line, borderLeftColor: statusColor[s.status] }]}>
+                <Text style={[styles.alertName, { color: pal.text }]}>{s.attraction.name}</Text>
+                <Text style={[styles.alertMeta, { color: pal.sub }]}>
+                  {s.status === 'CANCELLED' ? 'Cancelled' : `Delayed to ${fmtTime(s.revisedStart ?? s.startTime)}`}
+                  {s.note ? ` · ${s.note}` : ''}
+                </Text>
+              </View>
+            ))}
+          </View>
+        ) : null;
+      case 'comingUp':
+        return (
+          <View style={styles.section} key={key}>
+            <Text style={[styles.sectionH, { color: pal.text }]}>Coming up</Text>
+            {!bundle ? (
+              <SkeletonRows count={5} height={62} />
+            ) : upcoming.length === 0 ? (
+              <Text style={{ color: pal.sub, fontSize: 13 }}>No more shows today.</Text>
+            ) : (
+              upcoming.map((s) => (
+                <SessionRow key={s.id} session={s} pal={pal} onPress={() => router.push(`/attraction/${s.attraction.slug}`)} />
+              ))
+            )}
+          </View>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: pal.screen }}>
     <ScrollView showsVerticalScrollIndicator={false}
@@ -61,88 +158,24 @@ export default function HomeScreen() {
       contentContainerStyle={{ paddingBottom: 36 }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={pal.sub} />}
     >
-      {/* Cinematic hero */}
+      {/* Hero — admin media (image / GIF / video) or the built-in illustration */}
       <View style={{ height: HERO_H }}>
-        <HeroArt fade={pal.screen} />
+        {home && home.heroType !== 'none' && home.heroMediaUrl ? (
+          home.heroType === 'video' ? (
+            <Video source={{ uri: home.heroMediaUrl }} style={StyleSheet.absoluteFill} resizeMode={ResizeMode.COVER} shouldPlay isMuted isLooping />
+          ) : (
+            <Image source={{ uri: home.heroMediaUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          )
+        ) : (
+          <HeroArt fade={pal.screen} />
+        )}
         <View style={styles.heroOverlay}>
           <View style={{ flex: 1 }} />
-          <Text style={styles.tagline}>An epic tale{'\n'}of England</Text>
+          <Text style={styles.tagline}>{tagline}</Text>
         </View>
       </View>
 
-      {/* Primary actions */}
-      <View style={styles.actions}>
-        <Touchable style={styles.primaryBtn} onPress={() => router.push('/book')}>
-          <Text style={styles.primaryTxt}>Buy tickets</Text>
-        </Touchable>
-        <Touchable style={[styles.outlineBtn, { borderColor: pal.outline }]} onPress={() => router.push('/auth')}>
-          <Text style={[styles.outlineTxt, { color: pal.text }]}>Create an account</Text>
-        </Touchable>
-      </View>
-
-      {/* Welcome + opening hours */}
-      <View style={styles.welcomeRow}>
-        <Text style={styles.wave}>👋</Text>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.welcomeH, { color: pal.text }]}>Welcome</Text>
-          <View style={styles.welcomeSub}>
-            <View style={styles.greenDot} />
-            <Text style={[styles.welcomeTxt, { color: pal.sub }]}>
-              {hours ? `Today, the park will be open from ${hours.open} to ${hours.close}` : 'Plan your day at Kynren – The Storied Lands'}
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Add visit dates */}
-      <Touchable style={[styles.visitCard, { backgroundColor: pal.card }]} onPress={() => router.push('/plan')}>
-        <View style={styles.visitIcon}>
-          <Svg width={30} height={30} viewBox="0 0 24 24" fill="none" stroke={pal.text} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
-            <Rect x="4" y="5" width="16" height="16" rx="2.4" />
-            <Path d="M4 9.5h16M8 3v4M16 3v4M8 13h2M12 13h2M8 16.5h2" />
-          </Svg>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.visitTitle, { color: pal.text }]}>Add your visit dates</Text>
-          <Text style={[styles.visitSub, { color: pal.sub }]}>Tell us the dates of your visit to Kynren</Text>
-        </View>
-        <Text style={[styles.chev, { color: pal.sub }]}>›</Text>
-      </Touchable>
-
-      {bundle?.announcements?.[0] && (
-        <View style={[styles.notice, { backgroundColor: pal.card, borderColor: pal.line }]}>
-          <Text style={[styles.noticeTitle, { color: pal.text }]}>📣 {bundle.announcements[0].title}</Text>
-          <Text style={[styles.noticeBody, { color: pal.sub }]}>{bundle.announcements[0].body}</Text>
-        </View>
-      )}
-
-      {alerts.length > 0 && (
-        <View style={styles.section}>
-          <Text style={[styles.sectionH, { color: pal.text }]}>Today’s changes</Text>
-          {alerts.map((s) => (
-            <View key={s.id} style={[styles.alert, { backgroundColor: pal.card, borderColor: pal.line, borderLeftColor: statusColor[s.status] }]}>
-              <Text style={[styles.alertName, { color: pal.text }]}>{s.attraction.name}</Text>
-              <Text style={[styles.alertMeta, { color: pal.sub }]}>
-                {s.status === 'CANCELLED' ? 'Cancelled' : `Delayed to ${fmtTime(s.revisedStart ?? s.startTime)}`}
-                {s.note ? ` · ${s.note}` : ''}
-              </Text>
-            </View>
-          ))}
-        </View>
-      )}
-
-      <View style={styles.section}>
-        <Text style={[styles.sectionH, { color: pal.text }]}>Coming up</Text>
-        {!bundle ? (
-          <SkeletonRows count={5} height={62} />
-        ) : upcoming.length === 0 ? (
-          <Text style={{ color: pal.sub, fontSize: 13 }}>No more shows today.</Text>
-        ) : (
-          upcoming.map((s) => (
-            <SessionRow key={s.id} session={s} pal={pal} onPress={() => router.push(`/attraction/${s.attraction.slug}`)} />
-          ))
-        )}
-      </View>
+      {sectionOrder.map((key) => renderSection(key))}
     </ScrollView>
 
       {/* Fixed top bar over the hero (with a scrim so it stays readable) */}

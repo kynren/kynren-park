@@ -74,6 +74,16 @@ export interface Announcement {
   id: string; title: string; body: string; createdAt: string;
   sentAt?: string | null; startAt?: string | null; endAt?: string | null; recurrence?: string;
 }
+export interface HomeConfig {
+  heroType: 'none' | 'image' | 'gif' | 'video';
+  heroMediaUrl?: string | null;
+  tagline?: string | null;
+  greeting?: string | null;
+  greetingSub?: string | null;
+  primaryColor?: string | null;
+  accentColor?: string | null;
+  sections: { key: string; visible: boolean }[];
+}
 
 export interface Bundle {
   date: string;
@@ -88,6 +98,7 @@ export interface Bundle {
   mapConfig?: MapConfig | null;
   defaultMap?: ParkMap | null;
   branding?: Branding | null;
+  home?: HomeConfig | null;
 }
 
 interface SyncState {
