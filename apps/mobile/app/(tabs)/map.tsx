@@ -495,7 +495,7 @@ export default function MapScreen() {
         <GestureDetector gesture={gesture}>
         <Reanimated.View style={[styles.canvas, { width: vw, height: vh }, canvasStyle]}>
           {mapImageUrl ? (
-            <Image source={{ uri: mapImageUrl }} style={{ position: 'absolute', width: vw, height: vh }} resizeMode="contain" />
+            <Image source={{ uri: mapImageUrl }} style={{ position: 'absolute', width: vw, height: vh }} resizeMode="cover" />
           ) : (
             <ParkBasemap vw={vw} vh={vh} />
           )}
