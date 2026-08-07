@@ -39,6 +39,12 @@
   },
   "submit": {
     "production": {
+      "ios": {
+        "ascApiKeyPath": "./appstore-api-key.p8",
+        "ascApiKeyIssuerId": "REPLACE_WITH_ASC_API_ISSUER_ID",
+        "ascApiKeyId": "REPLACE_WITH_ASC_API_KEY_ID",
+        "ascAppId": "REPLACE_WITH_APP_STORE_CONNECT_APP_ID"
+      },
       "android": {
         "serviceAccountKeyPath": "./google-service-account.json",
         "track": "internal",

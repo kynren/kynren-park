@@ -57,6 +57,26 @@ eas submit --platform ios --profile production --latest
 eas submit --platform android --profile production --latest
 ```
 
+### iOS submit credentials (App Store Connect API key — no password)
+
+`eas.json → submit.production.ios` is pre-wired for the API-key method. Fill these three
+placeholders and drop the key file next to `eas.json`:
+
+1. In [App Store Connect → Users and Access → Integrations → App Store Connect API](https://appstoreconnect.apple.com/access/integrations/api),
+   create a key with the **App Manager** role. Download the `.p8` **once** (Apple only lets you
+   download it a single time) and save it as `apps/mobile/appstore-api-key.p8`
+   *(already git-ignored — never commit it)*.
+2. Map the values into `eas.json`:
+
+   | `eas.json` field | Where to find it |
+   |---|---|
+   | `ascApiKeyIssuerId` | the **Issuer ID** shown at the top of that same API keys page |
+   | `ascApiKeyId` | the **Key ID** column for the key you just made |
+   | `ascAppId` | App Store Connect → your app → **App Information → General → Apple ID** (a numeric id) |
+
+The `ascAppId` only exists after you've created the app record (step 2 below), so create the app
+first, then fill it in. The `.p8` path stays as `./appstore-api-key.p8`.
+
 ## 7. Store listing metadata
 
 **App name:** Kynren – The Storied Lands
