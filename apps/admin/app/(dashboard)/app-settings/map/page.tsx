@@ -40,16 +40,33 @@ export default function MapEditor() {
   const refreshMaps = () => api<ParkMap[]>('/admin/maps').then(setMaps).catch(() => undefined);
   async function addMap() {
     if (!newMapName.trim()) return;
-    await api('/admin/maps', { method: 'POST', body: JSON.stringify({ name: newMapName.trim() }) }).catch(() => undefined);
+    try { await api('/admin/maps', { method: 'POST', body: JSON.stringify({ name: newMapName.trim() }) }); setErr(''); }
+    catch (e) { setErr(friendlyError(e, 'Could not add the map.')); }
     setNewMapName(''); refreshMaps();
   }
-  async function setDefaultMap(id: string) { await api(`/admin/maps/${id}/default`, { method: 'POST' }).catch(() => undefined); refreshMaps(); }
+  // One-click base-map upload: make a default map if there isn't one, then pick a file.
+  async function uploadBaseMap() {
+    let target = maps.find((m) => m.isDefault) ?? maps[0];
+    if (!target) {
+      try {
+        target = await api<ParkMap>('/admin/maps', { method: 'POST', body: JSON.stringify({ name: 'Park map' }) });
+        setMaps((prev) => [...prev, target as ParkMap]);
+      } catch (e) { setErr(friendlyError(e, 'Could not create the map.')); return; }
+    }
+    triggerUpload(target.id);
+  }
+  async function setDefaultMap(id: string) { await api(`/admin/maps/${id}/default`, { method: 'POST' }).catch((e) => setErr(friendlyError(e, 'Could not set the default map.'))); refreshMaps(); }
   async function setMapImage(id: string, url: string | null) {
     try { await api(`/admin/maps/${id}`, { method: 'PATCH', body: JSON.stringify({ imageUrl: url }) }); setErr(''); }
     catch (e) { setErr(friendlyError(e, 'Could not update the map image.')); }
     refreshMaps();
   }
-  async function deleteMap(id: string) { if (!(await confirmDelete('Delete this map?'))) return; await api(`/admin/maps/${id}`, { method: 'DELETE' }).catch(() => undefined); refreshMaps(); }
+  async function deleteMap(id: string) {
+    if (!(await confirmDelete('Delete this map?'))) return;
+    try { await api(`/admin/maps/${id}`, { method: 'DELETE' }); setErr(''); }
+    catch (e) { setErr(friendlyError(e, 'Could not delete the map.')); }
+    refreshMaps();
+  }
 
   // Upload an image file → resized data URL (keeps it reasonable for the app bundle).
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -200,8 +217,11 @@ export default function MapEditor() {
         {/* Side panel */}
         <div style={{ display: 'grid', gap: 16 }}>
           <div className="editcard">
-            <h3>Base maps</h3>
-            <p style={{ color: 'var(--muted)', fontSize: 12, margin: '0 0 12px', lineHeight: 1.5 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <h3 style={{ margin: 0 }}>Base maps</h3>
+              <button className="primary" onClick={uploadBaseMap}>⬆ Upload map image</button>
+            </div>
+            <p style={{ color: 'var(--muted)', fontSize: 12, margin: '10px 0 12px', lineHeight: 1.5 }}>
               The <b>default</b> map is what the mobile app shows. Recommended image: <b>2000–3000&nbsp;px</b> on the
               longest edge, roughly <b>4:3</b>, <b>PNG or JPG</b>, under <b>5&nbsp;MB</b> — big enough to stay sharp when
               guests zoom in, small enough to load fast.
