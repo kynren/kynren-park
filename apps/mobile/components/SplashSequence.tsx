@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { View, StyleSheet, Platform, Dimensions, type ImageSourcePropType } from 'react-native';
+import { View, StyleSheet, Dimensions, type ImageSourcePropType } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withDelay, withTiming, withSpring, withRepeat, withSequence, Easing } from 'react-native-reanimated';
 import Svg, { Defs, LinearGradient, RadialGradient, Stop, Rect, Path, Circle, G } from 'react-native-svg';
 
@@ -11,11 +11,11 @@ const LOGOS: ImageSourcePropType[] = [
   require('../assets/Land of the Vikings WHITE v_2.png'),
   require('../assets/Victorian Imaginariums WHITE.png'),
 ];
+// The Kynren wordmark (metallic, with the built-in red cross).
+const WORDMARK: ImageSourcePropType = require('../assets/kynren-wordmark.webp');
 
 const GOLD = '#f0d79a';
 const GOLD_DIM = '#d9a441';
-const CROSS = '#e2202b';
-const SERIF = Platform.select({ ios: 'Palatino', android: 'serif', default: 'serif' }) as string;
 
 const STARS: [number, number, number][] = [
   [0.12, 0.09, 1.4], [0.22, 0.15, 1], [0.34, 0.07, 1.6], [0.5, 0.12, 1], [0.63, 0.06, 1.4],
@@ -74,12 +74,17 @@ export function SplashSequence() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const crossStyle = useAnimatedStyle(() => ({ opacity: cross.value, transform: [{ scale: 0.4 + cross.value * 0.6 }] }));
-  const wordStyle = useAnimatedStyle(() => ({ opacity: word.value, transform: [{ translateY: (1 - word.value) * 24 }] }));
+  // The wordmark reveals with a fade + rise (word) and a gentle spring pop (cross).
+  const wordStyle = useAnimatedStyle(() => ({
+    opacity: word.value,
+    transform: [{ translateY: (1 - word.value) * 24 }, { scale: 0.9 + cross.value * 0.1 }],
+  }));
   const ruleStyle = useAnimatedStyle(() => ({ width: rule.value * Math.min(W * 0.62, 360) }));
   const tagStyle = useAnimatedStyle(() => ({ opacity: tag.value }));
   const logoW = Math.min(W * 0.74, 380);
   const logoH = Math.min(H * 0.24, 220);
+  const wmW = Math.min(W * 0.82, 440);
+  const wmH = wmW * 0.46; // wordmark aspect ≈ 2.16:1
 
   return (
     <View style={StyleSheet.absoluteFill}>
@@ -122,13 +127,7 @@ export function SplashSequence() {
       </View>
 
       <View style={styles.center} pointerEvents="none">
-        <Animated.View style={[styles.cross, crossStyle]}>
-          <Svg width={92} height={92} viewBox="0 0 104 104">
-            <Rect x={52 - 12} y={52 - 31} width={24} height={62} rx={6} fill={CROSS} />
-            <Rect x={52 - 31} y={52 - 12} width={62} height={24} rx={6} fill={CROSS} />
-          </Svg>
-        </Animated.View>
-        <Animated.Text style={[styles.word, wordStyle]}>KYNREN</Animated.Text>
+        <Animated.Image source={WORDMARK} resizeMode="contain" style={[{ width: wmW, height: wmH }, wordStyle]} />
         <Animated.View style={[styles.rule, ruleStyle]} />
         <Animated.Text style={[styles.tag, tagStyle]}>THE STORIED LANDS</Animated.Text>
         <View style={styles.dots}><Dot delay={0} /><Dot delay={180} /><Dot delay={360} /></View>
@@ -140,8 +139,6 @@ export function SplashSequence() {
 const styles = StyleSheet.create({
   montage: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
   center: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', paddingTop: '6%' },
-  cross: { marginBottom: 22 },
-  word: { fontFamily: SERIF, color: '#f4efe6', fontSize: Math.min(Dimensions.get('window').width * 0.16, 96), fontWeight: '800', letterSpacing: 8, textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 24, textShadowOffset: { width: 0, height: 2 } },
   rule: { height: 2, marginTop: 18, marginBottom: 14, backgroundColor: GOLD },
   tag: { fontSize: 13, letterSpacing: 6, color: GOLD, fontWeight: '600', paddingLeft: 6 },
   dots: { flexDirection: 'row', gap: 9, marginTop: 30 },
