@@ -77,8 +77,17 @@ export default function AttractionDetail() {
   return (
     <View style={[styles.screen, { backgroundColor: pal.screen }]}>
       <Stack.Screen options={{ headerShown: false }} />
+      {/* Fixed compact top bar when there's no hero image — stays put while content scrolls. */}
+      {!attraction.heroImage && (
+        <View style={[styles.headerBar, { backgroundColor: categoryColor[attraction.category] ?? theme.brand, paddingTop: insets.top + 8 }]}>
+          <Touchable style={styles.headerBack} onPress={() => router.back()} hitSlop={8}>
+            <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><Path d="M15 5l-7 7 7 7" /></Svg>
+          </Touchable>
+          <Text style={styles.headerTitle} numberOfLines={1}>{attraction.name}</Text>
+        </View>
+      )}
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-        {/* Full-bleed hero when there's an image; otherwise a compact top bar. */}
+        {/* Full-bleed hero image scrolls with the content (back button floats over it). */}
         {attraction.heroImage ? (
           <View style={styles.hero}>
             <Image source={{ uri: attraction.heroImage }} style={styles.heroImg} />
@@ -86,14 +95,7 @@ export default function AttractionDetail() {
               <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><Path d="M15 5l-7 7 7 7" /></Svg>
             </Touchable>
           </View>
-        ) : (
-          <View style={[styles.headerBar, { backgroundColor: categoryColor[attraction.category] ?? theme.brand, paddingTop: insets.top + 8 }]}>
-            <Touchable style={styles.headerBack} onPress={() => router.back()} hitSlop={8}>
-              <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><Path d="M15 5l-7 7 7 7" /></Svg>
-            </Touchable>
-            <Text style={styles.headerTitle} numberOfLines={1}>{attraction.name}</Text>
-          </View>
-        )}
+        ) : null}
 
         {/* Title block */}
         <View style={styles.pad}>
