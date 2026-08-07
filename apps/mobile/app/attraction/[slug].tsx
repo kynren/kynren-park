@@ -90,7 +90,7 @@ export default function AttractionDetail() {
         {/* Full-bleed hero image scrolls with the content (back button floats over it). */}
         {attraction.heroImage ? (
           <View style={styles.hero}>
-            <Image source={{ uri: attraction.heroImage }} style={styles.heroImg} />
+            <Image source={{ uri: attraction.heroImage }} style={styles.heroImg} resizeMode="contain" />
             <Touchable style={[styles.backBtn, { top: insets.top + 8 }]} onPress={() => router.back()}>
               <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><Path d="M15 5l-7 7 7 7" /></Svg>
             </Touchable>
@@ -203,7 +203,7 @@ function fmtDateLong(ymd: string) {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  hero: { width: '100%', height: 300 },
+  hero: { width: '100%', height: 300, backgroundColor: '#0e1013' },
   heroImg: { width: '100%', height: 300 },
   heroFallback: { color: '#fff', fontSize: 24, fontWeight: '800', textAlign: 'center', paddingHorizontal: 20 },
   backBtn: { position: 'absolute', left: 14, width: 42, height: 42, borderRadius: 21, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
