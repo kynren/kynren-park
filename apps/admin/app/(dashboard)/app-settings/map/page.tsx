@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { api } from '../../../../lib/api';
 import { confirmDelete, promptText } from '../../../../lib/confirm';
+import { QrButton } from '../../../../components/QrButton';
 
 interface Poi { id: string; type: string; name: string; lat: number; lng: number; color: string | null; mapZone: string | null; image: string | null }
 interface MapConfig { markerColor: string; markerStyle: string; mapImageUrl: string | null }
@@ -246,7 +247,10 @@ export default function MapEditor() {
                   <div className="form-row"><label>Latitude</label><input value={selected.lat.toFixed(5)} onChange={(e) => patchSel({ lat: Number(e.target.value) || selected.lat })} /></div>
                   <div className="form-row"><label>Longitude</label><input value={selected.lng.toFixed(5)} onChange={(e) => patchSel({ lng: Number(e.target.value) || selected.lng })} /></div>
                 </div>
-                <button className="tbtn danger" onClick={removeSel}>Delete hotspot</button>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <QrButton type="poi" id={selected.id} label={selected.name} />
+                  <button className="tbtn danger" onClick={removeSel}>Delete hotspot</button>
+                </div>
               </div>
             )}
           </div>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, friendlyError } from '../../../lib/api';
 import { confirmDelete } from '../../../lib/confirm';
+import { QrButton } from '../../../components/QrButton';
 
 interface Poi { id: string; name: string; type: string }
 interface Attraction {
@@ -106,6 +107,7 @@ export default function AttractionsAdmin() {
               <td>{a.poiId ? <span className="tag-on">Linked</span> : <span className="tag-off">—</span>}</td>
               <td>{a.active ? <span className="tag-on">Active</span> : <span className="tag-off">Hidden</span>}</td>
               <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
+                <QrButton type="attraction" id={a.id} label={a.name} />{' '}
                 <button className="tbtn" onClick={() => openEdit(a)}>Edit</button>{' '}
                 <button className="tbtn danger" onClick={() => remove(a)}>Remove</button>
               </td>

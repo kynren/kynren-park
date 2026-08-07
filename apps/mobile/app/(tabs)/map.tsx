@@ -5,7 +5,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Svg, { Rect, Circle, Ellipse, Path, G, Polygon, Line } from 'react-native-svg';
+import Svg, { Rect, Circle, Ellipse, Path, G, Polygon, Polyline } from 'react-native-svg';
 import * as Location from 'expo-location';
 import { api, getToken } from '../../lib/api';
 import { useSync } from '../../lib/sync';
@@ -77,6 +77,46 @@ function distMeters(a: { lat: number; lng: number }, b: { lat: number; lng: numb
 const fmtDist = (m: number) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`);
 const walkMins = (m: number) => Math.max(1, Math.round(m / 80)); // ~80 m/min stroll
 
+type Geo = { lat: number; lng: number };
+// A k-nearest-neighbour graph over the POIs, so a route hops between real park
+// spots (following the walkable network) rather than cutting a straight line.
+function buildPoiGraph(nodes: Geo[], k = 3): number[][] {
+  const adj: number[][] = nodes.map(() => []);
+  for (let i = 0; i < nodes.length; i++) {
+    const near = nodes
+      .map((_, j) => j)
+      .filter((j) => j !== i)
+      .sort((a, b) => distMeters(nodes[i], nodes[a]) - distMeters(nodes[i], nodes[b]))
+      .slice(0, k);
+    for (const j of near) {
+      if (!adj[i].includes(j)) adj[i].push(j);
+      if (!adj[j].includes(i)) adj[j].push(i); // keep it walkable both ways
+    }
+  }
+  return adj;
+}
+function nearestNode(nodes: Geo[], p: Geo): number {
+  let best = -1, bd = Infinity;
+  for (let i = 0; i < nodes.length; i++) { const d = distMeters(nodes[i], p); if (d < bd) { bd = d; best = i; } }
+  return best;
+}
+function dijkstra(adj: number[][], nodes: Geo[], start: number, goal: number): number[] | null {
+  const n = nodes.length;
+  const dist = Array(n).fill(Infinity), prev = Array(n).fill(-1), seen = Array(n).fill(false);
+  dist[start] = 0;
+  for (let it = 0; it < n; it++) {
+    let u = -1, ud = Infinity;
+    for (let i = 0; i < n; i++) if (!seen[i] && dist[i] < ud) { ud = dist[i]; u = i; }
+    if (u === -1 || u === goal) break;
+    seen[u] = true;
+    for (const v of adj[u]) { const w = distMeters(nodes[u], nodes[v]); if (dist[u] + w < dist[v]) { dist[v] = dist[u] + w; prev[v] = u; } }
+  }
+  if (dist[goal] === Infinity) return null;
+  const path: number[] = [];
+  for (let c = goal; c !== -1; c = prev[c]) path.unshift(c);
+  return path[0] === start ? path : null;
+}
+
 const MIN_SCALE = 1;
 const MAX_SCALE = 4.5;
 const MILE_M = 1609.34; // hide the location beacon beyond this distance from the park
@@ -89,11 +129,12 @@ export default function MapScreen() {
   const cpal = dark
     ? { card: '#1f1f24', ink: '#ffffff', muted: '#a5a5ad' }
     : { card: '#ffffff', ink: theme.ink, muted: theme.muted };
-  const params = useLocalSearchParams<{ focus?: string }>();
+  const params = useLocalSearchParams<{ focus?: string; spot?: string }>();
   const [cat, setCat] = useState<Cat>('shows');
   const [selected, setSelected] = useState<Pin | null>(null);
   const [search, setSearch] = useState('');
   const [pendingSelect, setPendingSelect] = useState<string | null>(null);
+  const [pendingSpot, setPendingSpot] = useState<string | null>(null);
   const [hintDismissed, setHintDismissed] = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const appliedFocus = useRef<string | null>(null);
@@ -330,6 +371,28 @@ export default function MapScreen() {
   // Hide the "tap to explore" hint once the guest opens a place.
   useEffect(() => { if (selected) setHintDismissed(true); }, [selected]);
 
+  // A scanned QR (kynren://spot/<type>/<id>) → switch to the right layer, then
+  // open that spot's popup and centre on it (distance shows automatically).
+  useEffect(() => {
+    if (!params.spot || !bundle) return;
+    const [type, id] = String(params.spot).split(':');
+    setCat(type === 'restaurant' ? 'restaurants' : type === 'poi' ? 'facilities' : 'shows');
+    setPendingSpot(id);
+    setBannerDismissed(false);
+  }, [params.spot, bundle]);
+  useEffect(() => {
+    if (!pendingSpot || vw === 0) return;
+    const pin = pins.find((p) => p.id === pendingSpot || p.attractionId === pendingSpot);
+    if (!pin) return;
+    selection();
+    setSelected(pin);
+    const s = 2.6;
+    const c = clampPanJS((vw / 2 - pin.x) * s, (vh / 2 - pin.y) * s, s);
+    animateTo(s, c.x, c.y);
+    setPendingSpot(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingSpot, pins, vw, vh]);
+
   const entrance = pois.find((p) => p.type === 'ENTRANCE');
   const locationReal = !!(gps && project && project.inBounds(gps.lat, gps.lng));
   // Centre of the park, used to decide whether the guest is actually near it.
@@ -372,11 +435,30 @@ export default function MapScreen() {
     animateTo(s, c.x, c.y);
   }, [params.focus, pins, vw, vh]);
 
-  // Distance from the guest to the currently selected place.
-  const selectedDist = useMemo(() => {
-    if (!selected || selected.lat == null || !locationReal || !gps) return null;
-    return distMeters(gps, { lat: selected.lat, lng: selected.lng! });
-  }, [selected, gps, locationReal]);
+  // Walkable POI graph (built once from the POIs).
+  const routeNodes = useMemo<Geo[]>(() => pois.map((p) => ({ lat: p.lat, lng: p.lng })), [pois]);
+  const poiAdj = useMemo(() => buildPoiGraph(routeNodes, 3), [routeNodes]);
+
+  // A path-following route from the guest to the selected place: user → nearest
+  // spot → … → destination, drawn as a polyline (not a straight line).
+  const route = useMemo(() => {
+    if (!selected || selected.lat == null || !project || !locationReal || !gps || routeNodes.length < 2) return null;
+    const target: Geo = { lat: selected.lat, lng: selected.lng! };
+    const s = nearestNode(routeNodes, gps), g = nearestNode(routeNodes, target);
+    if (s < 0 || g < 0) return null;
+    const nodePath = s === g ? [g] : dijkstra(poiAdj, routeNodes, s, g);
+    if (!nodePath) return null;
+    const points = [youAreHere, ...nodePath.map((i) => project.toXY(routeNodes[i].lat, routeNodes[i].lng))];
+    const last = points[points.length - 1];
+    if (Math.hypot(last.x - selected.x, last.y - selected.y) > 2) points.push({ x: selected.x, y: selected.y });
+    let meters = distMeters(gps, routeNodes[s]);
+    for (let i = 0; i < nodePath.length - 1; i++) meters += distMeters(routeNodes[nodePath[i]], routeNodes[nodePath[i + 1]]);
+    meters += distMeters(routeNodes[g], target);
+    return { points, meters };
+  }, [selected, gps, locationReal, project, routeNodes, poiAdj, youAreHere]);
+
+  // Distance from the guest to the selected place — the walked path length.
+  const selectedDist = route?.meters ?? null;
 
   function zoomTo(next: number) {
     const s = Math.max(MIN_SCALE, Math.min(MAX_SCALE, +next.toFixed(2)));
@@ -413,11 +495,19 @@ export default function MapScreen() {
             <ParkBasemap vw={vw} vh={vh} />
           )}
 
-          {/* Walking route from the guest to the selected place (map-style casing). */}
-          {selected && selectedDist != null && (
+          {/* Walking route from the guest to the selected place — follows the path
+              network through the park (map-style casing over a coloured line). */}
+          {selected && route && (
             <Svg style={StyleSheet.absoluteFill} width={vw} height={vh} pointerEvents="none">
-              <Line x1={youAreHere.x} y1={youAreHere.y} x2={selected.x} y2={selected.y} stroke="#ffffff" strokeWidth={8} strokeLinecap="round" strokeLinejoin="round" />
-              <Line x1={youAreHere.x} y1={youAreHere.y} x2={selected.x} y2={selected.y} stroke="#2b7fff" strokeWidth={5} strokeLinecap="round" strokeLinejoin="round" />
+              {(() => {
+                const pts = route.points.map((p) => `${p.x},${p.y}`).join(' ');
+                return (
+                  <>
+                    <Polyline points={pts} fill="none" stroke="#ffffff" strokeWidth={8} strokeLinecap="round" strokeLinejoin="round" />
+                    <Polyline points={pts} fill="none" stroke="#2b7fff" strokeWidth={5} strokeLinecap="round" strokeLinejoin="round" />
+                  </>
+                );
+              })()}
             </Svg>
           )}
 
