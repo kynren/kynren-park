@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { api, ApiError } from '../../../../lib/api';
+import { api, friendlyError } from '../../../../lib/api';
 
 type Health = 'up' | 'down' | 'degraded';
 interface DayCell { date: string; status: Health | 'none' }
@@ -42,14 +42,14 @@ export default function SystemStatus() {
   const load = useCallback(() => {
     api<StatusReport>('/admin/status')
       .then(apply)
-      .catch((e) => setError(e instanceof ApiError ? `Could not load status — ${e.message} (${e.status || 'network'})` : 'Could not load status.'));
+      .catch((e) => setError(friendlyError(e, 'Could not load status.')));
   }, [apply]);
   useEffect(load, [load]);
 
   async function checkNow() {
     setChecking(true); setError('');
     try { apply(await api<StatusReport>('/admin/status/check', { method: 'POST' })); }
-    catch (e) { setError(e instanceof ApiError ? `Check failed — ${e.message} (${e.status || 'network'})` : 'Check failed.'); }
+    catch (e) { setError(friendlyError(e, 'Check failed.')); }
     finally { setChecking(false); }
   }
   async function saveInterval() {
@@ -57,7 +57,7 @@ export default function SystemStatus() {
     try {
       apply(await api<StatusReport>('/admin/status/settings', { method: 'PATCH', body: JSON.stringify({ intervalMinutes: interval }) }));
       setSavedTick(true); setTimeout(() => setSavedTick(false), 1800);
-    } catch (e) { setError(e instanceof ApiError ? `Save failed — ${e.message} (${e.status || 'network'})` : 'Save failed.'); }
+    } catch (e) { setError(friendlyError(e, 'Save failed.')); }
     finally { setSaving(false); }
   }
 

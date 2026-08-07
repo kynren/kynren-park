@@ -43,6 +43,23 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Turn an error into a friendly, human sentence for on-screen banners.
+ * Authorisation failures (403) get a clear "you don't have access" message
+ * instead of a raw "Missing permission: …" string.
+ */
+export function friendlyError(e: unknown, fallback = 'Something went wrong. Please try again.'): string {
+  if (e instanceof ApiError) {
+    if (e.status === 401) return 'Your session has expired — please sign in again.';
+    if (e.status === 403) return 'You don’t have access to this — ask an administrator if you need it.';
+    if (e.status === 404) return 'This isn’t available.';
+    if (e.status === 0) return 'Can’t reach the server. Check your connection and try again.';
+    if (e.status >= 500) return 'The server ran into a problem. Please try again shortly.';
+    return e.message || fallback;
+  }
+  return fallback;
+}
+
 export async function api<T = unknown>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   let res: Response;
@@ -74,6 +91,11 @@ export async function api<T = unknown>(path: string, options: RequestInit = {}):
     if (res.status === 401 && typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
       clearSession();
       window.location.replace('/login?expired=1');
+    }
+    // Authorisation failures are shown to humans, so replace the raw
+    // "Missing permission: …" text with a friendly sentence at the source.
+    if (res.status === 403) {
+      message = 'You don’t have access to this — ask an administrator if you need it.';
     }
     throw new ApiError(message || `Request failed (${res.status})`, res.status);
   }
