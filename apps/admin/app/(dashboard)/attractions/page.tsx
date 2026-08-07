@@ -25,7 +25,27 @@ const EMPTY = {
   sensoryNotes: '', sortOrder: 0, active: true, poiId: '',
 };
 type Form = typeof EMPTY & { id?: string };
-const MAX_IMAGE_MB = 3;
+const MAX_IMAGE_MB = 15; // source cap; the image is resized down before upload
+
+// Resize an image file to a capped dimension and return a compact JPEG data URL,
+// so the featured image uploads reliably (a full-res photo is too big to POST).
+function resizeToDataUrl(file: File, maxDim: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new window.Image();
+      img.onload = () => {
+        const s = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const w = Math.round(img.width * s), h = Math.round(img.height * s);
+        const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+        canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      img.onerror = reject; img.src = reader.result as string;
+    };
+    reader.onerror = reject; reader.readAsDataURL(file);
+  });
+}
 
 export default function AttractionsAdmin() {
   const [rows, setRows] = useState<Attraction[]>([]);
@@ -51,13 +71,16 @@ export default function AttractionsAdmin() {
     setError('');
   }
 
-  function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
+  async function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-picking the same file
     if (!file || !form) return;
     if (file.size > MAX_IMAGE_MB * 1024 * 1024) { setError(`Image must be under ${MAX_IMAGE_MB} MB.`); return; }
-    const reader = new FileReader();
-    reader.onload = () => setForm((f) => (f ? { ...f, heroImage: String(reader.result) } : f));
-    reader.readAsDataURL(file);
+    try {
+      const url = await resizeToDataUrl(file, 1400); // downscale so the upload stays small
+      setForm((f) => (f ? { ...f, heroImage: url } : f));
+      setError('');
+    } catch { setError('Could not read that image.'); }
   }
 
   async function save() {
@@ -134,7 +157,7 @@ export default function AttractionsAdmin() {
                   <input ref={fileRef} type="file" accept="image/*" onChange={onPickImage} style={{ display: 'none' }} />
                   <button type="button" className="tbtn" onClick={() => fileRef.current?.click()}>Upload image</button>
                   {form.heroImage ? <button type="button" className="tbtn danger" onClick={() => setForm({ ...form, heroImage: '' })}>Remove</button> : null}
-                  <span className="hint">Populates lists, the map pin and the attraction page. Max {MAX_IMAGE_MB} MB.</span>
+                  <span className="hint">Populates lists, the map pin and the attraction page. Large photos are resized automatically.</span>
                 </div>
               </div>
             </div>
