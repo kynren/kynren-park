@@ -18,6 +18,8 @@ const FACILITY_PALETTE: [string, string][] = [
   ['ACCESSIBILITY', 'Accessibility'], ['BABY_CHANGING', 'Baby changing'], ['PICNIC', 'Picnic'], ['ENTRANCE', 'Entrance'], ['INFO', 'Info'],
 ];
 const dragChipStyle: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 999, background: 'var(--card)', border: '1px solid var(--line)', fontSize: 12, fontWeight: 600, cursor: 'grab' };
+// Fixed projection bounds for the park, so pins never reproject when one is added/moved.
+const PARK_BOUNDS = { minLat: 54.668, maxLat: 54.675, minLng: -1.684, maxLng: -1.674 };
 
 const TYPES = ['ATTRACTION', 'RESTAURANT', 'RESTROOM', 'SHOP', 'FIRST_AID', 'ENTRANCE', 'PARKING', 'ACCESSIBILITY', 'BABY_CHANGING', 'PICNIC', 'INFO'];
 const TYPE_COLOR: Record<string, string> = {
@@ -40,6 +42,9 @@ export default function MapEditor() {
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragId = useRef<string | null>(null);
   const moved = useRef(false);
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pressId = useRef<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
 
   const loadEntities = useCallback(() => {
     api<EntityLite[]>('/admin/attractions').then(setAttractions).catch(() => undefined);
@@ -160,14 +165,9 @@ export default function MapEditor() {
     } catch { alert('Could not read that image.'); }
   }
 
-  // Bounds (with margin) drive the pixel↔lat/lng projection.
-  const bounds = useMemo(() => {
-    if (pois.length < 2) return { minLat: 54.668, maxLat: 54.675, minLng: -1.684, maxLng: -1.674 };
-    const lats = pois.map((p) => p.lat), lngs = pois.map((p) => p.lng);
-    const minLat = Math.min(...lats), maxLat = Math.max(...lats), minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
-    const mLat = (maxLat - minLat) * 0.12 || 0.002, mLng = (maxLng - minLng) * 0.12 || 0.002;
-    return { minLat: minLat - mLat, maxLat: maxLat + mLat, minLng: minLng - mLng, maxLng: maxLng + mLng };
-  }, [pois]);
+  // Stable fixed bounds → a dropped/dragged pin stays exactly where it's placed
+  // (deriving bounds from the POI extent used to reproject everything on change).
+  const bounds = PARK_BOUNDS;
   const proj = (p: { lat: number; lng: number }) => ({
     left: ((p.lng - bounds.minLng) / (bounds.maxLng - bounds.minLng)) * 100,
     top: ((bounds.maxLat - p.lat) / (bounds.maxLat - bounds.minLat)) * 100,
@@ -196,17 +196,22 @@ export default function MapEditor() {
     createAt(e.clientX, e.clientY);
   }
   function onPointerMove(e: React.PointerEvent) {
-    if (!dragId.current) return;
+    if (!dragId.current) return; // only moves once press-and-hold has armed a drag
     moved.current = true;
     const { lat, lng } = unproj(e.clientX, e.clientY);
     setPois((prev) => prev.map((p) => (p.id === dragId.current ? { ...p, lat, lng } : p)));
   }
   function onPointerUp() {
+    if (holdTimer.current) { clearTimeout(holdTimer.current); holdTimer.current = null; }
     const id = dragId.current;
     dragId.current = null;
-    if (!id) return;
-    const p = pois.find((x) => x.id === id);
-    if (p) api(`/admin/pois/${id}`, { method: 'PATCH', body: JSON.stringify({ lat: p.lat, lng: p.lng }) }).catch(() => undefined);
+    if (id) {
+      const p = pois.find((x) => x.id === id);
+      if (p) api(`/admin/pois/${id}`, { method: 'PATCH', body: JSON.stringify({ lat: p.lat, lng: p.lng }) }).catch(() => undefined);
+      return;
+    }
+    // A short tap on a pin (no drag) opens its editor popup.
+    if (pressId.current) { setSelId(pressId.current); setModalOpen(true); pressId.current = null; }
   }
 
   async function patchSel(patch: Partial<Poi>) {
@@ -256,7 +261,12 @@ export default function MapEditor() {
                   <div
                     className={`hot ${selId === p.id ? 'sel' : ''}`}
                     style={{ left: `${left}%`, top: `${top}%`, background: colorOf(p) }}
-                    onPointerDown={(e) => { e.stopPropagation(); setSelId(p.id); dragId.current = p.id; moved.current = false; }}
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                      pressId.current = p.id; moved.current = false;
+                      // Press and hold to pick the pin up; a quick tap opens the popup.
+                      holdTimer.current = setTimeout(() => { dragId.current = p.id; setSelId(p.id); }, 260);
+                    }}
                     onClick={(e) => e.stopPropagation()}
                     title={p.name}
                   >{p.image ? <img src={p.image} alt="" /> : p.type[0]}</div>
@@ -332,41 +342,8 @@ export default function MapEditor() {
           </div>
 
           <div className="editcard">
-            <h3>{selected ? 'Edit hotspot' : 'Hotspot'}</h3>
-            {!selected && <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0 }}>Select a hotspot on the map, or click an empty spot to add one.</p>}
-            {selected && (
-              <div style={{ display: 'grid', gap: 12 }}>
-                <div className="form-row"><label>Name</label><input value={selected.name} onChange={(e) => patchSel({ name: e.target.value })} /></div>
-                <div className="form-row"><label>Category</label>
-                  <select value={selected.type} onChange={(e) => patchSel({ type: e.target.value })}>
-                    {TYPES.map((t) => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
-                  </select>
-                </div>
-                <div className="form-row"><label>Zone label</label><input value={selected.mapZone ?? ''} onChange={(e) => patchSel({ mapZone: e.target.value })} /></div>
-                <div className="form-row"><label>Colour</label>
-                  <div className="swatches">
-                    {PALETTE.map((c) => <button key={c} className={`swatch-btn ${colorOf(selected) === c ? 'on' : ''}`} style={{ background: c }} onClick={() => patchSel({ color: c })} />)}
-                  </div>
-                </div>
-                <div className="form-row"><label>Marker image (fits inside the pin)</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    {selected.image
-                      ? <img src={selected.image} alt="" style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', border: '2px solid #fff', boxShadow: '0 0 0 1px var(--border)' }} />
-                      : <div style={{ width: 40, height: 40, borderRadius: '50%', background: colorOf(selected), display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 800 }}>{selected.type[0]}</div>}
-                    <button className="tbtn" onClick={triggerSpotUpload}>Upload</button>
-                    {selected.image && <button className="tbtn" onClick={() => patchSel({ image: null })}>Remove</button>}
-                  </div>
-                </div>
-                <div className="form-grid">
-                  <div className="form-row"><label>Latitude</label><input value={selected.lat.toFixed(5)} onChange={(e) => patchSel({ lat: Number(e.target.value) || selected.lat })} /></div>
-                  <div className="form-row"><label>Longitude</label><input value={selected.lng.toFixed(5)} onChange={(e) => patchSel({ lng: Number(e.target.value) || selected.lng })} /></div>
-                </div>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <QrButton type="poi" id={selected.id} label={selected.name} />
-                  <button className="tbtn danger" onClick={removeSel}>Delete hotspot</button>
-                </div>
-              </div>
-            )}
+            <h3>Hotspots</h3>
+            <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0, lineHeight: 1.5 }}>Tap a hotspot to edit it in a popup. Press and hold a hotspot to drag it. Drag an item from “Place on map” above, or click an empty spot to add one.</p>
           </div>
 
           <div className="editcard">
@@ -385,6 +362,47 @@ export default function MapEditor() {
           </div>
         </div>
       </div>
+
+      {/* Hotspot editor popup — opens on tapping a marker */}
+      {selected && modalOpen && (
+        <div className="modal-back" onClick={(e) => e.target === e.currentTarget && setModalOpen(false)}>
+          <div className="modal" style={{ width: 420, maxWidth: '94vw' }}>
+            <h2 style={{ marginBottom: 8 }}>Edit hotspot</h2>
+            <div style={{ display: 'grid', gap: 12 }}>
+              <div className="form-row"><label>Name</label><input value={selected.name} onChange={(e) => patchSel({ name: e.target.value })} /></div>
+              <div className="form-row"><label>Category</label>
+                <select value={selected.type} onChange={(e) => patchSel({ type: e.target.value })}>
+                  {TYPES.map((t) => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
+                </select>
+              </div>
+              <div className="form-row"><label>Zone label</label><input value={selected.mapZone ?? ''} onChange={(e) => patchSel({ mapZone: e.target.value })} /></div>
+              <div className="form-row"><label>Colour</label>
+                <div className="swatches">
+                  {PALETTE.map((c) => <button key={c} className={`swatch-btn ${colorOf(selected) === c ? 'on' : ''}`} style={{ background: c }} onClick={() => patchSel({ color: c })} />)}
+                </div>
+              </div>
+              <div className="form-row"><label>Marker image (fits inside the pin)</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  {selected.image
+                    ? <img src={selected.image} alt="" style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', border: '2px solid #fff', boxShadow: '0 0 0 1px var(--border)' }} />
+                    : <div style={{ width: 44, height: 44, borderRadius: '50%', background: colorOf(selected), display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 800 }}>{selected.type[0]}</div>}
+                  <button className="tbtn" onClick={triggerSpotUpload}>Upload</button>
+                  {selected.image && <button className="tbtn" onClick={() => patchSel({ image: null })}>Remove</button>}
+                </div>
+              </div>
+              <div className="form-grid">
+                <div className="form-row"><label>Latitude</label><input value={selected.lat.toFixed(5)} onChange={(e) => patchSel({ lat: Number(e.target.value) || selected.lat })} /></div>
+                <div className="form-row"><label>Longitude</label><input value={selected.lng.toFixed(5)} onChange={(e) => patchSel({ lng: Number(e.target.value) || selected.lng })} /></div>
+              </div>
+            </div>
+            <div className="modal-foot" style={{ gap: 8 }}>
+              <QrButton type="poi" id={selected.id} label={selected.name} />
+              <button className="tbtn danger" onClick={async () => { await removeSel(); setModalOpen(false); }}>Delete</button>
+              <button className="primary" onClick={() => setModalOpen(false)}>Done</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
