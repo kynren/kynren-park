@@ -168,6 +168,24 @@ export default function MapScreen() {
   // own average colour so they blend, instead of a flat mismatched green.
   const mapBg = bundle?.defaultMap?.bgColor || GRASS;
 
+  // Measure the base map's aspect so we can show it whole (no cropping) and land
+  // pins on the fitted image rather than the full viewport.
+  const [imgAspect, setImgAspect] = useState<number | null>(null);
+  useEffect(() => {
+    if (!mapImageUrl) { setImgAspect(null); return; }
+    let ok = true;
+    Image.getSize(mapImageUrl, (w, h) => { if (ok && h) setImgAspect(w / h); }, () => { if (ok) setImgAspect(null); });
+    return () => { ok = false; };
+  }, [mapImageUrl]);
+
+  // The rectangle the whole map occupies inside the viewport ("contain" fit).
+  // Letterbox space around it is filled with mapBg.
+  const fit = useMemo(() => {
+    if (!imgAspect) return { w: vw, h: vh, x: 0, y: 0 };
+    if (imgAspect > vw / vh) { const h = vw / imgAspect; return { w: vw, h, x: 0, y: (vh - h) / 2 }; }
+    const w = vh * imgAspect; return { w, h: vh, x: (vw - w) / 2, y: 0 };
+  }, [imgAspect, vw, vh]);
+
   // Free panning with a gentle boundary (map can't be fully lost) at any zoom.
   // JS-thread version for programmatic moves (buttons, deep links).
   function clampPanJS(x: number, y: number, s: number) {
@@ -276,13 +294,13 @@ export default function MapScreen() {
     const spanLat = maxLat - minLat || 1;
     const spanLng = maxLng - minLng || 1;
     const toXY = (lat: number, lng: number) => ({
-      x: (PADX + ((lng - minLng) / spanLng) * (1 - 2 * PADX)) * vw,
-      y: (PADY + ((maxLat - lat) / spanLat) * (1 - 2 * PADY)) * vh,
+      x: fit.x + (PADX + ((lng - minLng) / spanLng) * (1 - 2 * PADX)) * fit.w,
+      y: fit.y + (PADY + ((maxLat - lat) / spanLat) * (1 - 2 * PADY)) * fit.h,
     });
     const inBounds = (lat: number, lng: number) =>
       lat >= minLat - spanLat * 0.6 && lat <= maxLat + spanLat * 0.6 && lng >= minLng - spanLng * 0.6 && lng <= maxLng + spanLng * 0.6;
     return { toXY, inBounds };
-  }, [pois, vw, vh]);
+  }, [pois, fit]);
 
   const nextByAttraction = useMemo(() => {
     const m = new Map<string, string>();
@@ -510,11 +528,11 @@ export default function MapScreen() {
             <Image
               source={{ uri: mapImageUrl }}
               style={{
-                position: 'absolute', top: 0, left: 0,
-                width: vw * BASE_OVERSAMPLE, height: vh * BASE_OVERSAMPLE,
+                position: 'absolute', top: fit.y, left: fit.x,
+                width: fit.w * BASE_OVERSAMPLE, height: fit.h * BASE_OVERSAMPLE,
                 transform: [{ scale: 1 / BASE_OVERSAMPLE }], transformOrigin: 'top left',
               }}
-              resizeMode="cover"
+              resizeMode="contain"
               fadeDuration={0}
             />
           ) : (
