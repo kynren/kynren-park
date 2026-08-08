@@ -23,7 +23,9 @@ function Row({ icon, title, sub, onPress, pal }: { icon: string; title: string; 
   return (
     <Touchable style={[styles.row, { backgroundColor: pal.card, borderColor: pal.line }]} onPress={onPress}>
       <View style={[styles.rowIcon, { borderColor: pal.line }]}>
-        <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={pal.text} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><Path d={icon} /></Svg>
+        <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={pal.text} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+          {icon.split('|').map((d, i) => <Path key={i} d={d} />)}
+        </Svg>
       </View>
       <View style={{ flex: 1 }}>
         <Text style={[styles.rowTitle, { color: pal.text }]}>{title}</Text>
