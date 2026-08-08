@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router';
 import type { JSX } from 'react';
 import { Text, View, StyleSheet } from 'react-native';
+import Animated, { useSharedValue, useAnimatedStyle, withSequence, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Line, Rect, Circle, Polyline } from 'react-native-svg';
 import { theme } from '../../lib/theme';
@@ -109,6 +110,26 @@ const ITEMS: { name: string; label: string; Icon: (p: IconProps) => JSX.Element;
   { name: 'food', label: 'Meal', Icon: MealIcon },
 ];
 
+// A tab button with no persistent active background — instead a brand-colour
+// pulse animates in behind the icon on each press.
+function TabItem({ item, active, pal, onPress }: { item: (typeof ITEMS)[number]; active: boolean; pal: ReturnType<typeof usePalette>; onPress: () => void }) {
+  const p = useSharedValue(0);
+  const ripple = useAnimatedStyle(() => ({ opacity: p.value * 0.22, transform: [{ scale: 0.45 + p.value * 0.65 }] }));
+  const press = () => {
+    p.value = withSequence(withTiming(1, { duration: 130 }), withTiming(0, { duration: 320 }));
+    onPress();
+  };
+  return (
+    <Touchable style={styles.item} haptic="none" noRipple scaleTo={0.9} onPress={press}>
+      <View style={styles.iconWrap}>
+        <Animated.View style={[styles.ripple, { backgroundColor: pal.activeIcon }, ripple]} pointerEvents="none" />
+        <item.Icon color={active ? pal.activeIcon : pal.inactive} size={23} />
+      </View>
+      <Text style={[styles.label, { color: active ? pal.activeLabel : pal.inactive }, active && styles.labelActive]}>{item.label}</Text>
+    </Touchable>
+  );
+}
+
 function KynrenTabBar({ state, navigation }: { state: any; navigation: any }) {
   const insets = useSafeAreaInsets();
   const pal = usePalette();
@@ -136,14 +157,7 @@ function KynrenTabBar({ state, navigation }: { state: any; navigation: any }) {
             </Touchable>
           );
         }
-        return (
-          <Touchable key={item.name} style={styles.item} haptic="none" noRipple scaleTo={0.9} onPress={() => go(item.name)}>
-            <View style={[styles.iconWrap, active && { backgroundColor: pal.pill }]}>
-              <item.Icon color={active ? pal.activeIcon : pal.inactive} size={23} />
-            </View>
-            <Text style={[styles.label, { color: active ? pal.activeLabel : pal.inactive }, active && styles.labelActive]}>{item.label}</Text>
-          </Touchable>
-        );
+        return <TabItem key={item.name} item={item} active={active} pal={pal} onPress={() => go(item.name)} />;
       })}
     </View>
   );
@@ -176,7 +190,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 0,
   },
   item: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 8, gap: 3 },
-  iconWrap: { paddingHorizontal: 18, paddingVertical: 6, borderRadius: 18 },
+  iconWrap: { paddingHorizontal: 18, paddingVertical: 6, borderRadius: 18, overflow: 'hidden' },
+  ripple: { ...StyleSheet.absoluteFillObject, borderRadius: 18 },
   label: { fontSize: 11.5, fontWeight: '600' },
   labelActive: { fontWeight: '800' },
   fab: {

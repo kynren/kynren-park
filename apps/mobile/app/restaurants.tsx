@@ -71,6 +71,8 @@ export default function RestaurantsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const pal = usePalette();
+  const dark = useThemePref().scheme === 'dark';
+  const headerBg = dark ? '#141414' : (bundle?.branding?.primary || theme.brand);
   const { slot } = useLocalSearchParams<{ slot?: string }>();
   const [favs, setFavs] = useState<Set<string>>(new Set());
 
@@ -97,12 +99,12 @@ export default function RestaurantsScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: pal.screen }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={[styles.topRow, { paddingTop: insets.top + 8 }]}>
-        <Touchable onPress={() => router.back()} style={styles.backBtn}>
+      <View style={[styles.header, { backgroundColor: headerBg, paddingTop: insets.top + 8 }]}>
+        <Touchable onPress={() => router.back()} style={styles.backBtn} hitSlop={8}>
           <BackIcon color="#111" />
         </Touchable>
+        <Text style={styles.headerTitle} numberOfLines={1}>{heading}</Text>
       </View>
-      <Text style={[styles.heading, { color: pal.text }]}>{heading}</Text>
       {showSlotNote && (
         <View style={styles.noteRow}>
           <View style={[styles.dot, { backgroundColor: pal.green }]} />
@@ -167,6 +169,8 @@ function Chip({
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   topRow: { paddingHorizontal: 14, paddingTop: 10 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingBottom: 14 },
+  headerTitle: { flex: 1, color: '#fff', fontSize: 20, fontWeight: '800' },
   backBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   heading: { fontSize: 26, fontWeight: '700', textAlign: 'center', marginTop: 8 },
   noteRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 18, marginTop: 12, alignItems: 'flex-start' },
