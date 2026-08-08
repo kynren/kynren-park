@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { api } from '../../../../../lib/api';
 import { confirmDelete } from '../../../../../lib/confirm';
@@ -105,11 +104,10 @@ export default function ShopDetail() {
     load();
   }
 
-  if (!s) return <div><div className="crumb"><Link href="/app-settings/shops">Shops</Link> › …</div>{error && <div className="error">{error}</div>}</div>;
+  if (!s) return <div>{error ? <div className="error">{error}</div> : <p style={{ color: 'var(--muted)' }}>Loading…</p>}</div>;
 
   return (
     <div>
-      <div className="crumb"><Link href="/app-settings">App Settings</Link> › <Link href="/app-settings/shops">Shops</Link> › {s.name}</div>
       <div className="page-actions">
         <div><h1>{s.name}</h1><p className="subtitle" style={{ margin: 0 }}>Featured image, details and products.</p></div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

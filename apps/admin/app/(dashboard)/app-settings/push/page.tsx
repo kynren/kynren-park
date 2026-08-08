@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
 import { api } from '../../../../lib/api';
 import { confirmDelete } from '../../../../lib/confirm';
 
@@ -46,7 +45,6 @@ export default function PushTemplates() {
 
   return (
     <div>
-      <div className="crumb"><Link href="/app-settings">App Settings</Link> › Push Templates</div>
       <div className="page-actions">
         <div><h1>Push Templates</h1><p className="subtitle" style={{ margin: 0 }}>Create notification templates and assign them to app actions.</p></div>
         <button className="primary" onClick={openNew}>+ New template</button>

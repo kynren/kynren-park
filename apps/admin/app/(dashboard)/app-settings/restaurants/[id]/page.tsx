@@ -1,8 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { api } from '../../../../../lib/api';
 import { confirmDelete } from '../../../../../lib/confirm';
 import { QrButton } from '../../../../../components/QrButton';
@@ -37,7 +36,6 @@ function pounds(cents: number) { return (cents / 100).toFixed(2); }
 
 export default function RestaurantDetail() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
   const [r, setR] = useState<Restaurant | null>(null);
   const [pois, setPois] = useState<Poi[]>([]);
   const [error, setError] = useState('');
@@ -98,11 +96,10 @@ export default function RestaurantDetail() {
     load();
   }
 
-  if (!r) return <div><div className="crumb"><Link href="/app-settings/restaurants">Restaurants</Link> › …</div>{error && <div className="error">{error}</div>}</div>;
+  if (!r) return <div>{error ? <div className="error">{error}</div> : <p style={{ color: 'var(--muted)' }}>Loading…</p>}</div>;
 
   return (
     <div>
-      <div className="crumb"><Link href="/app-settings">App Settings</Link> › <Link href="/app-settings/restaurants">Restaurants</Link> › {r.name}</div>
       <div className="page-actions">
         <div><h1>{r.name}</h1><p className="subtitle" style={{ margin: 0 }}>Featured image, details and menu.</p></div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

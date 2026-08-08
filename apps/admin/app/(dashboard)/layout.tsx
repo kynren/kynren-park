@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getToken } from '../../lib/api';
 import { Sidebar } from '../../components/Sidebar';
 import { TopHeader } from '../../components/TopHeader';
+import { PageNav } from '../../components/PageNav';
 import { ConfirmHost } from '../../lib/confirm';
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
@@ -22,7 +23,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       <Sidebar />
       <main className="main">
         <TopHeader />
-        <div className="main-scroll">{children}</div>
+        <div className="main-scroll"><PageNav />{children}</div>
       </main>
       <ConfirmHost />
     </div>

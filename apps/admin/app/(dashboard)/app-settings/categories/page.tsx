@@ -52,7 +52,6 @@ export default function Categories() {
 
   return (
     <div>
-      <div className="crumb"><Link href="/app-settings">App Settings</Link> › Categories &amp; Services</div>
       <div className="page-actions">
         <div><h1>Categories &amp; Services</h1><p className="subtitle" style={{ margin: 0 }}>Toilets, first aid, shops and more — shown on the app map under “Facilities”.</p></div>
         <div style={{ display: 'flex', gap: 10 }}>

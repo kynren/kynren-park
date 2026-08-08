@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import Link from 'next/link';
 import { api, friendlyError } from '../../../../lib/api';
 import { confirmDelete, promptText } from '../../../../lib/confirm';
 import { QrButton } from '../../../../components/QrButton';
@@ -282,7 +281,6 @@ export default function MapEditor() {
 
   return (
     <div>
-      <div className="crumb"><Link href="/app-settings">App Settings</Link> › Map &amp; Hotspots</div>
       <div className="page-actions">
         <div><h1>Map &amp; Hotspots</h1><p className="subtitle" style={{ margin: 0 }}>Scroll to zoom, drag to pan (when zoomed). Tap a hotspot to edit, press-hold to move, or click an empty spot to add one.</p></div>
         <label className="checkline"><input type="checkbox" checked={showLabels} onChange={(e) => setShowLabels(e.target.checked)} /> Show labels</label>

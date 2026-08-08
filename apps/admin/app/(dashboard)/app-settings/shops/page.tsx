@@ -41,7 +41,6 @@ export default function ShopsAdmin() {
 
   return (
     <div>
-      <div className="crumb"><Link href="/app-settings">App Settings</Link> › Shops</div>
       <div className="page-actions">
         <div>
           <h1>Shops</h1>

@@ -42,7 +42,6 @@ export default function RestaurantsAdmin() {
 
   return (
     <div>
-      <div className="crumb"><Link href="/app-settings">App Settings</Link> › Restaurants</div>
       <div className="page-actions">
         <div>
           <h1>Restaurants</h1>
