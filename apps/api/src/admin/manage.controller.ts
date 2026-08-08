@@ -36,14 +36,16 @@ function timeOn(d: string, hhmm: string) {
 export class ManageController {
   constructor(private readonly prisma: PrismaService) {}
 
-  private async uniqueSlug(model: 'restaurant' | 'attraction', base: string, ignoreId?: string): Promise<string> {
+  private async uniqueSlug(model: 'restaurant' | 'attraction' | 'shop', base: string, ignoreId?: string): Promise<string> {
     const root = slugify(base);
     let slug = root;
     for (let i = 2; i < 50; i++) {
       const existing =
         model === 'restaurant'
           ? await this.prisma.restaurant.findUnique({ where: { slug } })
-          : await this.prisma.attraction.findUnique({ where: { slug } });
+          : model === 'shop'
+            ? await this.prisma.shop.findUnique({ where: { slug } })
+            : await this.prisma.attraction.findUnique({ where: { slug } });
       if (!existing || existing.id === ignoreId) return slug;
       slug = `${root}-${i}`;
     }
@@ -86,6 +88,16 @@ export class ManageController {
     return this.prisma.restaurant.update({ where: { id }, data });
   }
 
+  @Get('restaurants/:id')
+  async getRestaurant(@Param('id') id: string) {
+    const r = await this.prisma.restaurant.findUnique({
+      where: { id },
+      include: { poi: true, menuItems: { orderBy: { name: 'asc' } } },
+    });
+    if (!r) throw new BadRequestException('restaurant not found');
+    return r;
+  }
+
   @Delete('restaurants/:id')
   async deleteRestaurant(@Param('id') id: string) {
     try {
@@ -96,6 +108,143 @@ export class ManageController {
       await this.prisma.restaurant.update({ where: { id }, data: { active: false } });
       return { deleted: false, deactivated: true };
     }
+  }
+
+  // ---- Menu items (a restaurant's menu) --------------------------------------
+  @Post('restaurants/:id/menu-items')
+  createMenuItem(@Param('id') restaurantId: string, @Body() b: any) {
+    if (!b?.name) throw new BadRequestException('name is required');
+    return this.prisma.menuItem.create({
+      data: {
+        restaurantId,
+        name: b.name,
+        description: b.description ?? null,
+        priceCents: Math.round(Number(b.priceCents ?? 0)),
+        image: b.image ?? null,
+        dietaryTags: Array.isArray(b.dietaryTags) ? b.dietaryTags : [],
+        available: b.available ?? true,
+      },
+    });
+  }
+
+  @Patch('menu-items/:id')
+  updateMenuItem(@Param('id') id: string, @Body() b: any) {
+    const data = pick(b, ['name', 'description', 'image', 'available']);
+    if (b.priceCents !== undefined) data.priceCents = Math.round(Number(b.priceCents));
+    if (Array.isArray(b.dietaryTags)) data.dietaryTags = b.dietaryTags;
+    return this.prisma.menuItem.update({ where: { id }, data });
+  }
+
+  @Delete('menu-items/:id')
+  async deleteMenuItem(@Param('id') id: string) {
+    try {
+      await this.prisma.menuItem.delete({ where: { id } });
+      return { deleted: true };
+    } catch {
+      await this.prisma.menuItem.update({ where: { id }, data: { available: false } });
+      return { deleted: false, deactivated: true };
+    }
+  }
+
+  // ---- Shops -----------------------------------------------------------------
+  @Get('shops')
+  listShops() {
+    return this.prisma.shop.findMany({
+      orderBy: { name: 'asc' },
+      include: { poi: true, _count: { select: { items: true } } },
+    });
+  }
+
+  @Get('shops/:id')
+  async getShop(@Param('id') id: string) {
+    const s = await this.prisma.shop.findUnique({
+      where: { id },
+      include: { poi: true, items: { orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] } },
+    });
+    if (!s) throw new BadRequestException('shop not found');
+    return s;
+  }
+
+  @Post('shops')
+  async createShop(@Body() b: any) {
+    if (!b?.name) throw new BadRequestException('name is required');
+    const slug = await this.uniqueSlug('shop', b.slug || b.name);
+    return this.prisma.shop.create({
+      data: {
+        slug,
+        name: b.name,
+        category: b.category ?? null,
+        description: b.description ?? null,
+        openingHours: b.openingHours ?? null,
+        heroImage: b.heroImage ?? null,
+        active: b.active ?? true,
+        poiId: b.poiId || undefined,
+      },
+    });
+  }
+
+  @Patch('shops/:id')
+  updateShop(@Param('id') id: string, @Body() b: any) {
+    const data = pick(b, ['name', 'category', 'description', 'openingHours', 'heroImage', 'active']);
+    if (b.poiId !== undefined) data.poiId = b.poiId || null;
+    return this.prisma.shop.update({ where: { id }, data });
+  }
+
+  @Delete('shops/:id')
+  async deleteShop(@Param('id') id: string) {
+    try {
+      await this.prisma.shop.delete({ where: { id } });
+      return { deleted: true };
+    } catch {
+      await this.prisma.shop.update({ where: { id }, data: { active: false } });
+      return { deleted: false, deactivated: true };
+    }
+  }
+
+  // ---- Shop items (products, with optional varieties) ------------------------
+  @Post('shops/:id/items')
+  createShopItem(@Param('id') shopId: string, @Body() b: any) {
+    if (!b?.name) throw new BadRequestException('name is required');
+    return this.prisma.shopItem.create({
+      data: {
+        shopId,
+        name: b.name,
+        description: b.description ?? null,
+        image: b.image ?? null,
+        priceCents: Math.round(Number(b.priceCents ?? 0)),
+        variants: this.cleanVariants(b.variants),
+        available: b.available ?? true,
+        sortOrder: Number(b.sortOrder ?? 0),
+      },
+    });
+  }
+
+  @Patch('shop-items/:id')
+  updateShopItem(@Param('id') id: string, @Body() b: any) {
+    const data = pick(b, ['name', 'description', 'image', 'available']);
+    if (b.priceCents !== undefined) data.priceCents = Math.round(Number(b.priceCents));
+    if (b.sortOrder !== undefined) data.sortOrder = Number(b.sortOrder);
+    if (b.variants !== undefined) data.variants = this.cleanVariants(b.variants);
+    return this.prisma.shopItem.update({ where: { id }, data });
+  }
+
+  @Delete('shop-items/:id')
+  async deleteShopItem(@Param('id') id: string) {
+    await this.prisma.shopItem.delete({ where: { id } });
+    return { deleted: true };
+  }
+
+  /** Normalise the product varieties array to [{ name, priceCents? }]. */
+  private cleanVariants(v: unknown): { name: string; priceCents?: number }[] {
+    if (!Array.isArray(v)) return [];
+    return v
+      .map((x: any) => ({
+        name: String(x?.name ?? '').trim(),
+        ...(x?.priceCents !== undefined && x?.priceCents !== null && x?.priceCents !== ''
+          ? { priceCents: Math.round(Number(x.priceCents)) }
+          : {}),
+      }))
+      .filter((x) => x.name);
   }
 
   // ---- Shows / Attractions ---------------------------------------------------
@@ -264,6 +413,7 @@ export class ManageController {
     // the foreign key blocks deletion ("unable to remove hotspot").
     await this.prisma.attraction.updateMany({ where: { poiId: id }, data: { poiId: null } });
     await this.prisma.restaurant.updateMany({ where: { poiId: id }, data: { poiId: null } });
+    await this.prisma.shop.updateMany({ where: { poiId: id }, data: { poiId: null } });
     await this.prisma.pointOfInterest.delete({ where: { id } });
     return { deleted: true };
   }

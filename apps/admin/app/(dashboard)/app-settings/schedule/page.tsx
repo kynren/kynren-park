@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { api } from '../../../../lib/api';
 import { confirmDelete } from '../../../../lib/confirm';
 
@@ -94,7 +93,6 @@ export default function ScheduleAdmin() {
 
   return (
     <div>
-      <div className="crumb"><Link href="/app-settings">App Settings</Link> › Program Schedule</div>
       <div className="page-actions">
         <div>
           <h1>Program Schedule</h1>

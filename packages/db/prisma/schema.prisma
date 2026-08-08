@@ -238,6 +238,7 @@ model PointOfInterest {
   image      String? // optional image shown inside the marker
   attraction Attraction?
   restaurant Restaurant?
+  shop       Shop?
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
 
@@ -341,6 +342,43 @@ model MenuItem {
   updatedAt    DateTime @updatedAt
 
   @@index([restaurantId])
+}
+
+// A retail shop in the park. Mirrors Restaurant: it has a featured image,
+// an optional map location, and a list of products (ShopItem) shown in the app.
+model Shop {
+  id           String     @id @default(cuid())
+  slug         String     @unique
+  name         String
+  category     String? // e.g. "Gifts", "Sweets", "Clothing"
+  description  String?
+  heroImage    String? // featured image, populated throughout the app
+  openingHours String?
+  poi          PointOfInterest? @relation(fields: [poiId], references: [id])
+  poiId        String?    @unique
+  items        ShopItem[]
+  active       Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+// A product sold at a shop. `variants` holds optional varieties of the product
+// as a JSON array of { name, priceCents? } (e.g. sizes, colours, flavours).
+model ShopItem {
+  id          String   @id @default(cuid())
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopId      String
+  name        String
+  description String?
+  image       String?
+  priceCents  Int      @default(0)
+  variants    Json? // [{ name: string, priceCents?: number }]
+  available   Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([shopId])
 }
 
 model Order {

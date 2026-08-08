@@ -1,7 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { api, friendlyError } from '../../../../lib/api';
 import { confirmDelete, promptText } from '../../../../lib/confirm';
 import { QrButton } from '../../../../components/QrButton';
@@ -9,6 +8,17 @@ import { QrButton } from '../../../../components/QrButton';
 interface Poi { id: string; type: string; name: string; lat: number; lng: number; color: string | null; mapZone: string | null; image: string | null }
 interface MapConfig { markerColor: string; markerStyle: string; mapImageUrl: string | null }
 interface ParkMap { id: string; name: string; imageUrl: string | null; bgColor: string | null; isDefault: boolean }
+interface EntityLite { id: string; name: string; poiId: string | null; heroImage?: string | null; category?: string }
+type DragEntity = { kind: 'attraction' | 'restaurant' | 'shop' | 'facility'; id?: string; type?: string; name: string; heroImage?: string | null };
+
+// Facility types offered in the drag palette (attractions/restaurants come from data).
+const FACILITY_PALETTE: [string, string][] = [
+  ['RESTROOM', 'Restroom'], ['FIRST_AID', 'First aid'], ['SHOP', 'Shop'], ['PARKING', 'Parking'],
+  ['ACCESSIBILITY', 'Accessibility'], ['BABY_CHANGING', 'Baby changing'], ['PICNIC', 'Picnic'], ['ENTRANCE', 'Entrance'], ['INFO', 'Info'],
+];
+const dragChipStyle: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 999, background: 'var(--card)', border: '1px solid var(--line)', fontSize: 12, fontWeight: 600, cursor: 'grab' };
+// Fixed projection bounds for the park, so pins never reproject when one is added/moved.
+const PARK_BOUNDS = { minLat: 54.668, maxLat: 54.675, minLng: -1.684, maxLng: -1.674 };
 
 const TYPES = ['ATTRACTION', 'RESTAURANT', 'RESTROOM', 'SHOP', 'FIRST_AID', 'ENTRANCE', 'PARKING', 'ACCESSIBILITY', 'BABY_CHANGING', 'PICNIC', 'INFO'];
 const TYPE_COLOR: Record<string, string> = {
@@ -25,17 +35,58 @@ export default function MapEditor() {
   const [newMapName, setNewMapName] = useState('');
   const [showLabels, setShowLabels] = useState(true);
   const [selId, setSelId] = useState<string | null>(null);
+  const [attractions, setAttractions] = useState<EntityLite[]>([]);
+  const [restaurants, setRestaurants] = useState<EntityLite[]>([]);
+  const [shops, setShops] = useState<EntityLite[]>([]);
   const [err, setErr] = useState('');
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragId = useRef<string | null>(null);
   const moved = useRef(false);
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pressId = useRef<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  // Zoom (1–4) + pan offset (px) for the editor viewport.
+  const [view, setView] = useState({ zoom: 1, x: 0, y: 0 });
+  const panning = useRef(false);
+  const panStart = useRef({ sx: 0, sy: 0, px: 0, py: 0 });
 
+  const loadEntities = useCallback(() => {
+    api<EntityLite[]>('/admin/attractions').then(setAttractions).catch(() => undefined);
+    api<EntityLite[]>('/admin/restaurants').then(setRestaurants).catch(() => undefined);
+    api<EntityLite[]>('/admin/shops').then(setShops).catch(() => undefined);
+  }, []);
   const load = useCallback(() => {
     api<Poi[]>('/admin/pois').then(setPois).catch(() => undefined);
     api<MapConfig>('/admin/map-config').then((c) => setConfig({ markerColor: c.markerColor, markerStyle: c.markerStyle, mapImageUrl: c.mapImageUrl })).catch(() => undefined);
     api<ParkMap[]>('/admin/maps').then(setMaps).catch(() => undefined);
-  }, []);
+    loadEntities();
+  }, [loadEntities]);
   useEffect(load, [load]);
+
+  // Drop an entity from the palette onto the map: create a hotspot at the point
+  // and (for attractions/restaurants) link it, so it leaves the palette.
+  async function placeEntity(data: DragEntity, lat: number, lng: number) {
+    try {
+      if (data.kind === 'facility') {
+        const created = await api<Poi>('/admin/pois', { method: 'POST', body: JSON.stringify({ name: data.name, type: data.type, lat, lng }) });
+        setPois((p) => [...p, created]); setSelId(created.id); setErr('');
+        return;
+      }
+      const type = data.kind === 'restaurant' ? 'RESTAURANT' : data.kind === 'shop' ? 'SHOP' : 'ATTRACTION';
+      const endpoint = data.kind === 'restaurant' ? 'restaurants' : data.kind === 'shop' ? 'shops' : 'attractions';
+      const created = await api<Poi>('/admin/pois', { method: 'POST', body: JSON.stringify({ name: data.name, type, lat, lng, image: data.heroImage ?? null }) });
+      await api(`/admin/${endpoint}/${data.id}`, { method: 'PATCH', body: JSON.stringify({ poiId: created.id }) });
+      setPois((p) => [...p, created]); setSelId(created.id); setErr('');
+      loadEntities();
+    } catch (e) { setErr(friendlyError(e, 'Could not place that on the map.')); }
+  }
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault();
+    const raw = e.dataTransfer.getData('text/plain'); if (!raw) return;
+    let data: DragEntity; try { data = JSON.parse(raw); } catch { return; }
+    const { lat, lng } = unproj(e.clientX, e.clientY);
+    placeEntity(data, lat, lng);
+  }
 
   const refreshMaps = () => api<ParkMap[]>('/admin/maps').then(setMaps).catch(() => undefined);
   async function addMap() {
@@ -120,24 +171,43 @@ export default function MapEditor() {
     } catch { alert('Could not read that image.'); }
   }
 
-  // Bounds (with margin) drive the pixel↔lat/lng projection.
-  const bounds = useMemo(() => {
-    if (pois.length < 2) return { minLat: 54.668, maxLat: 54.675, minLng: -1.684, maxLng: -1.674 };
-    const lats = pois.map((p) => p.lat), lngs = pois.map((p) => p.lng);
-    const minLat = Math.min(...lats), maxLat = Math.max(...lats), minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
-    const mLat = (maxLat - minLat) * 0.12 || 0.002, mLng = (maxLng - minLng) * 0.12 || 0.002;
-    return { minLat: minLat - mLat, maxLat: maxLat + mLat, minLng: minLng - mLng, maxLng: maxLng + mLng };
-  }, [pois]);
+  // Stable fixed bounds → a dropped/dragged pin stays exactly where it's placed
+  // (deriving bounds from the POI extent used to reproject everything on change).
+  const bounds = PARK_BOUNDS;
   const proj = (p: { lat: number; lng: number }) => ({
     left: ((p.lng - bounds.minLng) / (bounds.maxLng - bounds.minLng)) * 100,
     top: ((bounds.maxLat - p.lat) / (bounds.maxLat - bounds.minLat)) * 100,
   });
+  const clampPan = (x: number, y: number, z: number, w: number, h: number) => ({
+    x: Math.min(0, Math.max(w * (1 - z), x)),
+    y: Math.min(0, Math.max(h * (1 - z), y)),
+  });
   const unproj = (clientX: number, clientY: number) => {
     const r = canvasRef.current!.getBoundingClientRect();
-    const fx = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
-    const fy = Math.min(1, Math.max(0, (clientY - r.top) / r.height));
+    // Undo the zoom/pan transform to get the point in un-transformed canvas space.
+    const cx = (clientX - r.left - view.x) / view.zoom;
+    const cy = (clientY - r.top - view.y) / view.zoom;
+    const fx = Math.min(1, Math.max(0, cx / r.width));
+    const fy = Math.min(1, Math.max(0, cy / r.height));
     return { lat: bounds.maxLat - fy * (bounds.maxLat - bounds.minLat), lng: bounds.minLng + fx * (bounds.maxLng - bounds.minLng) };
   };
+  // Zoom toward a point (px within the canvas), keeping that point stable.
+  function zoomAt(px: number, py: number, factor: number) {
+    setView((v) => {
+      const r = canvasRef.current?.getBoundingClientRect();
+      const w = r?.width ?? 1, h = r?.height ?? 1;
+      const nz = Math.min(4, Math.max(1, +(v.zoom * factor).toFixed(3)));
+      const contentX = (px - v.x) / v.zoom, contentY = (py - v.y) / v.zoom;
+      return { zoom: nz, ...clampPan(px - contentX * nz, py - contentY * nz, nz, w, h) };
+    });
+  }
+  function zoomCenter(factor: number) { const r = canvasRef.current?.getBoundingClientRect(); zoomAt((r?.width ?? 0) / 2, (r?.height ?? 0) / 2, factor); }
+  function onWheelZoom(e: React.WheelEvent) { const r = canvasRef.current!.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? 1.15 : 1 / 1.15); }
+  function onCanvasPointerDown(e: React.PointerEvent) {
+    if (view.zoom <= 1) return; // pan only when zoomed in
+    panning.current = true; moved.current = false;
+    panStart.current = { sx: e.clientX, sy: e.clientY, px: view.x, py: view.y };
+  }
 
   const selected = pois.find((p) => p.id === selId) ?? null;
 
@@ -156,17 +226,31 @@ export default function MapEditor() {
     createAt(e.clientX, e.clientY);
   }
   function onPointerMove(e: React.PointerEvent) {
-    if (!dragId.current) return;
-    moved.current = true;
-    const { lat, lng } = unproj(e.clientX, e.clientY);
-    setPois((prev) => prev.map((p) => (p.id === dragId.current ? { ...p, lat, lng } : p)));
+    if (dragId.current) {
+      moved.current = true;
+      const { lat, lng } = unproj(e.clientX, e.clientY);
+      setPois((prev) => prev.map((p) => (p.id === dragId.current ? { ...p, lat, lng } : p)));
+      return;
+    }
+    if (panning.current) {
+      const r = canvasRef.current!.getBoundingClientRect();
+      moved.current = true;
+      const c = clampPan(panStart.current.px + (e.clientX - panStart.current.sx), panStart.current.py + (e.clientY - panStart.current.sy), view.zoom, r.width, r.height);
+      setView((v) => ({ ...v, x: c.x, y: c.y }));
+    }
   }
   function onPointerUp() {
+    if (holdTimer.current) { clearTimeout(holdTimer.current); holdTimer.current = null; }
+    if (panning.current) { panning.current = false; return; }
     const id = dragId.current;
     dragId.current = null;
-    if (!id) return;
-    const p = pois.find((x) => x.id === id);
-    if (p) api(`/admin/pois/${id}`, { method: 'PATCH', body: JSON.stringify({ lat: p.lat, lng: p.lng }) }).catch(() => undefined);
+    if (id) {
+      const p = pois.find((x) => x.id === id);
+      if (p) api(`/admin/pois/${id}`, { method: 'PATCH', body: JSON.stringify({ lat: p.lat, lng: p.lng }) }).catch(() => undefined);
+      return;
+    }
+    // A short tap on a pin (no drag) opens its editor popup.
+    if (pressId.current) { setSelId(pressId.current); setModalOpen(true); pressId.current = null; }
   }
 
   async function patchSel(patch: Partial<Poi>) {
@@ -182,6 +266,7 @@ export default function MapEditor() {
       await api(`/admin/pois/${selected.id}`, { method: 'DELETE' });
       setPois((prev) => prev.filter((p) => p.id !== selected.id));
       setSelId(null); setErr('');
+      loadEntities(); // any attraction/restaurant that was linked returns to the palette
     } catch (e) { setErr(friendlyError(e, 'Could not delete the hotspot.')); }
   }
   async function saveConfig(patch: Partial<MapConfig>) {
@@ -196,17 +281,17 @@ export default function MapEditor() {
 
   return (
     <div>
-      <div className="crumb"><Link href="/app-settings">App Settings</Link> › Map &amp; Hotspots</div>
       <div className="page-actions">
-        <div><h1>Map &amp; Hotspots</h1><p className="subtitle" style={{ margin: 0 }}>Click the map to add a hotspot; drag to move. Changes sync to the app map.</p></div>
+        <div><h1>Map &amp; Hotspots</h1><p className="subtitle" style={{ margin: 0 }}>Scroll to zoom, drag to pan (when zoomed). Tap a hotspot to edit, press-hold to move, or click an empty spot to add one.</p></div>
         <label className="checkline"><input type="checkbox" checked={showLabels} onChange={(e) => setShowLabels(e.target.checked)} /> Show labels</label>
       </div>
       {err && <div className="error" onClick={() => setErr('')} style={{ cursor: 'pointer' }}>{err}</div>}
 
       <div className="mapedit">
-        <div>
-          <div ref={canvasRef} className="mapcanvas" onClick={onCanvasClick} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp}>
-            {defaultMap?.imageUrl && <img src={defaultMap.imageUrl} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
+        <div style={{ position: 'relative' }}>
+          <div ref={canvasRef} className="mapcanvas" style={{ overflow: 'hidden' }} onClick={onCanvasClick} onPointerDown={onCanvasPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp} onWheel={onWheelZoom} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
+            <div style={{ position: 'absolute', inset: 0, transformOrigin: '0 0', transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}>
+            {defaultMap?.imageUrl && <img src={defaultMap.imageUrl} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' }} />}
             <div className="grid" />
             {pois.map((p) => {
               const { left, top } = proj(p);
@@ -215,7 +300,12 @@ export default function MapEditor() {
                   <div
                     className={`hot ${selId === p.id ? 'sel' : ''}`}
                     style={{ left: `${left}%`, top: `${top}%`, background: colorOf(p) }}
-                    onPointerDown={(e) => { e.stopPropagation(); setSelId(p.id); dragId.current = p.id; moved.current = false; }}
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                      pressId.current = p.id; moved.current = false;
+                      // Press and hold to pick the pin up; a quick tap opens the popup.
+                      holdTimer.current = setTimeout(() => { dragId.current = p.id; setSelId(p.id); }, 260);
+                    }}
                     onClick={(e) => e.stopPropagation()}
                     title={p.name}
                   >{p.image ? <img src={p.image} alt="" /> : p.type[0]}</div>
@@ -225,12 +315,48 @@ export default function MapEditor() {
             })}
             {/* Customer marker preview */}
             <div className="custmark" style={{ left: `${custPos.left}%`, top: `${custPos.top}%`, background: config.markerColor, boxShadow: `0 0 0 6px ${config.markerColor}40` }} />
+            </div>{/* /zoom-pan transform */}
+          </div>
+          {/* Zoom controls */}
+          <div style={{ position: 'absolute', top: 10, right: 10, display: 'flex', flexDirection: 'column', gap: 6, zIndex: 5 }}>
+            <button className="tbtn" style={{ width: 34, height: 34, padding: 0, fontSize: 18, lineHeight: 1 }} onClick={() => zoomCenter(1.3)} title="Zoom in">＋</button>
+            <button className="tbtn" style={{ width: 34, height: 34, padding: 0, fontSize: 18, lineHeight: 1 }} onClick={() => zoomCenter(1 / 1.3)} title="Zoom out">－</button>
+            <button className="tbtn" style={{ width: 34, height: 34, padding: 0, fontSize: 15, lineHeight: 1 }} onClick={() => setView({ zoom: 1, x: 0, y: 0 })} title="Reset view">⤢</button>
           </div>
           <p className="maphint">🟦 The ringed marker previews the guest’s “you are here” marker. Hotspots are coloured by type unless overridden.</p>
         </div>
 
         {/* Side panel */}
         <div style={{ display: 'grid', gap: 16 }}>
+          {/* Drag-and-drop palette: unplaced entities + reusable facility types */}
+          <div className="editcard">
+            <h3 style={{ margin: 0 }}>Place on map</h3>
+            <p className="hint" style={{ margin: '6px 0 12px' }}>Drag an item onto the map to drop a hotspot. Delete a hotspot to bring its entity back here.</p>
+            {attractions.filter((a) => !a.poiId).length === 0 && restaurants.filter((r) => !r.poiId).length === 0 && shops.filter((s) => !s.poiId).length === 0 && (
+              <p style={{ color: 'var(--muted)', fontSize: 13, margin: '0 0 10px' }}>All attractions, restaurants &amp; shops are placed. ✓</p>
+            )}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {attractions.filter((a) => !a.poiId).map((a) => (
+                <span key={a.id} draggable style={dragChipStyle}
+                  onDragStart={(e) => e.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'attraction', id: a.id, name: a.name, heroImage: a.heroImage } as DragEntity))}>🎭 {a.name}</span>
+              ))}
+              {restaurants.filter((r) => !r.poiId).map((r) => (
+                <span key={r.id} draggable style={dragChipStyle}
+                  onDragStart={(e) => e.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'restaurant', id: r.id, name: r.name, heroImage: r.heroImage } as DragEntity))}>🍴 {r.name}</span>
+              ))}
+              {shops.filter((s) => !s.poiId).map((s) => (
+                <span key={s.id} draggable style={dragChipStyle}
+                  onDragStart={(e) => e.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'shop', id: s.id, name: s.name, heroImage: s.heroImage } as DragEntity))}>🛍️ {s.name}</span>
+              ))}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--muted)', margin: '12px 0 6px', fontWeight: 700 }}>Facilities (reusable)</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {FACILITY_PALETTE.map(([type, label]) => (
+                <span key={type} draggable style={dragChipStyle}
+                  onDragStart={(e) => e.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'facility', type, name: label } as DragEntity))}>{label}</span>
+              ))}
+            </div>
+          </div>
           <div className="editcard">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
               <h3 style={{ margin: 0 }}>Base maps</h3>
@@ -249,7 +375,7 @@ export default function MapEditor() {
                     style={{ width: 18, height: 18, borderRadius: '50%', border: 0, cursor: 'pointer', background: m.isDefault ? '#22b365' : '#fff', boxShadow: '0 0 0 1px var(--border)' }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: 14 }}>{m.name} {m.isDefault && <span className="pillbadge on">Default</span>}</div>
-                    <div style={{ fontSize: 12, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.imageUrl ?? 'no image (illustrated map)'}</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>{m.imageUrl ? (m.imageUrl.startsWith('data:') ? 'Uploaded image' : m.imageUrl) : 'no image (illustrated map)'}</div>
                   </div>
                   <button className="tbtn" onClick={() => triggerUpload(m.id)}>Upload</button>
                   <button className="tbtn" onClick={async () => { const u = await promptText('Image URL (leave blank to remove)', m.imageUrl ?? '', 'Map image URL'); if (u !== null) setMapImage(m.id, u.trim() || null); }}>URL</button>
@@ -266,41 +392,8 @@ export default function MapEditor() {
           </div>
 
           <div className="editcard">
-            <h3>{selected ? 'Edit hotspot' : 'Hotspot'}</h3>
-            {!selected && <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0 }}>Select a hotspot on the map, or click an empty spot to add one.</p>}
-            {selected && (
-              <div style={{ display: 'grid', gap: 12 }}>
-                <div className="form-row"><label>Name</label><input value={selected.name} onChange={(e) => patchSel({ name: e.target.value })} /></div>
-                <div className="form-row"><label>Category</label>
-                  <select value={selected.type} onChange={(e) => patchSel({ type: e.target.value })}>
-                    {TYPES.map((t) => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
-                  </select>
-                </div>
-                <div className="form-row"><label>Zone label</label><input value={selected.mapZone ?? ''} onChange={(e) => patchSel({ mapZone: e.target.value })} /></div>
-                <div className="form-row"><label>Colour</label>
-                  <div className="swatches">
-                    {PALETTE.map((c) => <button key={c} className={`swatch-btn ${colorOf(selected) === c ? 'on' : ''}`} style={{ background: c }} onClick={() => patchSel({ color: c })} />)}
-                  </div>
-                </div>
-                <div className="form-row"><label>Marker image (fits inside the pin)</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    {selected.image
-                      ? <img src={selected.image} alt="" style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', border: '2px solid #fff', boxShadow: '0 0 0 1px var(--border)' }} />
-                      : <div style={{ width: 40, height: 40, borderRadius: '50%', background: colorOf(selected), display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 800 }}>{selected.type[0]}</div>}
-                    <button className="tbtn" onClick={triggerSpotUpload}>Upload</button>
-                    {selected.image && <button className="tbtn" onClick={() => patchSel({ image: null })}>Remove</button>}
-                  </div>
-                </div>
-                <div className="form-grid">
-                  <div className="form-row"><label>Latitude</label><input value={selected.lat.toFixed(5)} onChange={(e) => patchSel({ lat: Number(e.target.value) || selected.lat })} /></div>
-                  <div className="form-row"><label>Longitude</label><input value={selected.lng.toFixed(5)} onChange={(e) => patchSel({ lng: Number(e.target.value) || selected.lng })} /></div>
-                </div>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <QrButton type="poi" id={selected.id} label={selected.name} />
-                  <button className="tbtn danger" onClick={removeSel}>Delete hotspot</button>
-                </div>
-              </div>
-            )}
+            <h3>Hotspots</h3>
+            <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0, lineHeight: 1.5 }}>Tap a hotspot to edit it in a popup. Press and hold a hotspot to drag it. Drag an item from “Place on map” above, or click an empty spot to add one.</p>
           </div>
 
           <div className="editcard">
@@ -319,6 +412,47 @@ export default function MapEditor() {
           </div>
         </div>
       </div>
+
+      {/* Hotspot editor popup — opens on tapping a marker */}
+      {selected && modalOpen && (
+        <div className="modal-back" onClick={(e) => e.target === e.currentTarget && setModalOpen(false)}>
+          <div className="modal" style={{ width: 420, maxWidth: '94vw' }}>
+            <h2 style={{ marginBottom: 8 }}>Edit hotspot</h2>
+            <div style={{ display: 'grid', gap: 12 }}>
+              <div className="form-row"><label>Name</label><input value={selected.name} onChange={(e) => patchSel({ name: e.target.value })} /></div>
+              <div className="form-row"><label>Category</label>
+                <select value={selected.type} onChange={(e) => patchSel({ type: e.target.value })}>
+                  {TYPES.map((t) => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
+                </select>
+              </div>
+              <div className="form-row"><label>Zone label</label><input value={selected.mapZone ?? ''} onChange={(e) => patchSel({ mapZone: e.target.value })} /></div>
+              <div className="form-row"><label>Colour</label>
+                <div className="swatches">
+                  {PALETTE.map((c) => <button key={c} className={`swatch-btn ${colorOf(selected) === c ? 'on' : ''}`} style={{ background: c }} onClick={() => patchSel({ color: c })} />)}
+                </div>
+              </div>
+              <div className="form-row"><label>Marker image (fits inside the pin)</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  {selected.image
+                    ? <img src={selected.image} alt="" style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', border: '2px solid #fff', boxShadow: '0 0 0 1px var(--border)' }} />
+                    : <div style={{ width: 44, height: 44, borderRadius: '50%', background: colorOf(selected), display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 800 }}>{selected.type[0]}</div>}
+                  <button className="tbtn" onClick={triggerSpotUpload}>Upload</button>
+                  {selected.image && <button className="tbtn" onClick={() => patchSel({ image: null })}>Remove</button>}
+                </div>
+              </div>
+              <div className="form-grid">
+                <div className="form-row"><label>Latitude</label><input value={selected.lat.toFixed(5)} onChange={(e) => patchSel({ lat: Number(e.target.value) || selected.lat })} /></div>
+                <div className="form-row"><label>Longitude</label><input value={selected.lng.toFixed(5)} onChange={(e) => patchSel({ lng: Number(e.target.value) || selected.lng })} /></div>
+              </div>
+            </div>
+            <div className="modal-foot" style={{ gap: 8 }}>
+              <QrButton type="poi" id={selected.id} label={selected.name} />
+              <button className="tbtn danger" onClick={async () => { await removeSel(); setModalOpen(false); }}>Delete</button>
+              <button className="primary" onClick={() => setModalOpen(false)}>Done</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

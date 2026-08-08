@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, View, Text, StyleSheet, Image, Dimensions, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Touchable } from '../../components/Touchable';
@@ -11,6 +11,8 @@ import { useThemePref } from '../../lib/theme-context';
 import { SkeletonRows } from '../../components/Shimmer';
 
 const HPAD = 14;
+const OPENING_DATE = '2026-07-18'; // programme becomes available from opening day
+const todayStr = () => new Date().toISOString().slice(0, 10);
 
 function usePalette() {
   const dark = useThemePref().scheme === 'dark';
@@ -50,6 +52,9 @@ export default function ProgramScreen() {
   const dark = useThemePref().scheme === 'dark';
   const headerBg = dark ? pal.header : (bundle?.branding?.primary || pal.header);
   const [trackW, setTrackW] = useState(Dimensions.get('window').width - HPAD * 2);
+  const today = todayStr();
+  // The programme always reflects the current day; the date is not selectable.
+  useEffect(() => { setDate(today); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
   const attractions = bundle?.attractions ?? [];
   const sessions = bundle?.sessions ?? [];
@@ -113,18 +118,12 @@ export default function ProgramScreen() {
         </View>
       </View>
 
-      {/* Date selector */}
+      {/* Date — locked to today, not selectable */}
       <View style={[styles.dateRow, { backgroundColor: pal.screen }]}>
-        <Touchable onPress={() => setDate(shiftDate(date, -1))} hitSlop={12} style={styles.dateArrow}>
-          <Text style={[styles.dateArrowTxt, { color: pal.sub }]}>‹</Text>
-        </Touchable>
         <View style={{ alignItems: 'center' }}>
-          <Text style={[styles.dateTxt, { color: pal.text }]}>{fmtDate(date)}</Text>
+          <Text style={[styles.dateTxt, { color: pal.text }]}>{fmtDate(today)}</Text>
           <View style={styles.dateUnderline} />
         </View>
-        <Touchable onPress={() => setDate(shiftDate(date, 1))} hitSlop={12} style={styles.dateArrow}>
-          <Text style={[styles.dateArrowTxt, { color: pal.text }]}>›</Text>
-        </Touchable>
       </View>
 
       {/* Shared time ruler */}
@@ -153,7 +152,7 @@ export default function ProgramScreen() {
         {!bundle ? (
           <View style={{ padding: 16 }}><SkeletonRows count={6} height={54} /></View>
         ) : rows.length === 0 ? (
-          <Text style={[styles.empty, { color: pal.sub }]}>No shows scheduled for {fmtDate(date)}.</Text>
+          <Text style={[styles.emptyBig, { color: pal.text }]}>The programme will be available from {fmtDate(OPENING_DATE)}.</Text>
         ) : null}
         {bundle && rows.map((r, idx) => (
           <ProgramRow
@@ -191,8 +190,8 @@ function ProgramRow({
   const isNew = attraction.sortOrder >= 90; // convention: high sortOrder flags "new" attractions
 
   return (
-    <Touchable style={[styles.row, { backgroundColor: bg }]} onPress={onPress}>
-      <View style={styles.rowHead}>
+    <View style={[styles.row, { backgroundColor: bg }]}>
+      <Touchable style={styles.rowHead} onPress={onPress}>
         <View style={styles.thumbWrap}>
           {attraction.heroImage ? (
             <Image source={{ uri: attraction.heroImage }} style={styles.thumb} />
@@ -220,7 +219,7 @@ function ProgramRow({
             </View>
           </View>
         </View>
-      </View>
+      </Touchable>
 
       {/* Timeline track — horizontally scrollable; the show icon above stays put. */}
       <View style={styles.trackRow}>
@@ -254,7 +253,7 @@ function ProgramRow({
           )}
         </ScrollView>
       </View>
-    </Touchable>
+    </View>
   );
 }
 
@@ -276,6 +275,7 @@ const styles = StyleSheet.create({
   tickMark: { width: 1, height: 8, marginTop: 14 },
   tickTxt: { fontSize: 11, marginTop: 2 },
   empty: { textAlign: 'center', marginTop: 40, fontSize: 14 },
+  emptyBig: { textAlign: 'center', marginTop: 80, fontSize: 19, fontWeight: '800', paddingHorizontal: 40, lineHeight: 26 },
   row: { paddingHorizontal: HPAD, paddingTop: 12, paddingBottom: 8 },
   rowHead: { flexDirection: 'row', gap: 12 },
   thumbWrap: { width: 52, height: 52 },

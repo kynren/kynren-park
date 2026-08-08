@@ -195,8 +195,14 @@ button.primary:hover { filter: brightness(0.95); }
 .set-tag.soon { background: #fbf1dd; color: var(--warn); }
 
 /* breadcrumb / page head */
-.crumb { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+.crumb { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); margin-bottom: 8px; flex-wrap: wrap; }
 .crumb a { color: var(--muted); }
+.crumb a:hover { color: var(--green); }
+/* global back + breadcrumb bar (PageNav) */
+.pagenav { display: flex; align-items: center; gap: 14px; margin: 2px 0 14px; flex-wrap: wrap; }
+.pagenav .crumb { margin-bottom: 0; }
+.backbtn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: #fff; color: var(--ink); border-radius: 999px; padding: 6px 14px 6px 10px; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; }
+.backbtn:hover { border-color: var(--green); color: var(--green); }
 .page-actions { display: flex; justify-content: space-between; align-items: center; margin: 6px 0 18px; gap: 12px; flex-wrap: wrap; }
 
 /* data table */

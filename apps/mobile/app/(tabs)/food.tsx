@@ -61,14 +61,14 @@ function Plate({ color, size = 30 }: IP) {
 }
 
 export default function MealScreen() {
-  const { date, bundle } = useSync();
+  const { bundle } = useSync();
   const router = useRouter();
   const pal = useMealPalette();
   const dark = useThemePref().scheme === 'dark';
   const headerBg = dark ? pal.header : (bundle?.branding?.primary || pal.header);
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(true);
-  const { wd, md } = fmtLong(date);
+  const { wd, md } = fmtLong(new Date().toISOString().slice(0, 10)); // today's date
 
   return (
     <View style={[styles.screen, { backgroundColor: pal.screen }]}>

@@ -7,6 +7,7 @@ import Svg, { Path } from 'react-native-svg';
 import { Touchable } from '../components/Touchable';
 import { ManagedImage } from '../components/ManagedImage';
 import { useAuth } from '../lib/auth';
+import { useBrand } from '../lib/brand';
 import { theme } from '../lib/theme';
 import { useThemePref } from '../lib/theme-context';
 
@@ -41,6 +42,7 @@ export default function ProfileScreen() {
   const pal = usePalette();
   const insets = useSafeAreaInsets();
   const { user, logout } = useAuth();
+  const brand = useBrand();
   const [photo, setPhoto] = useState<string | null>(null);
   const [name, setName] = useState('');
 
@@ -58,7 +60,7 @@ export default function ProfileScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
         {/* Header banner (admin-managed) with the avatar overlapping */}
-        <View style={{ height: 190 }}>
+        <View style={{ height: 190, backgroundColor: brand.primary }}>
           <ManagedImage slot="profile.header" style={StyleSheet.absoluteFill} fadeColor={pal.screen} />
           <Touchable style={[styles.back, { top: insets.top + 8 }]} onPress={() => router.back()}>
             <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><Path d="M15 5l-7 7 7 7" /></Svg>

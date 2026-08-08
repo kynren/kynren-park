@@ -27,7 +27,7 @@ export class SyncController {
     const start = new Date(`${day}T00:00:00.000Z`);
     const end = new Date(`${day}T23:59:59.999Z`);
 
-    const [attractions, pois, walkEdges, restaurants, ticketTypes, content, announcements, sessions, mapConfig, defaultMap, branding] =
+    const [attractions, pois, walkEdges, restaurants, shops, ticketTypes, content, announcements, sessions, mapConfig, defaultMap, branding] =
       await Promise.all([
         this.prisma.attraction.findMany({ where: { active: true }, orderBy: { sortOrder: 'asc' } }),
         this.prisma.pointOfInterest.findMany(),
@@ -35,6 +35,11 @@ export class SyncController {
         this.prisma.restaurant.findMany({
           where: { active: true },
           include: { menuItems: { where: { available: true } } },
+        }),
+        this.prisma.shop.findMany({
+          where: { active: true },
+          orderBy: { name: 'asc' },
+          include: { items: { where: { available: true }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] } },
         }),
         this.prisma.ticketType.findMany({ where: { onSale: true } }),
         this.prisma.contentPage.findMany({ where: { published: true }, orderBy: { sortOrder: 'asc' } }),
@@ -72,6 +77,7 @@ export class SyncController {
       pois,
       walkEdges,
       restaurants,
+      shops,
       ticketTypes,
       content,
       announcements,
