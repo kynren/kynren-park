@@ -70,6 +70,9 @@ export interface Session {
 }
 export interface MenuItem { id: string; name: string; description?: string | null; priceCents: number; dietaryTags: string[]; }
 export interface Restaurant { id: string; slug: string; name: string; cuisine?: string | null; openingHours?: string | null; menuItems: MenuItem[]; poiId?: string | null; }
+export interface ShopVariant { name: string; priceCents?: number; }
+export interface ShopItem { id: string; name: string; description?: string | null; image?: string | null; priceCents: number; variants?: ShopVariant[] | null; }
+export interface Shop { id: string; slug: string; name: string; category?: string | null; description?: string | null; openingHours?: string | null; heroImage?: string | null; items: ShopItem[]; poiId?: string | null; }
 export interface TicketType { id: string; name: string; category: string; priceCents: number; description?: string | null; }
 export interface ContentPage { id: string; slug: string; title: string; body: string; category?: string | null; }
 export interface Announcement {
@@ -101,6 +104,7 @@ export interface Bundle {
   attractions: Attraction[];
   pois: Poi[];
   restaurants: Restaurant[];
+  shops?: Shop[];
   ticketTypes: TicketType[];
   content: ContentPage[];
   announcements: Announcement[];

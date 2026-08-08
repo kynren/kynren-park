@@ -382,8 +382,10 @@ export default function MapScreen() {
   useEffect(() => {
     if (!params.spot || !bundle) return;
     const [type, id] = String(params.spot).split(':');
-    setCats(new Set<Cat>([type === 'restaurant' ? 'restaurants' : type === 'poi' ? 'facilities' : 'shows']));
-    setPendingSpot(id);
+    // A shop code carries the shop id; resolve it to its map POI so we can centre.
+    const targetId = type === 'shop' ? (bundle.shops?.find((s) => s.id === id)?.poiId ?? id) : id;
+    setCats(new Set<Cat>([type === 'restaurant' ? 'restaurants' : (type === 'poi' || type === 'shop') ? 'facilities' : 'shows']));
+    setPendingSpot(targetId);
     setBannerDismissed(false);
   }, [params.spot, bundle]);
   useEffect(() => {

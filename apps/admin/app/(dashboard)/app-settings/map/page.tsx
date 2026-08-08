@@ -10,7 +10,7 @@ interface Poi { id: string; type: string; name: string; lat: number; lng: number
 interface MapConfig { markerColor: string; markerStyle: string; mapImageUrl: string | null }
 interface ParkMap { id: string; name: string; imageUrl: string | null; bgColor: string | null; isDefault: boolean }
 interface EntityLite { id: string; name: string; poiId: string | null; heroImage?: string | null; category?: string }
-type DragEntity = { kind: 'attraction' | 'restaurant' | 'facility'; id?: string; type?: string; name: string; heroImage?: string | null };
+type DragEntity = { kind: 'attraction' | 'restaurant' | 'shop' | 'facility'; id?: string; type?: string; name: string; heroImage?: string | null };
 
 // Facility types offered in the drag palette (attractions/restaurants come from data).
 const FACILITY_PALETTE: [string, string][] = [
@@ -38,6 +38,7 @@ export default function MapEditor() {
   const [selId, setSelId] = useState<string | null>(null);
   const [attractions, setAttractions] = useState<EntityLite[]>([]);
   const [restaurants, setRestaurants] = useState<EntityLite[]>([]);
+  const [shops, setShops] = useState<EntityLite[]>([]);
   const [err, setErr] = useState('');
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragId = useRef<string | null>(null);
@@ -53,6 +54,7 @@ export default function MapEditor() {
   const loadEntities = useCallback(() => {
     api<EntityLite[]>('/admin/attractions').then(setAttractions).catch(() => undefined);
     api<EntityLite[]>('/admin/restaurants').then(setRestaurants).catch(() => undefined);
+    api<EntityLite[]>('/admin/shops').then(setShops).catch(() => undefined);
   }, []);
   const load = useCallback(() => {
     api<Poi[]>('/admin/pois').then(setPois).catch(() => undefined);
@@ -71,9 +73,10 @@ export default function MapEditor() {
         setPois((p) => [...p, created]); setSelId(created.id); setErr('');
         return;
       }
-      const type = data.kind === 'restaurant' ? 'RESTAURANT' : 'ATTRACTION';
+      const type = data.kind === 'restaurant' ? 'RESTAURANT' : data.kind === 'shop' ? 'SHOP' : 'ATTRACTION';
+      const endpoint = data.kind === 'restaurant' ? 'restaurants' : data.kind === 'shop' ? 'shops' : 'attractions';
       const created = await api<Poi>('/admin/pois', { method: 'POST', body: JSON.stringify({ name: data.name, type, lat, lng, image: data.heroImage ?? null }) });
-      await api(`/admin/${data.kind === 'restaurant' ? 'restaurants' : 'attractions'}/${data.id}`, { method: 'PATCH', body: JSON.stringify({ poiId: created.id }) });
+      await api(`/admin/${endpoint}/${data.id}`, { method: 'PATCH', body: JSON.stringify({ poiId: created.id }) });
       setPois((p) => [...p, created]); setSelId(created.id); setErr('');
       loadEntities();
     } catch (e) { setErr(friendlyError(e, 'Could not place that on the map.')); }
@@ -331,8 +334,8 @@ export default function MapEditor() {
           <div className="editcard">
             <h3 style={{ margin: 0 }}>Place on map</h3>
             <p className="hint" style={{ margin: '6px 0 12px' }}>Drag an item onto the map to drop a hotspot. Delete a hotspot to bring its entity back here.</p>
-            {attractions.filter((a) => !a.poiId).length === 0 && restaurants.filter((r) => !r.poiId).length === 0 && (
-              <p style={{ color: 'var(--muted)', fontSize: 13, margin: '0 0 10px' }}>All attractions &amp; restaurants are placed. ✓</p>
+            {attractions.filter((a) => !a.poiId).length === 0 && restaurants.filter((r) => !r.poiId).length === 0 && shops.filter((s) => !s.poiId).length === 0 && (
+              <p style={{ color: 'var(--muted)', fontSize: 13, margin: '0 0 10px' }}>All attractions, restaurants &amp; shops are placed. ✓</p>
             )}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {attractions.filter((a) => !a.poiId).map((a) => (
@@ -341,7 +344,11 @@ export default function MapEditor() {
               ))}
               {restaurants.filter((r) => !r.poiId).map((r) => (
                 <span key={r.id} draggable style={dragChipStyle}
-                  onDragStart={(e) => e.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'restaurant', id: r.id, name: r.name } as DragEntity))}>🍴 {r.name}</span>
+                  onDragStart={(e) => e.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'restaurant', id: r.id, name: r.name, heroImage: r.heroImage } as DragEntity))}>🍴 {r.name}</span>
+              ))}
+              {shops.filter((s) => !s.poiId).map((s) => (
+                <span key={s.id} draggable style={dragChipStyle}
+                  onDragStart={(e) => e.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'shop', id: s.id, name: s.name, heroImage: s.heroImage } as DragEntity))}>🛍️ {s.name}</span>
               ))}
             </div>
             <div style={{ fontSize: 12, color: 'var(--muted)', margin: '12px 0 6px', fontWeight: 700 }}>Facilities (reusable)</div>

@@ -7,7 +7,7 @@ import { theme } from '../lib/theme';
 
 // Accepts kynren://spot/<type>/<id> (and an https .../s/<type>/<id> fallback).
 function parseSpot(data: string): { type: string; id: string } | null {
-  const m = data.match(/(?:spot|s)\/(attraction|restaurant|poi)\/([\w-]+)/i);
+  const m = data.match(/(?:spot|s)\/(attraction|restaurant|shop|poi)\/([\w-]+)/i);
   return m ? { type: m[1].toLowerCase(), id: m[2] } : null;
 }
 

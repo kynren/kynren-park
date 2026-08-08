@@ -8,7 +8,7 @@ import { QRCodeCanvas } from 'qrcode.react';
  * mobile app's scanner resolves to the spot on the map. Shows a modal with the
  * code and a PNG download for printing/signage.
  */
-export function QrButton({ type, id, label }: { type: 'attraction' | 'restaurant' | 'poi'; id: string; label: string }) {
+export function QrButton({ type, id, label }: { type: 'attraction' | 'restaurant' | 'shop' | 'poi'; id: string; label: string }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const value = `kynren://spot/${type}/${id}`;

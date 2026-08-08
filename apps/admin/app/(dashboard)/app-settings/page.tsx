@@ -11,7 +11,8 @@ function I({ d }: { d: string }) {
 }
 
 const CARDS: { href: string; title: string; desc: string; icon: string; ready: boolean }[] = [
-  { href: '/app-settings/restaurants', title: 'Restaurants', ready: true, icon: 'M6 3v8a3 3 0 0 0 6 0V3|M9 11v10|M17 3c-1.5 2-1.5 6 0 8.5V21', desc: 'Add, edit and remove restaurants and their details. Live in the mobile app.' },
+  { href: '/app-settings/restaurants', title: 'Restaurants', ready: true, icon: 'M6 3v8a3 3 0 0 0 6 0V3|M9 11v10|M17 3c-1.5 2-1.5 6 0 8.5V21', desc: 'Add, edit and remove restaurants, their featured image and menu. Live in the mobile app.' },
+  { href: '/app-settings/shops', title: 'Shops', ready: true, icon: 'M4 9h16l-1 11a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z|M4 9l1.5-5h13L20 9|M9 13a3 3 0 0 0 6 0', desc: 'Add shops, their featured image and the products they sell (with prices and varieties). Placeable on the map.' },
   { href: '/app-settings/schedule', title: 'Program Schedule', ready: true, icon: 'M4 5h16v16H4z|M8 3v4M16 3v4M4 10h16', desc: 'Add, edit and remove show sessions in the mobile timetable format.' },
   { href: '/app-settings/map', title: 'Map & Hotspots', ready: true, icon: 'M9 4 4 6v14l5-2 6 2 5-2V4l-5 2-6-2z|M9 4v14M15 6v14', desc: 'Plot hotspots, set lat/lng, colours and categories, and tune the map.' },
   { href: '/app-settings/categories', title: 'Categories & Services', ready: true, icon: 'M4 4h7v7H4z|M13 4h7v7h-7z|M4 13h7v7H4z|M13 13h7v7h-7z', desc: 'Toilets, first aid, shops and any category that appears on the map.' },
