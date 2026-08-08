@@ -159,7 +159,7 @@ export default function MapEditor() {
   async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; e.target.value = '';
     if (!file) return;
-    if (file.size > 15 * 1024 * 1024) { alert('Please choose an image under 15 MB.'); return; }
+    if (file.size > 500 * 1024 * 1024) { alert('Please choose an image under 500 MB.'); return; }
     try {
       if (uploadKind.current === 'spot') {
         if (!selected) return;
@@ -367,7 +367,8 @@ export default function MapEditor() {
               The <b>default</b> map is what the mobile app shows. For the illustrated 3D look, use a <b>portrait,
               phone-shaped</b> image (about <b>9:19.5</b>, e.g. <b>1440&nbsp;×&nbsp;3120&nbsp;px</b> or larger) so it
               fills the screen edge-to-edge with no cropping. Up to <b>4096&nbsp;px</b> on the longest edge is kept for
-              sharpness when guests zoom in; <b>PNG or JPG</b>, under <b>15&nbsp;MB</b>.
+              sharpness when guests zoom in; <b>PNG or JPG</b>, up to <b>500&nbsp;MB</b> — large originals are optimised
+              automatically in your browser before upload, so only a lightweight version is stored and sent to phones.
             </p>
             <div style={{ display: 'grid', gap: 8 }}>
               {maps.length === 0 && <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0 }}>No maps yet — add one below.</p>}
