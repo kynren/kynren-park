@@ -34,6 +34,7 @@ export interface Branding {
   tagline: string;
   primary: string;
   accent: string;
+  font?: 'system' | 'serif' | 'rounded' | 'mono';
   logoUrl?: string | null;
   iconUrl?: string | null;
   faviconUrl?: string | null;

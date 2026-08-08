@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ScrollView, View, Text, TextInput, StyleSheet, ActivityIndicator } from 'react-native';
 import { Touchable } from '../components/Touchable';
+import { ManagedImage } from '../components/ManagedImage';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../lib/auth';
 import { theme } from '../lib/theme';
@@ -37,6 +38,7 @@ export default function AuthScreen() {
 
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+      <ManagedImage slot="auth.header" style={{ height: 150, borderRadius: 16, marginBottom: 18 }} fadeColor="#ffffff" />
       <Text style={styles.h1}>{mode === 'login' ? 'Welcome back' : 'Create your account'}</Text>
       <Text style={styles.muted}>
         {mode === 'login'

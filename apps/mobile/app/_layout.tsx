@@ -1,6 +1,6 @@
 import { Stack, useRouter } from 'expo-router';
-import { useEffect } from 'react';
-import { Alert, View } from 'react-native';
+import { useEffect, cloneElement } from 'react';
+import { Alert, View, Text, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
 import { AnnouncementMegaphone } from '../components/AnnouncementMegaphone';
@@ -8,7 +8,7 @@ import { LoadingOverlay } from '../components/LoadingOverlay';
 import { FloatingScanner } from '../components/FloatingScanner';
 import * as Notifications from 'expo-notifications';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { SyncProvider } from '../lib/sync';
+import { SyncProvider, useSync } from '../lib/sync';
 import { AuthProvider, registerPushToken } from '../lib/auth';
 import { I18nProvider } from '../lib/i18n';
 import { ThemeProvider, useThemePref } from '../lib/theme-context';
@@ -37,6 +37,30 @@ if (g.ErrorUtils?.setGlobalHandler && !g.__kynrenErrorHandler) {
   });
 }
 
+// Admin-selectable app font (branding.font) applied globally by patching the
+// Text renderer to prepend a fontFamily — component styles still override it.
+const FONT_FAMILY: Record<string, string | undefined> = {
+  system: undefined,
+  serif: Platform.select({ ios: 'Georgia', android: 'serif', default: 'serif' }),
+  rounded: Platform.select({ ios: 'Avenir Next', android: 'sans-serif-medium', default: undefined }),
+  mono: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
+};
+let brandFontFamily: string | undefined;
+try {
+  const TextAny = Text as unknown as { render?: (...a: unknown[]) => any; __brandPatched?: boolean };
+  if (TextAny.render && !TextAny.__brandPatched) {
+    TextAny.__brandPatched = true;
+    const orig = TextAny.render;
+    TextAny.render = function (this: unknown, ...args: unknown[]) {
+      const el = orig.apply(this, args);
+      if (!brandFontFamily || !el) return el;
+      return cloneElement(el, { style: [{ fontFamily: brandFontFamily }, (el as any).props?.style] });
+    };
+  }
+} catch {
+  /* if the internal shape changes, silently skip custom fonts */
+}
+
 // Show notifications while the app is foregrounded.
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -51,6 +75,9 @@ function RootNav() {
   const { scheme } = useThemePref();
   const dark = scheme === 'dark';
   const router = useRouter();
+  const { bundle } = useSync();
+  const brandFont = bundle?.branding?.font ?? 'system';
+  brandFontFamily = FONT_FAMILY[brandFont]; // read by the patched Text renderer
 
   // Register this device for push on launch (guests included); route on tap.
   useEffect(() => {
@@ -64,7 +91,7 @@ function RootNav() {
   }, [router]);
 
   return (
-    <View style={{ flex: 1 }}>
+    <View key={brandFont} style={{ flex: 1 }}>
       <StatusBar style={dark ? 'light' : 'light'} />
       <Stack
         screenOptions={{

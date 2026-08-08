@@ -11,8 +11,8 @@ import { useThemePref } from '../../lib/theme-context';
 function useMealPalette() {
   const dark = useThemePref().scheme === 'dark';
   return dark
-    ? { screen: '#0c0c0c', card: '#1d1d1d', panel: '#2a2a2a', text: '#ffffff', sub: '#9a9a9a', line: '#262626', icon: '#e6e6e6' }
-    : { screen: theme.bg, card: '#ffffff', panel: '#efe9e2', text: theme.ink, sub: theme.muted, line: theme.border, icon: theme.brand };
+    ? { screen: '#0c0c0c', card: '#1d1d1d', panel: '#2a2a2a', text: '#ffffff', sub: '#9a9a9a', line: '#262626', icon: '#e6e6e6', header: '#141414' }
+    : { screen: theme.bg, card: '#ffffff', panel: '#efe9e2', text: theme.ink, sub: theme.muted, line: theme.border, icon: theme.brand, header: theme.brand };
 }
 
 function fmtLong(ymd: string) {
@@ -61,23 +61,28 @@ function Plate({ color, size = 30 }: IP) {
 }
 
 export default function MealScreen() {
-  const { date } = useSync();
+  const { date, bundle } = useSync();
   const router = useRouter();
   const pal = useMealPalette();
+  const dark = useThemePref().scheme === 'dark';
+  const headerBg = dark ? pal.header : (bundle?.branding?.primary || pal.header);
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(true);
   const { wd, md } = fmtLong(date);
 
   return (
     <View style={[styles.screen, { backgroundColor: pal.screen }]}>
-      {/* Fixed top bar */}
-      <View style={[styles.topRow, { paddingTop: insets.top + 8 }]}>
-        <Touchable onPress={() => router.push('/notifications')} style={styles.avatar}>
-          <Text style={{ fontSize: 17 }}>🔔</Text>
-        </Touchable>
-        <Touchable onPress={() => router.push('/settings')} style={styles.avatar}>
-          <Text style={{ fontSize: 17 }}>👤</Text>
-        </Touchable>
+      {/* Fixed top bar — matches the Program screen (default app top-bar colour) */}
+      <View style={[styles.topBar, { backgroundColor: headerBg, paddingTop: insets.top + 8 }]}>
+        <Text style={styles.brand}>KYNREN</Text>
+        <View style={{ flexDirection: 'row', gap: 6 }}>
+          <Touchable onPress={() => router.push('/notifications')} hitSlop={8} style={styles.avatar}>
+            <Text style={{ fontSize: 16 }}>🔔</Text>
+          </Touchable>
+          <Touchable onPress={() => router.push('/profile')} hitSlop={8} style={styles.avatar}>
+            <Text style={{ fontSize: 16 }}>👤</Text>
+          </Touchable>
+        </View>
       </View>
       <Text style={[styles.title, { color: pal.text }]}>Dining at Kynren</Text>
 
@@ -177,8 +182,9 @@ function BigCard({
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  topRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, paddingHorizontal: 16, paddingTop: 10 },
-  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12 },
+  brand: { color: '#fff', fontSize: 20, fontWeight: '800', letterSpacing: 2 },
+  avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 27, fontWeight: '700', textAlign: 'center', marginTop: 6, marginBottom: 18 },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
   sectionLabel: { fontSize: 20, fontWeight: '700' },
