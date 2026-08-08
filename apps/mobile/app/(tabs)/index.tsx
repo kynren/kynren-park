@@ -204,7 +204,7 @@ export default function HomeScreen() {
             <Touchable style={styles.avatar} onPress={() => router.push('/notifications')}>
               <Text style={{ fontSize: 17 }}>🔔</Text>
             </Touchable>
-            <Touchable style={styles.avatar} onPress={() => router.push('/settings')}>
+            <Touchable style={styles.avatar} onPress={() => router.push('/profile')}>
               <Text style={{ fontSize: 18 }}>👤</Text>
             </Touchable>
           </View>

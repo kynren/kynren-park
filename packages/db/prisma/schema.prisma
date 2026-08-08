@@ -538,6 +538,19 @@ model AppSetting {
   updatedAt DateTime @updatedAt
 }
 
+// Admin-managed decorative image for a named mobile "slot". Lets the super-admin
+// swap any hardcoded image, per theme, and control how it's fitted and animated.
+model ManagedImage {
+  key          String   @id // slot key, e.g. "profile.header"
+  imageUrl     String?  @db.Text // light-theme image (data URL or hosted)
+  imageUrlDark String?  @db.Text // dark-theme variant (optional)
+  fit          String   @default("cover") // cover | contain
+  position     String   @default("center") // top | center | bottom
+  fade         String   @default("none") // none | up | down (edge fade into the screen)
+  animation    String   @default("fade") // none | fade | slide-up | slide-down | zoom
+  updatedAt    DateTime @updatedAt
+}
+
 // A designed mobile home screen. Admins can keep several layouts but exactly one
 // is the live default. Publishing applies it now; scheduling makes it the
 // default at publishAt. The mobile app renders the live default from the bundle.

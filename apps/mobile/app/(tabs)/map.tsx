@@ -673,7 +673,7 @@ export default function MapScreen() {
         </View>
 
         {/* Profile */}
-        <Touchable style={[styles.profileBtn, { top: insets.top + 8 }]} onPress={() => router.push('/settings')}>
+        <Touchable style={[styles.profileBtn, { top: insets.top + 8 }]} onPress={() => router.push('/profile')}>
           <Text style={{ fontSize: 18 }}>👤</Text>
         </Touchable>
 
