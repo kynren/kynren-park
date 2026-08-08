@@ -4,11 +4,11 @@ import { useEffect, useState } from 'react';
 import { api } from './api';
 
 export interface Branding {
-  appName: string; tagline: string; primary: string; accent: string;
+  appName: string; tagline: string; primary: string; accent: string; font?: string;
   logoUrl?: string | null; iconUrl?: string | null; faviconUrl?: string | null;
   splashType?: 'none' | 'photo' | 'gif' | 'video'; splashMediaUrl?: string | null;
 }
-export const DEFAULT_BRANDING: Branding = { appName: 'Kynren', tagline: 'The Storied Lands', primary: '#8f1d21', accent: '#22b365' };
+export const DEFAULT_BRANDING: Branding = { appName: 'Kynren', tagline: 'The Storied Lands', primary: '#8f1d21', accent: '#22b365', font: 'system' };
 
 const CACHE = 'kynren_branding';
 

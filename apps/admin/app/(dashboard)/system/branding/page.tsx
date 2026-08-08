@@ -44,7 +44,7 @@ export default function BrandingPage() {
     try {
       const next = await api<Branding>('/admin/branding', {
         method: 'PATCH',
-        body: JSON.stringify({ appName: b.appName, tagline: b.tagline, primary: b.primary, accent: b.accent, logoUrl: b.logoUrl ?? null, iconUrl: b.iconUrl ?? null, faviconUrl: b.faviconUrl ?? null, splashType: b.splashType ?? 'none', splashMediaUrl: b.splashMediaUrl ?? null }),
+        body: JSON.stringify({ appName: b.appName, tagline: b.tagline, primary: b.primary, accent: b.accent, font: b.font ?? 'system', logoUrl: b.logoUrl ?? null, iconUrl: b.iconUrl ?? null, faviconUrl: b.faviconUrl ?? null, splashType: b.splashType ?? 'none', splashMediaUrl: b.splashMediaUrl ?? null }),
       });
       setB({ ...DEFAULT_BRANDING, ...next });
       localStorage.setItem('kynren_branding', JSON.stringify(next));
@@ -67,6 +67,14 @@ export default function BrandingPage() {
             <div className="form-row full"><label>Tagline</label><input value={b.tagline} onChange={(e) => set('tagline', e.target.value)} /></div>
             <div className="form-row"><label>Primary colour</label><input type="color" value={b.primary} onChange={(e) => set('primary', e.target.value)} style={{ height: 42, padding: 4 }} /></div>
             <div className="form-row"><label>Accent colour</label><input type="color" value={b.accent} onChange={(e) => set('accent', e.target.value)} style={{ height: 42, padding: 4 }} /></div>
+            <div className="form-row"><label>App font</label>
+              <select value={b.font ?? 'system'} onChange={(e) => set('font', e.target.value)}>
+                <option value="system">System (default)</option>
+                <option value="serif">Serif (classic)</option>
+                <option value="rounded">Rounded</option>
+                <option value="mono">Monospace</option>
+              </select>
+            </div>
           </div>
 
           <div className="panel-title" style={{ margin: '18px 0 10px' }}>Logo (wordmark)</div>

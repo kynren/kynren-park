@@ -47,6 +47,8 @@ export default function ProgramScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const pal = usePalette();
+  const dark = useThemePref().scheme === 'dark';
+  const headerBg = dark ? pal.header : (bundle?.branding?.primary || pal.header);
   const [trackW, setTrackW] = useState(Dimensions.get('window').width - HPAD * 2);
 
   const attractions = bundle?.attractions ?? [];
@@ -98,14 +100,14 @@ export default function ProgramScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: pal.screen }]}>
-      {/* Custom top bar */}
-      <View style={[styles.topBar, { backgroundColor: pal.header, paddingTop: insets.top + 8 }]}>
+      {/* Custom top bar — default brand colour, re-themed by branding.primary */}
+      <View style={[styles.topBar, { backgroundColor: headerBg, paddingTop: insets.top + 8 }]}>
         <Text style={styles.brand}>KYNREN</Text>
         <View style={{ flexDirection: 'row', gap: 6 }}>
           <Touchable onPress={() => router.push('/notifications')} hitSlop={8} style={styles.avatar}>
             <Text style={{ fontSize: 16 }}>🔔</Text>
           </Touchable>
-          <Touchable onPress={() => router.push('/settings')} hitSlop={8} style={styles.avatar}>
+          <Touchable onPress={() => router.push('/profile')} hitSlop={8} style={styles.avatar}>
             <Text style={{ fontSize: 16 }}>👤</Text>
           </Touchable>
         </View>

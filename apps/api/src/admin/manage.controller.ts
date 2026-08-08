@@ -1,9 +1,10 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Put, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RequirePermission } from '../common/decorators.js';
 import { PermissionsGuard } from '../common/guards.js';
 import { DEFAULT_HOME_SECTIONS, resolveHomeScreen } from './home-screen.util.js';
+import { IMAGE_SLOTS, DEFAULT_IMAGE } from './image-slots.js';
 
 function slugify(s: string): string {
   return (s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'item';
@@ -355,6 +356,33 @@ export class ManageController {
   async deleteTemplate(@Param('id') id: string) {
     await this.prisma.notificationTemplate.delete({ where: { id } });
     return { deleted: true };
+  }
+
+  // ---- Managed images (super-admin swaps decorative images) -----------------
+  @Get('images')
+  async listImages() {
+    const rows = await this.prisma.managedImage.findMany();
+    const byKey = new Map(rows.map((r) => [r.key, r]));
+    return IMAGE_SLOTS.map((s) => {
+      const r = byKey.get(s.key);
+      return {
+        ...s,
+        imageUrl: r?.imageUrl ?? DEFAULT_IMAGE.imageUrl,
+        imageUrlDark: r?.imageUrlDark ?? DEFAULT_IMAGE.imageUrlDark,
+        fit: r?.fit ?? DEFAULT_IMAGE.fit,
+        position: r?.position ?? DEFAULT_IMAGE.position,
+        fade: r?.fade ?? DEFAULT_IMAGE.fade,
+        animation: r?.animation ?? DEFAULT_IMAGE.animation,
+      };
+    });
+  }
+
+  @Put('images/:key')
+  upsertImage(@Param('key') key: string, @Body() b: any) {
+    if (!IMAGE_SLOTS.some((s) => s.key === key)) throw new BadRequestException('unknown image slot');
+    const data = pick(b, ['imageUrl', 'imageUrlDark', 'fit', 'position', 'fade', 'animation']);
+    for (const k of ['imageUrl', 'imageUrlDark'] as const) if (b[k] !== undefined) data[k] = b[k] || null;
+    return this.prisma.managedImage.upsert({ where: { key }, create: { key, ...data }, update: data });
   }
 
   // ---- Mobile home-screen designer ------------------------------------------

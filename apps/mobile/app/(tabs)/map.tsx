@@ -119,7 +119,7 @@ function dijkstra(adj: number[][], nodes: Geo[], start: number, goal: number): n
 
 const MIN_SCALE = 1;
 const MAX_SCALE = 4.5;
-const MILE_M = 1609.34; // hide the location beacon beyond this distance from the park
+const HALF_MILE_M = 804.672; // only show the location beacon within this distance of the park
 
 export default function MapScreen() {
   const { bundle, date } = useSync();
@@ -168,8 +168,8 @@ export default function MapScreen() {
   // JS-thread version for programmatic moves (buttons, deep links).
   function clampPanJS(x: number, y: number, s: number) {
     const w = vw, h = vh;
-    const maxX = ((s - 1) * w) / 2 + w * 0.45;
-    const maxY = ((s - 1) * h) / 2 + h * 0.45;
+    const maxX = ((s - 1) * w) / 2;
+    const maxY = ((s - 1) * h) / 2;
     return { x: Math.max(-maxX, Math.min(maxX, x)), y: Math.max(-maxY, Math.min(maxY, y)) };
   }
   // Animate to a scale + pan (used by zoom/recenter/fit and deep links).
@@ -412,7 +412,9 @@ export default function MapScreen() {
   );
   // Only show the "you are here" beacon when we can't tell (no GPS yet) or the
   // guest is genuinely near the park — never plant a dot when they're miles away.
-  const showMe = distToPark == null ? true : distToPark <= MILE_M;
+  // Only show the beacon when we have a real GPS fix within half a mile of the
+  // park — never when far away or when there's no location fix at all.
+  const showMe = distToPark != null && distToPark <= HALF_MILE_M;
   const youAreHere = useMemo(() => {
     if (!project) return { x: vw / 2, y: vh * 0.7 };
     if (locationReal && gps) return project.toXY(gps.lat, gps.lng);
@@ -493,7 +495,7 @@ export default function MapScreen() {
         <GestureDetector gesture={gesture}>
         <Reanimated.View style={[styles.canvas, { width: vw, height: vh }, canvasStyle]}>
           {mapImageUrl ? (
-            <Image source={{ uri: mapImageUrl }} style={{ position: 'absolute', width: vw, height: vh }} resizeMode="contain" />
+            <Image source={{ uri: mapImageUrl }} style={{ position: 'absolute', width: vw, height: vh }} resizeMode="cover" />
           ) : (
             <ParkBasemap vw={vw} vh={vh} />
           )}
@@ -620,7 +622,7 @@ export default function MapScreen() {
 
         {/* Location banner — the app needs GPS to show your position & distances */}
         {!locationReal && !bannerDismissed && (
-          <View style={[styles.geoBanner, { paddingTop: insets.top + 12 }]}>
+          <View style={[styles.geoBanner, { top: insets.top + 62 }]}>
             <Text style={styles.geoIcon}>📱</Text>
             <Text style={styles.geoTxt}>
               {gps ? 'You seem to be outside the park' : 'Turn on location to see where you are and how far things are'}
@@ -671,7 +673,7 @@ export default function MapScreen() {
         </View>
 
         {/* Profile */}
-        <Touchable style={[styles.profileBtn, { top: insets.top + 8 }]} onPress={() => router.push('/settings')}>
+        <Touchable style={[styles.profileBtn, { top: insets.top + 8 }]} onPress={() => router.push('/profile')}>
           <Text style={{ fontSize: 18 }}>👤</Text>
         </Touchable>
 
@@ -849,7 +851,7 @@ const styles = StyleSheet.create({
   calloutHint: { color: theme.brand, fontSize: 11, fontWeight: '700', marginTop: 3 },
   calloutHeart: { fontSize: 20, color: theme.muted, paddingHorizontal: 2 },
   calloutClose: { color: theme.muted, fontSize: 15, fontWeight: '700', paddingHorizontal: 2 },
-  geoBanner: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'rgba(15,15,15,0.9)', paddingTop: 12, paddingBottom: 12, paddingHorizontal: 16, zIndex: 50 },
+  geoBanner: { position: 'absolute', left: 14, right: 66, borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'rgba(15,15,15,0.92)', paddingVertical: 12, paddingHorizontal: 16, zIndex: 65 },
   geoIcon: { fontSize: 18 },
   geoTxt: { flex: 1, color: '#f0a8a8', fontSize: 14, fontWeight: '600' },
   geoClose: { color: '#f0a8a8', fontSize: 16, fontWeight: '700' },

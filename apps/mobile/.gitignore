@@ -5,3 +5,7 @@ google-service-account.json
 # EAS submit: App Store Connect API key (never commit)
 appstore-api-key.p8
 *.p8
+
+# Google / Firebase service-account keys (never commit)
+kynren-park-app-*.json
+google-services.json

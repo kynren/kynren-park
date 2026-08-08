@@ -34,6 +34,7 @@ export interface Branding {
   tagline: string;
   primary: string;
   accent: string;
+  font?: 'system' | 'serif' | 'rounded' | 'mono';
   logoUrl?: string | null;
   iconUrl?: string | null;
   faviconUrl?: string | null;
@@ -75,6 +76,14 @@ export interface Announcement {
   id: string; title: string; body: string; createdAt: string;
   sentAt?: string | null; startAt?: string | null; endAt?: string | null; recurrence?: string;
 }
+export interface ManagedImageConfig {
+  imageUrl?: string | null;
+  imageUrlDark?: string | null;
+  fit: 'cover' | 'contain';
+  position: 'top' | 'center' | 'bottom';
+  fade: 'none' | 'up' | 'down';
+  animation: 'none' | 'fade' | 'slide-up' | 'slide-down' | 'zoom';
+}
 export interface HomeConfig {
   heroType: 'none' | 'image' | 'gif' | 'video';
   heroMediaUrl?: string | null;
@@ -100,6 +109,7 @@ export interface Bundle {
   defaultMap?: ParkMap | null;
   branding?: Branding | null;
   home?: HomeConfig | null;
+  images?: Record<string, ManagedImageConfig>;
 }
 
 interface SyncState {

@@ -57,6 +57,14 @@ export class SyncController {
     // app falls back to its built-in home look.
     const home = await resolveHomeScreen(this.prisma);
 
+    // Admin-managed decorative images, keyed by slot for <ManagedImage>.
+    const images = Object.fromEntries(
+      (await this.prisma.managedImage.findMany()).map((r) => [
+        r.key,
+        { imageUrl: r.imageUrl, imageUrlDark: r.imageUrlDark, fit: r.fit, position: r.position, fade: r.fade, animation: r.animation },
+      ]),
+    );
+
     const payload = {
       date: day,
       generatedAt: new Date().toISOString(),
@@ -72,6 +80,7 @@ export class SyncController {
       defaultMap,
       branding,
       home,
+      images,
     };
 
     const body = JSON.stringify(payload);

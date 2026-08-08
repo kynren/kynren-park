@@ -89,7 +89,7 @@ export default function MapEditor() {
           const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
           const ctx = canvas.getContext('2d')!;
           ctx.drawImage(img, 0, 0, w, h);
-          const url = canvas.toDataURL('image/jpeg', 0.82);
+          const url = canvas.toDataURL('image/jpeg', 0.9);
           let r = 0, g = 0, b = 0, n = 0;
           try {
             const d = ctx.getImageData(0, 0, w, h).data;
@@ -114,7 +114,7 @@ export default function MapEditor() {
         const { url } = await resizeToDataUrl(file, 512); // small — it sits inside a marker
         await patchSel({ image: url });
       } else if (uploadTarget.current) {
-        const { url, color } = await resizeToDataUrl(file, 2400);
+        const { url, color } = await resizeToDataUrl(file, 3200);
         await setMapImage(uploadTarget.current, url, color);
       }
     } catch { alert('Could not read that image.'); }

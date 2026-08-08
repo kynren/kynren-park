@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Line, Rect, Circle, Polyline } from 'react-native-svg';
 import { theme } from '../../lib/theme';
 import { useThemePref } from '../../lib/theme-context';
+import { useBrand } from '../../lib/brand';
 import { Touchable } from '../../components/Touchable';
 import { selection } from '../../lib/haptics';
 
@@ -12,6 +13,7 @@ import { selection } from '../../lib/haptics';
 // a light bar in light mode.
 function usePalette() {
   const dark = useThemePref().scheme === 'dark';
+  const { primary } = useBrand();
   return dark
     ? {
         bar: '#171717',
@@ -26,11 +28,11 @@ function usePalette() {
     : {
         bar: '#ffffff',
         inactive: '#8a827b',
-        activeIcon: theme.brand,
-        activeLabel: theme.brand,
+        activeIcon: primary,
+        activeLabel: primary,
         pill: '#f3ede6',
         fabBg: '#ffffff',
-        fabBorder: theme.brand,
+        fabBorder: primary,
         fabInactive: '#8a827b',
       };
 }

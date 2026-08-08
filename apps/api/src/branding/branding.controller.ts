@@ -31,6 +31,7 @@ export class BrandingController {
     for (const k of ['appName', 'tagline', 'primary', 'accent'] as const) {
       if (typeof b?.[k] === 'string' && b[k].trim()) data[k] = b[k].trim();
     }
+    if (typeof b?.font === 'string' && ['system', 'serif', 'rounded', 'mono'].includes(b.font)) data.font = b.font;
     if (b?.logoUrl !== undefined) data.logoUrl = b.logoUrl || null;
     if (b?.iconUrl !== undefined) data.iconUrl = b.iconUrl || null;
     if (b?.faviconUrl !== undefined) data.faviconUrl = b.faviconUrl || null;
