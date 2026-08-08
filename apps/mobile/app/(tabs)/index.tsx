@@ -9,6 +9,7 @@ import { useSync, type Session } from '../../lib/sync';
 import { fmtTime } from '../../lib/format';
 import { theme, categoryColor, statusColor } from '../../lib/theme';
 import { useThemePref } from '../../lib/theme-context';
+import { useBrand } from '../../lib/brand';
 import { SkeletonRows } from '../../components/Shimmer';
 
 const HERO_H = Math.min(520, Math.max(420, Dimensions.get('window').height * 0.56));
@@ -58,7 +59,8 @@ export default function HomeScreen() {
 
   // Admin-designed home screen (published default), if any.
   const home = bundle?.home ?? null;
-  const primary = home?.primaryColor || theme.brand;
+  const brand = useBrand();
+  const primary = home?.primaryColor || brand.primary;
   const tagline = home?.tagline || 'An epic tale\nof England';
   const greeting = home?.greeting || 'Welcome';
   const sectionOrder = home?.sections?.length ? home.sections.filter((s) => s.visible).map((s) => s.key) : DEFAULT_SECTIONS;
