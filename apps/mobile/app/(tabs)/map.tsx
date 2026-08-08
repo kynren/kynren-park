@@ -6,8 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Rect, Circle, Ellipse, Path, G, Polygon, Polyline } from 'react-native-svg';
-import * as Location from 'expo-location';
-import { api, getToken } from '../../lib/api';
+import { useLocation } from '../../lib/location';
 import { useSync } from '../../lib/sync';
 import { fmtTime } from '../../lib/format';
 import { theme } from '../../lib/theme';
@@ -143,7 +142,9 @@ export default function MapScreen() {
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const appliedFocus = useRef<string | null>(null);
   const [favs, setFavs] = useState<Set<string>>(new Set());
-  const [gps, setGps] = useState<{ lat: number; lng: number } | null>(null);
+  // Location is acquired app-wide at boot (during the splash), so the beacon is
+  // ready the moment the map opens — see LocationProvider.
+  const { gps } = useLocation();
   // Seed from the real window size so the map fills the screen from the first
   // frame (never leaving a green margin before onLayout measures precisely).
   const [vp, setVp] = useState(() => { const d = Dimensions.get('window'); return { w: d.width, h: d.height }; });
@@ -209,28 +210,6 @@ export default function MapScreen() {
 
   useEffect(() => {
     AsyncStorage.getItem(FAVS_KEY).then((raw) => raw && setFavs(new Set(JSON.parse(raw))));
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') return;
-        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        if (cancelled) return;
-        const here = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        setGps(here);
-        // Report presence so staff can see who's in the park (signed-in guests only).
-        const token = await getToken();
-        if (token) api('/me/presence', { method: 'POST', body: JSON.stringify(here) }).catch(() => undefined);
-      } catch {
-        /* no location */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
   function toggleFav(attractionId: string) {

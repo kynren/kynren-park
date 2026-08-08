@@ -9,6 +9,7 @@ import { FloatingScanner } from '../components/FloatingScanner';
 import * as Notifications from 'expo-notifications';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { SyncProvider, useSync } from '../lib/sync';
+import { LocationProvider } from '../lib/location';
 import { AuthProvider, registerPushToken } from '../lib/auth';
 import { I18nProvider } from '../lib/i18n';
 import { ThemeProvider, useThemePref } from '../lib/theme-context';
@@ -131,7 +132,9 @@ export default function RootLayout() {
           <AuthProvider>
             <SyncProvider>
               <ThemeProvider>
-                <RootNav />
+                <LocationProvider>
+                  <RootNav />
+                </LocationProvider>
               </ThemeProvider>
             </SyncProvider>
           </AuthProvider>
