@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Animated, Image, TextInput, Keyboard, ScrollView, Dimensions, type LayoutChangeEvent } from 'react-native';
-import Reanimated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
+import Reanimated, { useSharedValue, useAnimatedStyle, withTiming, useAnimatedReaction, runOnJS } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Rect, Circle, Ellipse, Path, G, Polygon, Polyline } from 'react-native-svg';
-import * as Location from 'expo-location';
-import { api, getToken } from '../../lib/api';
+import { useLocation } from '../../lib/location';
 import { useSync } from '../../lib/sync';
 import { fmtTime } from '../../lib/format';
 import { theme } from '../../lib/theme';
@@ -119,6 +118,9 @@ function dijkstra(adj: number[][], nodes: Geo[], start: number, goal: number): n
 
 const MIN_SCALE = 1;
 const MAX_SCALE = 4.5;
+// Render the base map at this multiple of the viewport so it decodes at full
+// source resolution and stays sharp when zoomed in (capped by the image itself).
+const BASE_OVERSAMPLE = 3;
 const HALF_MILE_M = 804.672; // only show the location beacon within this distance of the park
 
 export default function MapScreen() {
@@ -136,11 +138,16 @@ export default function MapScreen() {
   const [search, setSearch] = useState('');
   const [pendingSelect, setPendingSelect] = useState<string | null>(null);
   const [pendingSpot, setPendingSpot] = useState<string | null>(null);
+  // "Find on Map" isolation: when set, only this pin is shown (others hidden)
+  // until the guest taps "Show all pins" — like the Disney app's Find on Map.
+  const [soloId, setSoloId] = useState<string | null>(null);
   const [hintDismissed, setHintDismissed] = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const appliedFocus = useRef<string | null>(null);
   const [favs, setFavs] = useState<Set<string>>(new Set());
-  const [gps, setGps] = useState<{ lat: number; lng: number } | null>(null);
+  // Location is acquired app-wide at boot (during the splash), so the beacon is
+  // ready the moment the map opens — see LocationProvider.
+  const { gps } = useLocation();
   // Seed from the real window size so the map fills the screen from the first
   // frame (never leaving a green margin before onLayout measures precisely).
   const [vp, setVp] = useState(() => { const d = Dimensions.get('window'); return { w: d.width, h: d.height }; });
@@ -165,6 +172,24 @@ export default function MapScreen() {
   // own average colour so they blend, instead of a flat mismatched green.
   const mapBg = bundle?.defaultMap?.bgColor || GRASS;
 
+  // Measure the base map's aspect so we can show it whole (no cropping) and land
+  // pins on the fitted image rather than the full viewport.
+  const [imgAspect, setImgAspect] = useState<number | null>(null);
+  useEffect(() => {
+    if (!mapImageUrl) { setImgAspect(null); return; }
+    let ok = true;
+    Image.getSize(mapImageUrl, (w, h) => { if (ok && h) setImgAspect(w / h); }, () => { if (ok) setImgAspect(null); });
+    return () => { ok = false; };
+  }, [mapImageUrl]);
+
+  // The rectangle the whole map occupies inside the viewport ("contain" fit).
+  // Letterbox space around it is filled with mapBg.
+  const fit = useMemo(() => {
+    if (!imgAspect) return { w: vw, h: vh, x: 0, y: 0 };
+    if (imgAspect > vw / vh) { const h = vw / imgAspect; return { w: vw, h, x: 0, y: (vh - h) / 2 }; }
+    const w = vh * imgAspect; return { w, h: vh, x: (vw - w) / 2, y: 0 };
+  }, [imgAspect, vw, vh]);
+
   // Free panning with a gentle boundary (map can't be fully lost) at any zoom.
   // JS-thread version for programmatic moves (buttons, deep links).
   function clampPanJS(x: number, y: number, s: number) {
@@ -188,28 +213,6 @@ export default function MapScreen() {
 
   useEffect(() => {
     AsyncStorage.getItem(FAVS_KEY).then((raw) => raw && setFavs(new Set(JSON.parse(raw))));
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') return;
-        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        if (cancelled) return;
-        const here = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        setGps(here);
-        // Report presence so staff can see who's in the park (signed-in guests only).
-        const token = await getToken();
-        if (token) api('/me/presence', { method: 'POST', body: JSON.stringify(here) }).catch(() => undefined);
-      } catch {
-        /* no location */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
   function toggleFav(attractionId: string) {
@@ -260,6 +263,15 @@ export default function MapScreen() {
     transform: [{ translateX: panX.value }, { translateY: panY.value }, { scale: scale.value }],
   }));
 
+  // Mirror the live zoom into React state (in coarse 0.25 steps) so pins can be
+  // clustered as the guest zooms — recomputes only a handful of times, not every
+  // frame. Pins that overlap merge into a count bubble; zooming in splits them.
+  const [zoom, setZoom] = useState(1);
+  useAnimatedReaction(
+    () => Math.round(scale.value * 4) / 4,
+    (cur, prev) => { if (cur !== prev) runOnJS(setZoom)(cur); },
+  );
+
   const pois = bundle?.pois ?? [];
 
   // Project a lat/lng to screen pixels, spreading the park across the viewport
@@ -273,13 +285,13 @@ export default function MapScreen() {
     const spanLat = maxLat - minLat || 1;
     const spanLng = maxLng - minLng || 1;
     const toXY = (lat: number, lng: number) => ({
-      x: (PADX + ((lng - minLng) / spanLng) * (1 - 2 * PADX)) * vw,
-      y: (PADY + ((maxLat - lat) / spanLat) * (1 - 2 * PADY)) * vh,
+      x: fit.x + (PADX + ((lng - minLng) / spanLng) * (1 - 2 * PADX)) * fit.w,
+      y: fit.y + (PADY + ((maxLat - lat) / spanLat) * (1 - 2 * PADY)) * fit.h,
     });
     const inBounds = (lat: number, lng: number) =>
       lat >= minLat - spanLat * 0.6 && lat <= maxLat + spanLat * 0.6 && lng >= minLng - spanLng * 0.6 && lng <= maxLng + spanLng * 0.6;
     return { toXY, inBounds };
-  }, [pois, vw, vh]);
+  }, [pois, fit]);
 
   const nextByAttraction = useMemo(() => {
     const m = new Map<string, string>();
@@ -341,6 +353,91 @@ export default function MapScreen() {
     return out;
   }, [cats, bundle, project, poiById, nextByAttraction, favs, pois]);
 
+  // Group pins that sit within ~44 screen-px of each other at the current zoom
+  // into a single cluster (a count bubble). The selected pin is kept out so it
+  // always stays individually visible.
+  const clustered = useMemo(() => {
+    const thr = 44 / Math.max(zoom, 0.001); // map-space distance for ~44px on screen
+    const thr2 = thr * thr;
+    // Find on Map isolates a single pin; otherwise cluster everything (minus the
+    // selected pin, which is always drawn individually on top).
+    const base = soloId ? pins.filter((p) => p.id === soloId) : pins;
+    const src = selected ? base.filter((p) => p.id !== selected.id) : base;
+    const clusters: { x: number; y: number; pins: Pin[] }[] = [];
+    for (const p of src) {
+      let placed = false;
+      for (const c of clusters) {
+        const dx = c.x - p.x, dy = c.y - p.y;
+        if (dx * dx + dy * dy <= thr2) {
+          c.pins.push(p);
+          c.x += (p.x - c.x) / c.pins.length;
+          c.y += (p.y - c.y) / c.pins.length;
+          placed = true; break;
+        }
+      }
+      if (!placed) clusters.push({ x: p.x, y: p.y, pins: [p] });
+    }
+    return clusters;
+  }, [pins, zoom, selected, soloId]);
+
+  // Tapping a cluster zooms in and centres on it, so its pins spread apart.
+  function zoomToCluster(c: { x: number; y: number; pins: Pin[] }) {
+    selection();
+    const s = Math.min(MAX_SCALE, Math.max(zoom * 1.9, 2.4));
+    const cc = clampPanJS((vw / 2 - c.x) * s, (vh / 2 - c.y) * s, s);
+    animateTo(s, cc.x, cc.y);
+  }
+
+  // A single map pin (its look depends on the kind). Used for standalone pins
+  // and for the currently-selected pin (kept out of clusters so it's visible).
+  function renderPin(pin: Pin) {
+    const isSel = selected?.id === pin.id;
+    if (pin.kind === 'evening') {
+      return (
+        <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => { selection(); setSelected(pin); }}>
+          <View style={[styles.pinHead, styles.pinEvening, isSel && styles.pinSel]}>
+            {pin.image ? <Image source={{ uri: pin.image }} style={styles.pinImg} /> : <Text style={styles.pinEmoji}>🌙</Text>}
+          </View>
+          <View style={[styles.pinTail, { borderTopColor: '#2c3e70' }]} />
+          {pin.nextTime && (
+            <View style={styles.pinTime}><Text style={styles.pinTimeTxt} numberOfLines={1}>{fmtTime(pin.nextTime)}</Text></View>
+          )}
+        </Pressable>
+      );
+    }
+    if (pin.kind === 'restaurant') {
+      return (
+        <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => { selection(); setSelected(pin); }}>
+          <View style={[styles.pinHead, isSel && styles.pinSel]}>
+            {pin.image ? <Image source={{ uri: pin.image }} style={styles.pinImg} /> : <Text style={styles.pinEmoji}>🍴</Text>}
+          </View>
+          <View style={styles.pinTail} />
+        </Pressable>
+      );
+    }
+    if (pin.kind === 'facility') {
+      return (
+        <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => { selection(); setSelected(pin); }}>
+          <View style={[styles.pinHead, { backgroundColor: pin.color ?? '#6b6460' }, isSel && styles.pinSel]}>
+            {pin.image ? <Image source={{ uri: pin.image }} style={styles.pinImg} /> : <Text style={styles.pinEmoji}>{pin.emoji}</Text>}
+          </View>
+          <View style={[styles.pinTail, { borderTopColor: pin.color ?? '#6b6460' }]} />
+        </Pressable>
+      );
+    }
+    return (
+      <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => { selection(); setSelected(pin); }}>
+        <View style={[styles.pinHead, isSel && styles.pinSel]}>
+          {pin.image ? <Image source={{ uri: pin.image }} style={styles.pinImg} /> : <Text style={styles.pinNum}>{pin.number}</Text>}
+        </View>
+        <View style={styles.pinTail} />
+        {pin.nextTime && (
+          <View style={styles.pinTime}><Text style={styles.pinTimeTxt} numberOfLines={1}>{fmtTime(pin.nextTime)}</Text></View>
+        )}
+      </Pressable>
+    );
+  }
+
   // Searchable index of everything on the map.
   const searchIndex = useMemo(() => {
     const out: { id: string; name: string; kind: Cat; sub: string }[] = [];
@@ -370,6 +467,7 @@ export default function MapScreen() {
     const s = 2.4;
     const c = clampPanJS((vw / 2 - pin.x) * s, (vh / 2 - pin.y) * s, s);
     animateTo(s, c.x, c.y);
+    setSoloId(pin.id); // Find on Map: isolate this pin
     setPendingSelect(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingSelect, pins, vw, vh]);
@@ -394,6 +492,7 @@ export default function MapScreen() {
     if (!pin) return;
     selection();
     setSelected(pin);
+    setSoloId(pin.id); // scanned spot: isolate it
     const s = 2.6;
     const c = clampPanJS((vw / 2 - pin.x) * s, (vh / 2 - pin.y) * s, s);
     animateTo(s, c.x, c.y);
@@ -440,6 +539,7 @@ export default function MapScreen() {
     const pin = pins.find((p) => p.id === params.focus);
     if (!pin) return;
     appliedFocus.current = params.focus;
+    setSoloId(pin.id); // "Go to" / Find on Map: isolate it
     const s = 2.2;
     const c = clampPanJS((vw / 2 - pin.x) * s, (vh / 2 - pin.y) * s, s);
     animateTo(s, c.x, c.y);
@@ -500,7 +600,20 @@ export default function MapScreen() {
         <GestureDetector gesture={gesture}>
         <Reanimated.View style={[styles.canvas, { width: vw, height: vh }, canvasStyle]}>
           {mapImageUrl ? (
-            <Image source={{ uri: mapImageUrl }} style={{ position: 'absolute', width: vw, height: vh }} resizeMode="cover" />
+            // Render the base map oversampled (a larger layout box counter-scaled
+            // back to viewport size) so React Native decodes it at full source
+            // resolution instead of downsampling to the viewport — this keeps the
+            // illustrated map crisp as the guest zooms in, rather than blurring.
+            <Image
+              source={{ uri: mapImageUrl }}
+              style={{
+                position: 'absolute', top: fit.y, left: fit.x,
+                width: fit.w * BASE_OVERSAMPLE, height: fit.h * BASE_OVERSAMPLE,
+                transform: [{ scale: 1 / BASE_OVERSAMPLE }], transformOrigin: 'top left',
+              }}
+              resizeMode="contain"
+              fadeDuration={0}
+            />
           ) : (
             <ParkBasemap vw={vw} vh={vh} />
           )}
@@ -521,53 +634,17 @@ export default function MapScreen() {
             </Svg>
           )}
 
-          {pins.map((pin) => {
-            const isSel = selected?.id === pin.id;
-            if (pin.kind === 'evening') {
-              return (
-                <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => { selection(); setSelected(pin); }}>
-                  <View style={[styles.pinHead, styles.pinEvening, isSel && styles.pinSel]}>
-                    {pin.image ? <Image source={{ uri: pin.image }} style={styles.pinImg} /> : <Text style={styles.pinEmoji}>🌙</Text>}
-                  </View>
-                  <View style={[styles.pinTail, { borderTopColor: '#2c3e70' }]} />
-                  {pin.nextTime && (
-                    <View style={styles.pinTime}><Text style={styles.pinTimeTxt} numberOfLines={1}>{fmtTime(pin.nextTime)}</Text></View>
-                  )}
-                </Pressable>
-              );
-            }
-            if (pin.kind === 'restaurant') {
-              return (
-                <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => { selection(); setSelected(pin); }}>
-                  <View style={[styles.pinHead, isSel && styles.pinSel]}>
-                    {pin.image ? <Image source={{ uri: pin.image }} style={styles.pinImg} /> : <Text style={styles.pinEmoji}>🍴</Text>}
-                  </View>
-                  <View style={styles.pinTail} />
-                </Pressable>
-              );
-            }
-            if (pin.kind === 'facility') {
-              return (
-                <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => { selection(); setSelected(pin); }}>
-                  <View style={[styles.pinHead, { backgroundColor: pin.color ?? '#6b6460' }, isSel && styles.pinSel]}>
-                    {pin.image ? <Image source={{ uri: pin.image }} style={styles.pinImg} /> : <Text style={styles.pinEmoji}>{pin.emoji}</Text>}
-                  </View>
-                  <View style={[styles.pinTail, { borderTopColor: pin.color ?? '#6b6460' }]} />
-                </Pressable>
-              );
-            }
-            return (
-              <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => { selection(); setSelected(pin); }}>
-                <View style={[styles.pinHead, isSel && styles.pinSel]}>
-                  {pin.image ? <Image source={{ uri: pin.image }} style={styles.pinImg} /> : <Text style={styles.pinNum}>{pin.number}</Text>}
-                </View>
-                <View style={styles.pinTail} />
-                {pin.nextTime && (
-                  <View style={styles.pinTime}><Text style={styles.pinTimeTxt} numberOfLines={1}>{fmtTime(pin.nextTime)}</Text></View>
-                )}
+          {clustered.map((c) =>
+            c.pins.length === 1 ? (
+              renderPin(c.pins[0])
+            ) : (
+              <Pressable key={'c:' + c.pins.map((p) => p.id).join(',')} style={[styles.clusterWrap, { left: c.x, top: c.y }]} onPress={() => zoomToCluster(c)}>
+                <View style={styles.cluster}><Text style={styles.clusterTxt}>{c.pins.length}</Text></View>
               </Pressable>
-            );
-          })}
+            ),
+          )}
+          {/* Keep the selected pin drawn on top (it's excluded from clustering). */}
+          {selected && renderPin(selected)}
 
           {/* You are here — glowing location beacon (hidden when far from the park) */}
           {showMe && (
@@ -698,8 +775,17 @@ export default function MapScreen() {
           </Touchable>
         </View>
 
+        {/* Find on Map isolation: a chip to bring every pin back. */}
+        {soloId && (
+          <View style={[styles.showAllWrap, { top: insets.top + 58 }]} pointerEvents="box-none">
+            <Touchable style={styles.showAllChip} onPress={() => { setSoloId(null); setSelected(null); }}>
+              <Text style={styles.showAllTxt}>← Show all pins</Text>
+            </Touchable>
+          </View>
+        )}
+
         {/* "Tap the map to explore" hint, until the guest opens something */}
-        {!selected && !hintDismissed && (
+        {!selected && !soloId && !hintDismissed && (
           <View style={styles.hintWrap} pointerEvents="box-none">
             <Touchable style={styles.hintChip} onPress={() => setHintDismissed(true)}>
               <Text style={styles.hintChipTxt}>TAP THE MAP TO EXPLORE</Text>
@@ -724,7 +810,7 @@ export default function MapScreen() {
           {PILLS.map((p) => {
             const on = cats.has(p.key);
             return (
-              <Touchable key={p.key} haptic="selection" style={[styles.pill, on && styles.pillOn]} onPress={() => { setCats((prev) => { const n = new Set(prev); if (n.has(p.key)) n.delete(p.key); else n.add(p.key); return n; }); setSelected(null); }}>
+              <Touchable key={p.key} haptic="selection" style={[styles.pill, on && styles.pillOn]} onPress={() => { setCats((prev) => { const n = new Set(prev); if (n.has(p.key)) n.delete(p.key); else n.add(p.key); return n; }); setSelected(null); setSoloId(null); }}>
                 <Text style={[styles.pillEmoji, on && { color: '#fff' }]}>{p.emoji}</Text>
                 <Text style={[styles.pillLabel, on && styles.pillLabelOn]}>{p.label}</Text>
               </Touchable>
@@ -838,6 +924,12 @@ const styles = StyleSheet.create({
   pinTail: { width: 0, height: 0, borderLeftWidth: 7, borderRightWidth: 7, borderTopWidth: 11, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: theme.brand, marginTop: -3 },
   pinTime: { marginTop: 1, backgroundColor: '#fff', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 2, shadowOffset: { width: 0, height: 1 }, elevation: 3 },
   pinTimeTxt: { color: theme.ink, fontWeight: '800', fontSize: 11 },
+  clusterWrap: { position: 'absolute', width: 40, height: 40, marginLeft: -20, marginTop: -20, alignItems: 'center', justifyContent: 'center' },
+  cluster: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.brand, alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3, shadowOffset: { width: 0, height: 2 }, elevation: 6 },
+  clusterTxt: { color: '#fff', fontWeight: '800', fontSize: 15 },
+  showAllWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 90 },
+  showAllChip: { backgroundColor: 'rgba(20,20,20,0.82)', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 5 },
+  showAllTxt: { color: '#fff', fontWeight: '800', fontSize: 13, letterSpacing: 0.3 },
   meWrap: { position: 'absolute', width: 60, height: 60, marginLeft: -30, marginTop: -30, alignItems: 'center', justifyContent: 'center', zIndex: 5 },
   meGlow: { position: 'absolute', width: 46, height: 46, borderRadius: 23, opacity: 0.18 },
   meDot: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#1a73e8', borderWidth: 3.5, borderColor: '#fff', shadowColor: '#1a73e8', shadowOpacity: 0.6, shadowRadius: 5, shadowOffset: { width: 0, height: 1 }, elevation: 6 },
