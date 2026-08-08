@@ -138,6 +138,9 @@ export default function MapScreen() {
   const [search, setSearch] = useState('');
   const [pendingSelect, setPendingSelect] = useState<string | null>(null);
   const [pendingSpot, setPendingSpot] = useState<string | null>(null);
+  // "Find on Map" isolation: when set, only this pin is shown (others hidden)
+  // until the guest taps "Show all pins" — like the Disney app's Find on Map.
+  const [soloId, setSoloId] = useState<string | null>(null);
   const [hintDismissed, setHintDismissed] = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const appliedFocus = useRef<string | null>(null);
@@ -356,7 +359,10 @@ export default function MapScreen() {
   const clustered = useMemo(() => {
     const thr = 44 / Math.max(zoom, 0.001); // map-space distance for ~44px on screen
     const thr2 = thr * thr;
-    const src = selected ? pins.filter((p) => p.id !== selected.id) : pins;
+    // Find on Map isolates a single pin; otherwise cluster everything (minus the
+    // selected pin, which is always drawn individually on top).
+    const base = soloId ? pins.filter((p) => p.id === soloId) : pins;
+    const src = selected ? base.filter((p) => p.id !== selected.id) : base;
     const clusters: { x: number; y: number; pins: Pin[] }[] = [];
     for (const p of src) {
       let placed = false;
@@ -372,7 +378,7 @@ export default function MapScreen() {
       if (!placed) clusters.push({ x: p.x, y: p.y, pins: [p] });
     }
     return clusters;
-  }, [pins, zoom, selected]);
+  }, [pins, zoom, selected, soloId]);
 
   // Tapping a cluster zooms in and centres on it, so its pins spread apart.
   function zoomToCluster(c: { x: number; y: number; pins: Pin[] }) {
@@ -461,6 +467,7 @@ export default function MapScreen() {
     const s = 2.4;
     const c = clampPanJS((vw / 2 - pin.x) * s, (vh / 2 - pin.y) * s, s);
     animateTo(s, c.x, c.y);
+    setSoloId(pin.id); // Find on Map: isolate this pin
     setPendingSelect(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingSelect, pins, vw, vh]);
@@ -485,6 +492,7 @@ export default function MapScreen() {
     if (!pin) return;
     selection();
     setSelected(pin);
+    setSoloId(pin.id); // scanned spot: isolate it
     const s = 2.6;
     const c = clampPanJS((vw / 2 - pin.x) * s, (vh / 2 - pin.y) * s, s);
     animateTo(s, c.x, c.y);
@@ -531,6 +539,7 @@ export default function MapScreen() {
     const pin = pins.find((p) => p.id === params.focus);
     if (!pin) return;
     appliedFocus.current = params.focus;
+    setSoloId(pin.id); // "Go to" / Find on Map: isolate it
     const s = 2.2;
     const c = clampPanJS((vw / 2 - pin.x) * s, (vh / 2 - pin.y) * s, s);
     animateTo(s, c.x, c.y);
@@ -766,8 +775,17 @@ export default function MapScreen() {
           </Touchable>
         </View>
 
+        {/* Find on Map isolation: a chip to bring every pin back. */}
+        {soloId && (
+          <View style={[styles.showAllWrap, { top: insets.top + 58 }]} pointerEvents="box-none">
+            <Touchable style={styles.showAllChip} onPress={() => { setSoloId(null); setSelected(null); }}>
+              <Text style={styles.showAllTxt}>← Show all pins</Text>
+            </Touchable>
+          </View>
+        )}
+
         {/* "Tap the map to explore" hint, until the guest opens something */}
-        {!selected && !hintDismissed && (
+        {!selected && !soloId && !hintDismissed && (
           <View style={styles.hintWrap} pointerEvents="box-none">
             <Touchable style={styles.hintChip} onPress={() => setHintDismissed(true)}>
               <Text style={styles.hintChipTxt}>TAP THE MAP TO EXPLORE</Text>
@@ -792,7 +810,7 @@ export default function MapScreen() {
           {PILLS.map((p) => {
             const on = cats.has(p.key);
             return (
-              <Touchable key={p.key} haptic="selection" style={[styles.pill, on && styles.pillOn]} onPress={() => { setCats((prev) => { const n = new Set(prev); if (n.has(p.key)) n.delete(p.key); else n.add(p.key); return n; }); setSelected(null); }}>
+              <Touchable key={p.key} haptic="selection" style={[styles.pill, on && styles.pillOn]} onPress={() => { setCats((prev) => { const n = new Set(prev); if (n.has(p.key)) n.delete(p.key); else n.add(p.key); return n; }); setSelected(null); setSoloId(null); }}>
                 <Text style={[styles.pillEmoji, on && { color: '#fff' }]}>{p.emoji}</Text>
                 <Text style={[styles.pillLabel, on && styles.pillLabelOn]}>{p.label}</Text>
               </Touchable>
@@ -909,6 +927,9 @@ const styles = StyleSheet.create({
   clusterWrap: { position: 'absolute', width: 40, height: 40, marginLeft: -20, marginTop: -20, alignItems: 'center', justifyContent: 'center' },
   cluster: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.brand, alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3, shadowOffset: { width: 0, height: 2 }, elevation: 6 },
   clusterTxt: { color: '#fff', fontWeight: '800', fontSize: 15 },
+  showAllWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 90 },
+  showAllChip: { backgroundColor: 'rgba(20,20,20,0.82)', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 5 },
+  showAllTxt: { color: '#fff', fontWeight: '800', fontSize: 13, letterSpacing: 0.3 },
   meWrap: { position: 'absolute', width: 60, height: 60, marginLeft: -30, marginTop: -30, alignItems: 'center', justifyContent: 'center', zIndex: 5 },
   meGlow: { position: 'absolute', width: 46, height: 46, borderRadius: 23, opacity: 0.18 },
   meDot: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#1a73e8', borderWidth: 3.5, borderColor: '#fff', shadowColor: '#1a73e8', shadowOpacity: 0.6, shadowRadius: 5, shadowOffset: { width: 0, height: 1 }, elevation: 6 },
