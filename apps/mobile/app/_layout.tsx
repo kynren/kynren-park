@@ -111,6 +111,8 @@ function RootNav() {
         <Stack.Screen name="orders" options={{ title: 'My Orders' }} />
         <Stack.Screen name="settings" options={{ headerShown: false }} />
         <Stack.Screen name="profile" options={{ headerShown: false }} />
+        <Stack.Screen name="favorites" options={{ headerShown: false }} />
+        <Stack.Screen name="seen" options={{ headerShown: false }} />
         <Stack.Screen name="language" options={{ title: 'Language', presentation: 'modal' }} />
         <Stack.Screen name="scan" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
       </Stack>

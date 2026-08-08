@@ -86,8 +86,8 @@ export default function ProfileScreen() {
 
           <View style={{ gap: 10, marginTop: 18 }}>
             <Row pal={pal} icon="M4 7h16v12H4z|M4 11h16|M9 15h2" title="My tickets & passes" sub="Your booked tickets and QR codes" onPress={() => router.push('/orders')} />
-            <Row pal={pal} icon="M12 21s-7-4.35-7-9.5A3.5 3.5 0 0 1 12 8a3.5 3.5 0 0 1 7 3.5C19 16.65 12 21 12 21z" title="My favourites" sub="Your saved shows and activities" onPress={() => router.push('/(tabs)/map')} />
-            <Row pal={pal} icon="M20 6L9 17l-5-5" title="I did it" sub="Everything you've marked as seen" onPress={() => router.push('/(tabs)/map')} />
+            <Row pal={pal} icon="M12 21s-7-4.35-7-9.5A3.5 3.5 0 0 1 12 8a3.5 3.5 0 0 1 7 3.5C19 16.65 12 21 12 21z" title="My favourites" sub="Your saved shows and activities" onPress={() => router.push('/favorites')} />
+            <Row pal={pal} icon="M20 6L9 17l-5-5" title="I did it" sub="Everything you've marked as seen" onPress={() => router.push('/seen')} />
             <Row pal={pal} icon="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z|M19.4 15a1.7 1.7 0 0 0 .3 1.9M4.6 9a1.7 1.7 0 0 0-.3-1.9" title="Account settings" sub="Personal info, accessibility, theme" onPress={() => router.push('/settings')} />
           </View>
 
