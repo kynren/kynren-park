@@ -45,6 +45,10 @@ export default function MapEditor() {
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pressId = useRef<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  // Zoom (1–4) + pan offset (px) for the editor viewport.
+  const [view, setView] = useState({ zoom: 1, x: 0, y: 0 });
+  const panning = useRef(false);
+  const panStart = useRef({ sx: 0, sy: 0, px: 0, py: 0 });
 
   const loadEntities = useCallback(() => {
     api<EntityLite[]>('/admin/attractions').then(setAttractions).catch(() => undefined);
@@ -172,12 +176,36 @@ export default function MapEditor() {
     left: ((p.lng - bounds.minLng) / (bounds.maxLng - bounds.minLng)) * 100,
     top: ((bounds.maxLat - p.lat) / (bounds.maxLat - bounds.minLat)) * 100,
   });
+  const clampPan = (x: number, y: number, z: number, w: number, h: number) => ({
+    x: Math.min(0, Math.max(w * (1 - z), x)),
+    y: Math.min(0, Math.max(h * (1 - z), y)),
+  });
   const unproj = (clientX: number, clientY: number) => {
     const r = canvasRef.current!.getBoundingClientRect();
-    const fx = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
-    const fy = Math.min(1, Math.max(0, (clientY - r.top) / r.height));
+    // Undo the zoom/pan transform to get the point in un-transformed canvas space.
+    const cx = (clientX - r.left - view.x) / view.zoom;
+    const cy = (clientY - r.top - view.y) / view.zoom;
+    const fx = Math.min(1, Math.max(0, cx / r.width));
+    const fy = Math.min(1, Math.max(0, cy / r.height));
     return { lat: bounds.maxLat - fy * (bounds.maxLat - bounds.minLat), lng: bounds.minLng + fx * (bounds.maxLng - bounds.minLng) };
   };
+  // Zoom toward a point (px within the canvas), keeping that point stable.
+  function zoomAt(px: number, py: number, factor: number) {
+    setView((v) => {
+      const r = canvasRef.current?.getBoundingClientRect();
+      const w = r?.width ?? 1, h = r?.height ?? 1;
+      const nz = Math.min(4, Math.max(1, +(v.zoom * factor).toFixed(3)));
+      const contentX = (px - v.x) / v.zoom, contentY = (py - v.y) / v.zoom;
+      return { zoom: nz, ...clampPan(px - contentX * nz, py - contentY * nz, nz, w, h) };
+    });
+  }
+  function zoomCenter(factor: number) { const r = canvasRef.current?.getBoundingClientRect(); zoomAt((r?.width ?? 0) / 2, (r?.height ?? 0) / 2, factor); }
+  function onWheelZoom(e: React.WheelEvent) { const r = canvasRef.current!.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? 1.15 : 1 / 1.15); }
+  function onCanvasPointerDown(e: React.PointerEvent) {
+    if (view.zoom <= 1) return; // pan only when zoomed in
+    panning.current = true; moved.current = false;
+    panStart.current = { sx: e.clientX, sy: e.clientY, px: view.x, py: view.y };
+  }
 
   const selected = pois.find((p) => p.id === selId) ?? null;
 
@@ -196,13 +224,22 @@ export default function MapEditor() {
     createAt(e.clientX, e.clientY);
   }
   function onPointerMove(e: React.PointerEvent) {
-    if (!dragId.current) return; // only moves once press-and-hold has armed a drag
-    moved.current = true;
-    const { lat, lng } = unproj(e.clientX, e.clientY);
-    setPois((prev) => prev.map((p) => (p.id === dragId.current ? { ...p, lat, lng } : p)));
+    if (dragId.current) {
+      moved.current = true;
+      const { lat, lng } = unproj(e.clientX, e.clientY);
+      setPois((prev) => prev.map((p) => (p.id === dragId.current ? { ...p, lat, lng } : p)));
+      return;
+    }
+    if (panning.current) {
+      const r = canvasRef.current!.getBoundingClientRect();
+      moved.current = true;
+      const c = clampPan(panStart.current.px + (e.clientX - panStart.current.sx), panStart.current.py + (e.clientY - panStart.current.sy), view.zoom, r.width, r.height);
+      setView((v) => ({ ...v, x: c.x, y: c.y }));
+    }
   }
   function onPointerUp() {
     if (holdTimer.current) { clearTimeout(holdTimer.current); holdTimer.current = null; }
+    if (panning.current) { panning.current = false; return; }
     const id = dragId.current;
     dragId.current = null;
     if (id) {
@@ -244,15 +281,16 @@ export default function MapEditor() {
     <div>
       <div className="crumb"><Link href="/app-settings">App Settings</Link> › Map &amp; Hotspots</div>
       <div className="page-actions">
-        <div><h1>Map &amp; Hotspots</h1><p className="subtitle" style={{ margin: 0 }}>Click the map to add a hotspot; drag to move. Changes sync to the app map.</p></div>
+        <div><h1>Map &amp; Hotspots</h1><p className="subtitle" style={{ margin: 0 }}>Scroll to zoom, drag to pan (when zoomed). Tap a hotspot to edit, press-hold to move, or click an empty spot to add one.</p></div>
         <label className="checkline"><input type="checkbox" checked={showLabels} onChange={(e) => setShowLabels(e.target.checked)} /> Show labels</label>
       </div>
       {err && <div className="error" onClick={() => setErr('')} style={{ cursor: 'pointer' }}>{err}</div>}
 
       <div className="mapedit">
-        <div>
-          <div ref={canvasRef} className="mapcanvas" onClick={onCanvasClick} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
-            {defaultMap?.imageUrl && <img src={defaultMap.imageUrl} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
+        <div style={{ position: 'relative' }}>
+          <div ref={canvasRef} className="mapcanvas" style={{ overflow: 'hidden' }} onClick={onCanvasClick} onPointerDown={onCanvasPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp} onWheel={onWheelZoom} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
+            <div style={{ position: 'absolute', inset: 0, transformOrigin: '0 0', transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}>
+            {defaultMap?.imageUrl && <img src={defaultMap.imageUrl} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' }} />}
             <div className="grid" />
             {pois.map((p) => {
               const { left, top } = proj(p);
@@ -276,6 +314,13 @@ export default function MapEditor() {
             })}
             {/* Customer marker preview */}
             <div className="custmark" style={{ left: `${custPos.left}%`, top: `${custPos.top}%`, background: config.markerColor, boxShadow: `0 0 0 6px ${config.markerColor}40` }} />
+            </div>{/* /zoom-pan transform */}
+          </div>
+          {/* Zoom controls */}
+          <div style={{ position: 'absolute', top: 10, right: 10, display: 'flex', flexDirection: 'column', gap: 6, zIndex: 5 }}>
+            <button className="tbtn" style={{ width: 34, height: 34, padding: 0, fontSize: 18, lineHeight: 1 }} onClick={() => zoomCenter(1.3)} title="Zoom in">＋</button>
+            <button className="tbtn" style={{ width: 34, height: 34, padding: 0, fontSize: 18, lineHeight: 1 }} onClick={() => zoomCenter(1 / 1.3)} title="Zoom out">－</button>
+            <button className="tbtn" style={{ width: 34, height: 34, padding: 0, fontSize: 15, lineHeight: 1 }} onClick={() => setView({ zoom: 1, x: 0, y: 0 })} title="Reset view">⤢</button>
           </div>
           <p className="maphint">🟦 The ringed marker previews the guest’s “you are here” marker. Hotspots are coloured by type unless overridden.</p>
         </div>
