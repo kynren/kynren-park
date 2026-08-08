@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { api, friendlyError } from '../../../../lib/api';
 import { confirmDelete, promptText } from '../../../../lib/confirm';
@@ -9,6 +9,15 @@ import { QrButton } from '../../../../components/QrButton';
 interface Poi { id: string; type: string; name: string; lat: number; lng: number; color: string | null; mapZone: string | null; image: string | null }
 interface MapConfig { markerColor: string; markerStyle: string; mapImageUrl: string | null }
 interface ParkMap { id: string; name: string; imageUrl: string | null; bgColor: string | null; isDefault: boolean }
+interface EntityLite { id: string; name: string; poiId: string | null; heroImage?: string | null; category?: string }
+type DragEntity = { kind: 'attraction' | 'restaurant' | 'facility'; id?: string; type?: string; name: string; heroImage?: string | null };
+
+// Facility types offered in the drag palette (attractions/restaurants come from data).
+const FACILITY_PALETTE: [string, string][] = [
+  ['RESTROOM', 'Restroom'], ['FIRST_AID', 'First aid'], ['SHOP', 'Shop'], ['PARKING', 'Parking'],
+  ['ACCESSIBILITY', 'Accessibility'], ['BABY_CHANGING', 'Baby changing'], ['PICNIC', 'Picnic'], ['ENTRANCE', 'Entrance'], ['INFO', 'Info'],
+];
+const dragChipStyle: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 999, background: 'var(--card)', border: '1px solid var(--line)', fontSize: 12, fontWeight: 600, cursor: 'grab' };
 
 const TYPES = ['ATTRACTION', 'RESTAURANT', 'RESTROOM', 'SHOP', 'FIRST_AID', 'ENTRANCE', 'PARKING', 'ACCESSIBILITY', 'BABY_CHANGING', 'PICNIC', 'INFO'];
 const TYPE_COLOR: Record<string, string> = {
@@ -25,17 +34,48 @@ export default function MapEditor() {
   const [newMapName, setNewMapName] = useState('');
   const [showLabels, setShowLabels] = useState(true);
   const [selId, setSelId] = useState<string | null>(null);
+  const [attractions, setAttractions] = useState<EntityLite[]>([]);
+  const [restaurants, setRestaurants] = useState<EntityLite[]>([]);
   const [err, setErr] = useState('');
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragId = useRef<string | null>(null);
   const moved = useRef(false);
 
+  const loadEntities = useCallback(() => {
+    api<EntityLite[]>('/admin/attractions').then(setAttractions).catch(() => undefined);
+    api<EntityLite[]>('/admin/restaurants').then(setRestaurants).catch(() => undefined);
+  }, []);
   const load = useCallback(() => {
     api<Poi[]>('/admin/pois').then(setPois).catch(() => undefined);
     api<MapConfig>('/admin/map-config').then((c) => setConfig({ markerColor: c.markerColor, markerStyle: c.markerStyle, mapImageUrl: c.mapImageUrl })).catch(() => undefined);
     api<ParkMap[]>('/admin/maps').then(setMaps).catch(() => undefined);
-  }, []);
+    loadEntities();
+  }, [loadEntities]);
   useEffect(load, [load]);
+
+  // Drop an entity from the palette onto the map: create a hotspot at the point
+  // and (for attractions/restaurants) link it, so it leaves the palette.
+  async function placeEntity(data: DragEntity, lat: number, lng: number) {
+    try {
+      if (data.kind === 'facility') {
+        const created = await api<Poi>('/admin/pois', { method: 'POST', body: JSON.stringify({ name: data.name, type: data.type, lat, lng }) });
+        setPois((p) => [...p, created]); setSelId(created.id); setErr('');
+        return;
+      }
+      const type = data.kind === 'restaurant' ? 'RESTAURANT' : 'ATTRACTION';
+      const created = await api<Poi>('/admin/pois', { method: 'POST', body: JSON.stringify({ name: data.name, type, lat, lng, image: data.heroImage ?? null }) });
+      await api(`/admin/${data.kind === 'restaurant' ? 'restaurants' : 'attractions'}/${data.id}`, { method: 'PATCH', body: JSON.stringify({ poiId: created.id }) });
+      setPois((p) => [...p, created]); setSelId(created.id); setErr('');
+      loadEntities();
+    } catch (e) { setErr(friendlyError(e, 'Could not place that on the map.')); }
+  }
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault();
+    const raw = e.dataTransfer.getData('text/plain'); if (!raw) return;
+    let data: DragEntity; try { data = JSON.parse(raw); } catch { return; }
+    const { lat, lng } = unproj(e.clientX, e.clientY);
+    placeEntity(data, lat, lng);
+  }
 
   const refreshMaps = () => api<ParkMap[]>('/admin/maps').then(setMaps).catch(() => undefined);
   async function addMap() {
@@ -182,6 +222,7 @@ export default function MapEditor() {
       await api(`/admin/pois/${selected.id}`, { method: 'DELETE' });
       setPois((prev) => prev.filter((p) => p.id !== selected.id));
       setSelId(null); setErr('');
+      loadEntities(); // any attraction/restaurant that was linked returns to the palette
     } catch (e) { setErr(friendlyError(e, 'Could not delete the hotspot.')); }
   }
   async function saveConfig(patch: Partial<MapConfig>) {
@@ -205,7 +246,7 @@ export default function MapEditor() {
 
       <div className="mapedit">
         <div>
-          <div ref={canvasRef} className="mapcanvas" onClick={onCanvasClick} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp}>
+          <div ref={canvasRef} className="mapcanvas" onClick={onCanvasClick} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
             {defaultMap?.imageUrl && <img src={defaultMap.imageUrl} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
             <div className="grid" />
             {pois.map((p) => {
@@ -231,6 +272,31 @@ export default function MapEditor() {
 
         {/* Side panel */}
         <div style={{ display: 'grid', gap: 16 }}>
+          {/* Drag-and-drop palette: unplaced entities + reusable facility types */}
+          <div className="editcard">
+            <h3 style={{ margin: 0 }}>Place on map</h3>
+            <p className="hint" style={{ margin: '6px 0 12px' }}>Drag an item onto the map to drop a hotspot. Delete a hotspot to bring its entity back here.</p>
+            {attractions.filter((a) => !a.poiId).length === 0 && restaurants.filter((r) => !r.poiId).length === 0 && (
+              <p style={{ color: 'var(--muted)', fontSize: 13, margin: '0 0 10px' }}>All attractions &amp; restaurants are placed. ✓</p>
+            )}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {attractions.filter((a) => !a.poiId).map((a) => (
+                <span key={a.id} draggable style={dragChipStyle}
+                  onDragStart={(e) => e.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'attraction', id: a.id, name: a.name, heroImage: a.heroImage } as DragEntity))}>🎭 {a.name}</span>
+              ))}
+              {restaurants.filter((r) => !r.poiId).map((r) => (
+                <span key={r.id} draggable style={dragChipStyle}
+                  onDragStart={(e) => e.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'restaurant', id: r.id, name: r.name } as DragEntity))}>🍴 {r.name}</span>
+              ))}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--muted)', margin: '12px 0 6px', fontWeight: 700 }}>Facilities (reusable)</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {FACILITY_PALETTE.map(([type, label]) => (
+                <span key={type} draggable style={dragChipStyle}
+                  onDragStart={(e) => e.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'facility', type, name: label } as DragEntity))}>{label}</span>
+              ))}
+            </div>
+          </div>
           <div className="editcard">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
               <h3 style={{ margin: 0 }}>Base maps</h3>
@@ -249,7 +315,7 @@ export default function MapEditor() {
                     style={{ width: 18, height: 18, borderRadius: '50%', border: 0, cursor: 'pointer', background: m.isDefault ? '#22b365' : '#fff', boxShadow: '0 0 0 1px var(--border)' }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: 14 }}>{m.name} {m.isDefault && <span className="pillbadge on">Default</span>}</div>
-                    <div style={{ fontSize: 12, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.imageUrl ?? 'no image (illustrated map)'}</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>{m.imageUrl ? (m.imageUrl.startsWith('data:') ? 'Uploaded image' : m.imageUrl) : 'no image (illustrated map)'}</div>
                   </div>
                   <button className="tbtn" onClick={() => triggerUpload(m.id)}>Upload</button>
                   <button className="tbtn" onClick={async () => { const u = await promptText('Image URL (leave blank to remove)', m.imageUrl ?? '', 'Map image URL'); if (u !== null) setMapImage(m.id, u.trim() || null); }}>URL</button>
