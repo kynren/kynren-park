@@ -227,14 +227,16 @@ export default function MapScreen() {
     const clamp = (x: number, y: number, s: number) => {
       'worklet';
       const w = vpw.value || 375, h = vph.value || 680;
-      const maxX = ((s - 1) * w) / 2 + w * 0.45;
-      const maxY = ((s - 1) * h) / 2 + h * 0.45;
+      // No overscroll: the pannable range is bounded by the image edges.
+      const maxX = ((s - 1) * w) / 2;
+      const maxY = ((s - 1) * h) / 2;
       return { x: Math.max(-maxX, Math.min(maxX, x)), y: Math.max(-maxY, Math.min(maxY, y)) };
     };
     const pan = Gesture.Pan()
       .maxPointers(1)
       .onStart(() => { startX.value = panX.value; startY.value = panY.value; })
       .onUpdate((e) => {
+        if (scale.value <= MIN_SCALE) return; // only pan when zoomed in
         const c = clamp(startX.value + e.translationX, startY.value + e.translationY, scale.value);
         panX.value = c.x; panY.value = c.y;
       });
@@ -856,7 +858,7 @@ const styles = StyleSheet.create({
   geoIcon: { fontSize: 18 },
   geoTxt: { flex: 1, color: '#f0a8a8', fontSize: 14, fontWeight: '600' },
   geoClose: { color: '#f0a8a8', fontSize: 16, fontWeight: '700' },
-  hint: { position: 'absolute', top: 120, left: 24, right: 24, backgroundColor: 'rgba(255,255,255,0.97)', borderRadius: 12, padding: 14, zIndex: 80, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 10 },
+  hint: { position: 'absolute', bottom: 128, left: 24, right: 24, backgroundColor: 'rgba(255,255,255,0.97)', borderRadius: 12, padding: 14, zIndex: 80, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 10 },
   hintText: { textAlign: 'center', color: theme.ink, fontWeight: '600', fontSize: 13 },
   profileBtn: { position: 'absolute', right: 14, top: 14, width: 44, height: 44, borderRadius: 22, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 4, elevation: 4 },
   searchWrap: { position: 'absolute', top: 14, left: 14, right: 66, zIndex: 60 },
