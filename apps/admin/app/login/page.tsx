@@ -6,8 +6,8 @@ import { api, setSession, ApiError, API_URL, type Staff } from '../../lib/api';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('admin@kynren.com');
-  const [password, setPassword] = useState('kynren-admin');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPw, setShowPw] = useState(false);
@@ -49,7 +49,7 @@ export default function LoginPage() {
         <p className="subtitle" style={{ textAlign: 'center' }}>The Storied Lands — Operations</p>
         {notice && <div className="error" style={{ background: '#fbf1dd', color: 'var(--warn)' }}>{notice}</div>}
         <label>Email</label>
-        <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" />
+        <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="username" />
         <label>Password</label>
         <div style={{ position: 'relative' }}>
           <input value={password} onChange={(e) => setPassword(e.target.value)} type={showPw ? 'text' : 'password'} style={{ width: '100%', paddingRight: 58 }} />
@@ -62,7 +62,6 @@ export default function LoginPage() {
         <button className="primary" style={{ width: '100%', marginTop: 18 }} disabled={loading}>
           {loading ? 'Signing in…' : 'Sign in'}
         </button>
-        <p className="hint">Seed login: admin@kynren.com / kynren-admin</p>
       </form>
     </div>
   );
