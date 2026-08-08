@@ -129,7 +129,7 @@ export default function MapEditor() {
   function triggerSpotUpload() { uploadKind.current = 'spot'; fileInputRef.current?.click(); }
   // Returns the resized JPEG data URL plus the image's average colour (used to
   // fill the map screen's edges on mobile so they blend with the map).
-  function resizeToDataUrl(file: File, maxDim: number): Promise<{ url: string; color: string }> {
+  function resizeToDataUrl(file: File, maxDim: number, quality = 0.9): Promise<{ url: string; color: string }> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => {
@@ -139,8 +139,9 @@ export default function MapEditor() {
           const w = Math.round(img.width * s), h = Math.round(img.height * s);
           const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
           const ctx = canvas.getContext('2d')!;
+          ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
           ctx.drawImage(img, 0, 0, w, h);
-          const url = canvas.toDataURL('image/jpeg', 0.9);
+          const url = canvas.toDataURL('image/jpeg', quality);
           let r = 0, g = 0, b = 0, n = 0;
           try {
             const d = ctx.getImageData(0, 0, w, h).data;
@@ -165,7 +166,7 @@ export default function MapEditor() {
         const { url } = await resizeToDataUrl(file, 512); // small — it sits inside a marker
         await patchSel({ image: url });
       } else if (uploadTarget.current) {
-        const { url, color } = await resizeToDataUrl(file, 3200);
+        const { url, color } = await resizeToDataUrl(file, 4096, 0.92);
         await setMapImage(uploadTarget.current, url, color);
       }
     } catch { alert('Could not read that image.'); }
@@ -363,9 +364,10 @@ export default function MapEditor() {
               <button className="primary" onClick={uploadBaseMap}>⬆ Upload map image</button>
             </div>
             <p style={{ color: 'var(--muted)', fontSize: 12, margin: '10px 0 12px', lineHeight: 1.5 }}>
-              The <b>default</b> map is what the mobile app shows. Recommended image: <b>2000–3000&nbsp;px</b> on the
-              longest edge, roughly <b>4:3</b>, <b>PNG or JPG</b>, under <b>5&nbsp;MB</b> — big enough to stay sharp when
-              guests zoom in, small enough to load fast.
+              The <b>default</b> map is what the mobile app shows. For the illustrated 3D look, use a <b>portrait,
+              phone-shaped</b> image (about <b>9:19.5</b>, e.g. <b>1440&nbsp;×&nbsp;3120&nbsp;px</b> or larger) so it
+              fills the screen edge-to-edge with no cropping. Up to <b>4096&nbsp;px</b> on the longest edge is kept for
+              sharpness when guests zoom in; <b>PNG or JPG</b>, under <b>15&nbsp;MB</b>.
             </p>
             <div style={{ display: 'grid', gap: 8 }}>
               {maps.length === 0 && <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0 }}>No maps yet — add one below.</p>}

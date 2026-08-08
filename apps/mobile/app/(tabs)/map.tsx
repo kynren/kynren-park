@@ -119,6 +119,9 @@ function dijkstra(adj: number[][], nodes: Geo[], start: number, goal: number): n
 
 const MIN_SCALE = 1;
 const MAX_SCALE = 4.5;
+// Render the base map at this multiple of the viewport so it decodes at full
+// source resolution and stays sharp when zoomed in (capped by the image itself).
+const BASE_OVERSAMPLE = 3;
 const HALF_MILE_M = 804.672; // only show the location beacon within this distance of the park
 
 export default function MapScreen() {
@@ -500,7 +503,20 @@ export default function MapScreen() {
         <GestureDetector gesture={gesture}>
         <Reanimated.View style={[styles.canvas, { width: vw, height: vh }, canvasStyle]}>
           {mapImageUrl ? (
-            <Image source={{ uri: mapImageUrl }} style={{ position: 'absolute', width: vw, height: vh }} resizeMode="cover" />
+            // Render the base map oversampled (a larger layout box counter-scaled
+            // back to viewport size) so React Native decodes it at full source
+            // resolution instead of downsampling to the viewport — this keeps the
+            // illustrated map crisp as the guest zooms in, rather than blurring.
+            <Image
+              source={{ uri: mapImageUrl }}
+              style={{
+                position: 'absolute', top: 0, left: 0,
+                width: vw * BASE_OVERSAMPLE, height: vh * BASE_OVERSAMPLE,
+                transform: [{ scale: 1 / BASE_OVERSAMPLE }], transformOrigin: 'top left',
+              }}
+              resizeMode="cover"
+              fadeDuration={0}
+            />
           ) : (
             <ParkBasemap vw={vw} vh={vh} />
           )}
