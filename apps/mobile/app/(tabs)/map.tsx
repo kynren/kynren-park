@@ -862,8 +862,9 @@ const styles = StyleSheet.create({
   hintText: { textAlign: 'center', color: theme.ink, fontWeight: '600', fontSize: 13 },
   profileBtn: { position: 'absolute', right: 14, top: 14, width: 44, height: 44, borderRadius: 22, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 4, elevation: 4 },
   searchWrap: { position: 'absolute', top: 14, left: 14, right: 66, zIndex: 60 },
-  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 12, height: 44, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
-  searchIcon: { fontSize: 14 },
+  // Frosted/translucent so it blends into the map rather than a solid block.
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.72)', borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.55)', paddingHorizontal: 12, height: 44, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
+  searchIcon: { fontSize: 14, opacity: 0.8 },
   searchInput: { flex: 1, fontSize: 15, color: theme.ink, padding: 0 },
   searchClear: { color: theme.muted, fontSize: 14, fontWeight: '700' },
   searchResults: { backgroundColor: '#fff', borderRadius: 12, marginTop: 6, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6, elevation: 6 },
