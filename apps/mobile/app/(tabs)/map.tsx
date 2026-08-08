@@ -130,7 +130,8 @@ export default function MapScreen() {
     ? { card: '#1f1f24', ink: '#ffffff', muted: '#a5a5ad' }
     : { card: '#ffffff', ink: theme.ink, muted: theme.muted };
   const params = useLocalSearchParams<{ focus?: string; spot?: string }>();
-  const [cat, setCat] = useState<Cat>('shows');
+  // Multiple categories can be active at once; defaults to Shows on first load.
+  const [cats, setCats] = useState<Set<Cat>>(() => new Set<Cat>(['shows']));
   const [selected, setSelected] = useState<Pin | null>(null);
   const [search, setSearch] = useState('');
   const [pendingSelect, setPendingSelect] = useState<string | null>(null);
@@ -296,7 +297,7 @@ export default function MapScreen() {
   const pins = useMemo<Pin[]>(() => {
     if (!project) return [];
     const out: Pin[] = [];
-    if (cat === 'restaurants') {
+    if (cats.has('restaurants')) {
       for (const r of bundle?.restaurants ?? []) {
         if (!r.poiId) continue;
         const poi = poiById.get(r.poiId);
@@ -304,30 +305,30 @@ export default function MapScreen() {
         const { x, y } = project.toXY(poi.lat, poi.lng);
         out.push({ id: r.id, x, y, lat: poi.lat, lng: poi.lng, slug: r.slug, image: poi.image, kind: 'restaurant', emoji: '🍴', title: r.name, subtitle: r.cuisine ?? undefined, zone: poi.mapZone });
       }
-      return out;
     }
-    if (cat === 'facilities') {
+    if (cats.has('facilities')) {
       for (const poi of pois) {
         const def = FACILITY_TYPES[poi.type];
         if (!def) continue; // attractions & restaurants have their own filters
         const { x, y } = project.toXY(poi.lat, poi.lng);
         out.push({ id: poi.id, x, y, lat: poi.lat, lng: poi.lng, image: poi.image, kind: 'facility', emoji: poi.icon ?? def.emoji, color: poi.color ?? def.color, title: poi.name, subtitle: poi.type.replace('_', ' ').toLowerCase(), zone: poi.mapZone });
       }
-      return out;
     }
-    const dayAttractions = (bundle?.attractions ?? []).filter((a) => a.category !== 'EVENING_SHOW');
-    dayAttractions.forEach((a, i) => {
-      if (!a.poiId) return;
-      if (cat === 'favorites' && !favs.has(a.id)) return;
-      const poi = poiById.get(a.poiId);
-      if (!poi) return;
-      const { x, y } = project.toXY(poi.lat, poi.lng);
-      // Prefer the attraction's featured image so the admin's hero image drives the map pin.
-      out.push({ id: a.id, attractionId: a.id, x, y, lat: poi.lat, lng: poi.lng, slug: a.slug, image: a.heroImage || poi.image, kind: 'show', number: i + 1, title: a.name, subtitle: a.tagline ?? undefined, nextTime: nextByAttraction.get(a.id), zone: poi.mapZone });
-    });
-    if (cat === 'shows') {
+    const showAll = cats.has('shows');
+    const showFavs = cats.has('favorites');
+    if (showAll || showFavs) {
+      const dayAttractions = (bundle?.attractions ?? []).filter((a) => a.category !== 'EVENING_SHOW');
+      dayAttractions.forEach((a, i) => {
+        if (!a.poiId) return;
+        if (!showAll && showFavs && !favs.has(a.id)) return; // favourites-only filter
+        const poi = poiById.get(a.poiId);
+        if (!poi) return;
+        const { x, y } = project.toXY(poi.lat, poi.lng);
+        // Prefer the attraction's featured image so the admin's hero image drives the map pin.
+        out.push({ id: a.id, attractionId: a.id, x, y, lat: poi.lat, lng: poi.lng, slug: a.slug, image: a.heroImage || poi.image, kind: 'show', number: i + 1, title: a.name, subtitle: a.tagline ?? undefined, nextTime: nextByAttraction.get(a.id), zone: poi.mapZone });
+      });
       const evening = (bundle?.attractions ?? []).find((a) => a.category === 'EVENING_SHOW');
-      if (evening?.poiId) {
+      if (evening?.poiId && (showAll || favs.has(evening.id))) {
         const poi = poiById.get(evening.poiId);
         if (poi) {
           const { x, y } = project.toXY(poi.lat, poi.lng);
@@ -336,7 +337,7 @@ export default function MapScreen() {
       }
     }
     return out;
-  }, [cat, bundle, project, poiById, nextByAttraction, favs]);
+  }, [cats, bundle, project, poiById, nextByAttraction, favs, pois]);
 
   // Searchable index of everything on the map.
   const searchIndex = useMemo(() => {
@@ -353,7 +354,7 @@ export default function MapScreen() {
   }, [search, searchIndex]);
 
   function goToResult(r: { id: string; kind: Cat }) {
-    setCat(r.kind);
+    setCats((p) => new Set(p).add(r.kind));
     setPendingSelect(r.id);
     setSearch('');
     Keyboard.dismiss();
@@ -379,7 +380,7 @@ export default function MapScreen() {
   useEffect(() => {
     if (!params.spot || !bundle) return;
     const [type, id] = String(params.spot).split(':');
-    setCat(type === 'restaurant' ? 'restaurants' : type === 'poi' ? 'facilities' : 'shows');
+    setCats(new Set<Cat>([type === 'restaurant' ? 'restaurants' : type === 'poi' ? 'facilities' : 'shows']));
     setPendingSpot(id);
     setBannerDismissed(false);
   }, [params.spot, bundle]);
@@ -426,7 +427,7 @@ export default function MapScreen() {
   useEffect(() => {
     if (!params.focus) return;
     const isRestaurant = (bundle?.restaurants ?? []).some((r) => r.id === params.focus);
-    setCat(isRestaurant ? 'restaurants' : 'shows');
+    setCats(new Set<Cat>([isRestaurant ? 'restaurants' : 'shows']));
     appliedFocus.current = null;
     setBannerDismissed(false);
   }, [params.focus, bundle]);
@@ -634,7 +635,7 @@ export default function MapScreen() {
         )}
 
         {/* Empty favourites hint */}
-        {cat === 'favorites' && pins.length === 0 && (
+        {cats.has('favorites') && pins.length === 0 && (
           <View style={styles.hint} pointerEvents="none">
             <Text style={styles.hintText}>No favourites yet — open a show and tap ♡ to add it here.</Text>
           </View>
@@ -717,9 +718,9 @@ export default function MapScreen() {
           contentContainerStyle={styles.pillsContent}
         >
           {PILLS.map((p) => {
-            const on = cat === p.key;
+            const on = cats.has(p.key);
             return (
-              <Touchable key={p.key} haptic="selection" style={[styles.pill, on && styles.pillOn]} onPress={() => { setCat(p.key); setSelected(null); }}>
+              <Touchable key={p.key} haptic="selection" style={[styles.pill, on && styles.pillOn]} onPress={() => { setCats((prev) => { const n = new Set(prev); if (n.has(p.key)) n.delete(p.key); else n.add(p.key); return n; }); setSelected(null); }}>
                 <Text style={[styles.pillEmoji, on && { color: '#fff' }]}>{p.emoji}</Text>
                 <Text style={[styles.pillLabel, on && styles.pillLabelOn]}>{p.label}</Text>
               </Touchable>
@@ -855,7 +856,7 @@ const styles = StyleSheet.create({
   geoIcon: { fontSize: 18 },
   geoTxt: { flex: 1, color: '#f0a8a8', fontSize: 14, fontWeight: '600' },
   geoClose: { color: '#f0a8a8', fontSize: 16, fontWeight: '700' },
-  hint: { position: 'absolute', top: 20, left: 24, right: 24, backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 12, padding: 14 },
+  hint: { position: 'absolute', top: 120, left: 24, right: 24, backgroundColor: 'rgba(255,255,255,0.97)', borderRadius: 12, padding: 14, zIndex: 80, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 10 },
   hintText: { textAlign: 'center', color: theme.ink, fontWeight: '600', fontSize: 13 },
   profileBtn: { position: 'absolute', right: 14, top: 14, width: 44, height: 44, borderRadius: 22, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 4, elevation: 4 },
   searchWrap: { position: 'absolute', top: 14, left: 14, right: 66, zIndex: 60 },
