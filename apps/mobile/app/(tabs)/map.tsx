@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Animated, Image, TextInput, Keyboard, ScrollView, Dimensions, type LayoutChangeEvent } from 'react-native';
-import Reanimated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
+import Reanimated, { useSharedValue, useAnimatedStyle, withTiming, useAnimatedReaction, runOnJS } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -260,6 +260,15 @@ export default function MapScreen() {
     transform: [{ translateX: panX.value }, { translateY: panY.value }, { scale: scale.value }],
   }));
 
+  // Mirror the live zoom into React state (in coarse 0.25 steps) so pins can be
+  // clustered as the guest zooms — recomputes only a handful of times, not every
+  // frame. Pins that overlap merge into a count bubble; zooming in splits them.
+  const [zoom, setZoom] = useState(1);
+  useAnimatedReaction(
+    () => Math.round(scale.value * 4) / 4,
+    (cur, prev) => { if (cur !== prev) runOnJS(setZoom)(cur); },
+  );
+
   const pois = bundle?.pois ?? [];
 
   // Project a lat/lng to screen pixels, spreading the park across the viewport
@@ -340,6 +349,88 @@ export default function MapScreen() {
     }
     return out;
   }, [cats, bundle, project, poiById, nextByAttraction, favs, pois]);
+
+  // Group pins that sit within ~44 screen-px of each other at the current zoom
+  // into a single cluster (a count bubble). The selected pin is kept out so it
+  // always stays individually visible.
+  const clustered = useMemo(() => {
+    const thr = 44 / Math.max(zoom, 0.001); // map-space distance for ~44px on screen
+    const thr2 = thr * thr;
+    const src = selected ? pins.filter((p) => p.id !== selected.id) : pins;
+    const clusters: { x: number; y: number; pins: Pin[] }[] = [];
+    for (const p of src) {
+      let placed = false;
+      for (const c of clusters) {
+        const dx = c.x - p.x, dy = c.y - p.y;
+        if (dx * dx + dy * dy <= thr2) {
+          c.pins.push(p);
+          c.x += (p.x - c.x) / c.pins.length;
+          c.y += (p.y - c.y) / c.pins.length;
+          placed = true; break;
+        }
+      }
+      if (!placed) clusters.push({ x: p.x, y: p.y, pins: [p] });
+    }
+    return clusters;
+  }, [pins, zoom, selected]);
+
+  // Tapping a cluster zooms in and centres on it, so its pins spread apart.
+  function zoomToCluster(c: { x: number; y: number; pins: Pin[] }) {
+    selection();
+    const s = Math.min(MAX_SCALE, Math.max(zoom * 1.9, 2.4));
+    const cc = clampPanJS((vw / 2 - c.x) * s, (vh / 2 - c.y) * s, s);
+    animateTo(s, cc.x, cc.y);
+  }
+
+  // A single map pin (its look depends on the kind). Used for standalone pins
+  // and for the currently-selected pin (kept out of clusters so it's visible).
+  function renderPin(pin: Pin) {
+    const isSel = selected?.id === pin.id;
+    if (pin.kind === 'evening') {
+      return (
+        <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => { selection(); setSelected(pin); }}>
+          <View style={[styles.pinHead, styles.pinEvening, isSel && styles.pinSel]}>
+            {pin.image ? <Image source={{ uri: pin.image }} style={styles.pinImg} /> : <Text style={styles.pinEmoji}>🌙</Text>}
+          </View>
+          <View style={[styles.pinTail, { borderTopColor: '#2c3e70' }]} />
+          {pin.nextTime && (
+            <View style={styles.pinTime}><Text style={styles.pinTimeTxt} numberOfLines={1}>{fmtTime(pin.nextTime)}</Text></View>
+          )}
+        </Pressable>
+      );
+    }
+    if (pin.kind === 'restaurant') {
+      return (
+        <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => { selection(); setSelected(pin); }}>
+          <View style={[styles.pinHead, isSel && styles.pinSel]}>
+            {pin.image ? <Image source={{ uri: pin.image }} style={styles.pinImg} /> : <Text style={styles.pinEmoji}>🍴</Text>}
+          </View>
+          <View style={styles.pinTail} />
+        </Pressable>
+      );
+    }
+    if (pin.kind === 'facility') {
+      return (
+        <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => { selection(); setSelected(pin); }}>
+          <View style={[styles.pinHead, { backgroundColor: pin.color ?? '#6b6460' }, isSel && styles.pinSel]}>
+            {pin.image ? <Image source={{ uri: pin.image }} style={styles.pinImg} /> : <Text style={styles.pinEmoji}>{pin.emoji}</Text>}
+          </View>
+          <View style={[styles.pinTail, { borderTopColor: pin.color ?? '#6b6460' }]} />
+        </Pressable>
+      );
+    }
+    return (
+      <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => { selection(); setSelected(pin); }}>
+        <View style={[styles.pinHead, isSel && styles.pinSel]}>
+          {pin.image ? <Image source={{ uri: pin.image }} style={styles.pinImg} /> : <Text style={styles.pinNum}>{pin.number}</Text>}
+        </View>
+        <View style={styles.pinTail} />
+        {pin.nextTime && (
+          <View style={styles.pinTime}><Text style={styles.pinTimeTxt} numberOfLines={1}>{fmtTime(pin.nextTime)}</Text></View>
+        )}
+      </Pressable>
+    );
+  }
 
   // Searchable index of everything on the map.
   const searchIndex = useMemo(() => {
@@ -534,53 +625,17 @@ export default function MapScreen() {
             </Svg>
           )}
 
-          {pins.map((pin) => {
-            const isSel = selected?.id === pin.id;
-            if (pin.kind === 'evening') {
-              return (
-                <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => { selection(); setSelected(pin); }}>
-                  <View style={[styles.pinHead, styles.pinEvening, isSel && styles.pinSel]}>
-                    {pin.image ? <Image source={{ uri: pin.image }} style={styles.pinImg} /> : <Text style={styles.pinEmoji}>🌙</Text>}
-                  </View>
-                  <View style={[styles.pinTail, { borderTopColor: '#2c3e70' }]} />
-                  {pin.nextTime && (
-                    <View style={styles.pinTime}><Text style={styles.pinTimeTxt} numberOfLines={1}>{fmtTime(pin.nextTime)}</Text></View>
-                  )}
-                </Pressable>
-              );
-            }
-            if (pin.kind === 'restaurant') {
-              return (
-                <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => { selection(); setSelected(pin); }}>
-                  <View style={[styles.pinHead, isSel && styles.pinSel]}>
-                    {pin.image ? <Image source={{ uri: pin.image }} style={styles.pinImg} /> : <Text style={styles.pinEmoji}>🍴</Text>}
-                  </View>
-                  <View style={styles.pinTail} />
-                </Pressable>
-              );
-            }
-            if (pin.kind === 'facility') {
-              return (
-                <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => { selection(); setSelected(pin); }}>
-                  <View style={[styles.pinHead, { backgroundColor: pin.color ?? '#6b6460' }, isSel && styles.pinSel]}>
-                    {pin.image ? <Image source={{ uri: pin.image }} style={styles.pinImg} /> : <Text style={styles.pinEmoji}>{pin.emoji}</Text>}
-                  </View>
-                  <View style={[styles.pinTail, { borderTopColor: pin.color ?? '#6b6460' }]} />
-                </Pressable>
-              );
-            }
-            return (
-              <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => { selection(); setSelected(pin); }}>
-                <View style={[styles.pinHead, isSel && styles.pinSel]}>
-                  {pin.image ? <Image source={{ uri: pin.image }} style={styles.pinImg} /> : <Text style={styles.pinNum}>{pin.number}</Text>}
-                </View>
-                <View style={styles.pinTail} />
-                {pin.nextTime && (
-                  <View style={styles.pinTime}><Text style={styles.pinTimeTxt} numberOfLines={1}>{fmtTime(pin.nextTime)}</Text></View>
-                )}
+          {clustered.map((c) =>
+            c.pins.length === 1 ? (
+              renderPin(c.pins[0])
+            ) : (
+              <Pressable key={'c:' + c.pins.map((p) => p.id).join(',')} style={[styles.clusterWrap, { left: c.x, top: c.y }]} onPress={() => zoomToCluster(c)}>
+                <View style={styles.cluster}><Text style={styles.clusterTxt}>{c.pins.length}</Text></View>
               </Pressable>
-            );
-          })}
+            ),
+          )}
+          {/* Keep the selected pin drawn on top (it's excluded from clustering). */}
+          {selected && renderPin(selected)}
 
           {/* You are here — glowing location beacon (hidden when far from the park) */}
           {showMe && (
@@ -851,6 +906,9 @@ const styles = StyleSheet.create({
   pinTail: { width: 0, height: 0, borderLeftWidth: 7, borderRightWidth: 7, borderTopWidth: 11, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: theme.brand, marginTop: -3 },
   pinTime: { marginTop: 1, backgroundColor: '#fff', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 2, shadowOffset: { width: 0, height: 1 }, elevation: 3 },
   pinTimeTxt: { color: theme.ink, fontWeight: '800', fontSize: 11 },
+  clusterWrap: { position: 'absolute', width: 40, height: 40, marginLeft: -20, marginTop: -20, alignItems: 'center', justifyContent: 'center' },
+  cluster: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.brand, alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3, shadowOffset: { width: 0, height: 2 }, elevation: 6 },
+  clusterTxt: { color: '#fff', fontWeight: '800', fontSize: 15 },
   meWrap: { position: 'absolute', width: 60, height: 60, marginLeft: -30, marginTop: -30, alignItems: 'center', justifyContent: 'center', zIndex: 5 },
   meGlow: { position: 'absolute', width: 46, height: 46, borderRadius: 23, opacity: 0.18 },
   meDot: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#1a73e8', borderWidth: 3.5, borderColor: '#fff', shadowColor: '#1a73e8', shadowOpacity: 0.6, shadowRadius: 5, shadowOffset: { width: 0, height: 1 }, elevation: 6 },
