@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { api, friendlyError } from '../../../../lib/api';
+import { api, apiUpload, friendlyError } from '../../../../lib/api';
 import { confirmDelete, promptText } from '../../../../lib/confirm';
+import { uploadToast } from '../../../../lib/toast';
 import { QrButton } from '../../../../components/QrButton';
 
 interface Poi { id: string; type: string; name: string; lat: number; lng: number; color: string | null; mapZone: string | null; image: string | null }
@@ -160,16 +161,28 @@ export default function MapEditor() {
     const file = e.target.files?.[0]; e.target.value = '';
     if (!file) return;
     if (file.size > 500 * 1024 * 1024) { alert('Please choose an image under 500 MB.'); return; }
-    try {
-      if (uploadKind.current === 'spot') {
-        if (!selected) return;
+    if (uploadKind.current === 'spot') {
+      if (!selected) return;
+      const t = uploadToast('Optimising image…');
+      try {
         const { url } = await resizeToDataUrl(file, 512); // small — it sits inside a marker
-        await patchSel({ image: url });
-      } else if (uploadTarget.current) {
+        t.label('Uploading…');
+        await apiUpload(`/admin/pois/${selected.id}`, { image: url }, { method: 'PATCH', onProgress: (p) => t.progress(p) });
+        setPois((prev) => prev.map((p) => (p.id === selected.id ? { ...p, image: url } : p)));
+        t.success('Image updated');
+      } catch (err) { t.error(friendlyError(err, 'Could not upload the image.')); }
+      return;
+    }
+    if (uploadTarget.current) {
+      const t = uploadToast('Optimising image…');
+      try {
         const { url, color } = await resizeToDataUrl(file, 4096, 0.92);
-        await setMapImage(uploadTarget.current, url, color);
-      }
-    } catch { alert('Could not read that image.'); }
+        t.label('Uploading map…');
+        await apiUpload(`/admin/maps/${uploadTarget.current}`, { imageUrl: url, bgColor: color }, { method: 'PATCH', onProgress: (p) => t.progress(p) });
+        setErr(''); refreshMaps();
+        t.success('Map uploaded');
+      } catch (err) { t.error(friendlyError(err, 'Could not upload the map.')); }
+    }
   }
 
   // Stable fixed bounds → a dropped/dragged pin stays exactly where it's placed

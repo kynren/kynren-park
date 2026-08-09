@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { api } from '../../../../../lib/api';
+import { api, apiUpload, friendlyError } from '../../../../../lib/api';
 import { confirmDelete } from '../../../../../lib/confirm';
+import { uploadToast } from '../../../../../lib/toast';
 import { QrButton } from '../../../../../components/QrButton';
 
 interface Poi { id: string; name: string; type: string }
@@ -61,14 +62,16 @@ export default function RestaurantDetail() {
   async function saveRestaurant() {
     if (!r) return;
     setSaving(true); setSaved(false); setError('');
+    const t = uploadToast('Saving restaurant…');
     try {
-      await api(`/admin/restaurants/${r.id}`, { method: 'PATCH', body: JSON.stringify({
+      await apiUpload(`/admin/restaurants/${r.id}`, {
         name: r.name, cuisine: r.cuisine, description: r.description, priceRange: r.priceRange,
         openingHours: r.openingHours, heroImage: r.heroImage, clickCollect: r.clickCollect,
         active: r.active, poiId: r.poiId || null,
-      }) });
+      }, { method: 'PATCH', onProgress: (p) => t.progress(p) });
+      t.success('Restaurant saved');
       setSaved(true); setTimeout(() => setSaved(false), 2500);
-    } catch { setError('Save failed.'); }
+    } catch (e) { t.error(friendlyError(e, 'Save failed.')); setError('Save failed.'); }
     setSaving(false);
   }
 
@@ -83,11 +86,13 @@ export default function RestaurantDetail() {
       name: item.name, description: item.description ?? null, image: item.image ?? null,
       priceCents: item.priceCents ?? 0, dietaryTags: item.dietaryTags ?? [], available: item.available ?? true,
     };
+    const t = uploadToast('Saving item…');
     try {
-      if (item.id) await api(`/admin/menu-items/${item.id}`, { method: 'PATCH', body: JSON.stringify(body) });
-      else await api(`/admin/restaurants/${r.id}/menu-items`, { method: 'POST', body: JSON.stringify(body) });
+      if (item.id) await apiUpload(`/admin/menu-items/${item.id}`, body, { method: 'PATCH', onProgress: (p) => t.progress(p) });
+      else await apiUpload(`/admin/restaurants/${r.id}/menu-items`, body, { method: 'POST', onProgress: (p) => t.progress(p) });
+      t.success('Item saved');
       setItem(null); load();
-    } catch { setError('Could not save the item.'); }
+    } catch (e) { t.error(friendlyError(e, 'Could not save the item.')); setError('Could not save the item.'); }
   }
 
   async function removeItem(mi: MenuItem) {

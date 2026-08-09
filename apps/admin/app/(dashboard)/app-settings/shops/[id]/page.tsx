@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { api } from '../../../../../lib/api';
+import { api, apiUpload, friendlyError } from '../../../../../lib/api';
 import { confirmDelete } from '../../../../../lib/confirm';
+import { uploadToast } from '../../../../../lib/toast';
 import { QrButton } from '../../../../../components/QrButton';
 
 interface Poi { id: string; name: string; type: string }
@@ -63,13 +64,15 @@ export default function ShopDetail() {
   async function saveShop() {
     if (!s) return;
     setSaving(true); setSaved(false); setError('');
+    const t = uploadToast('Saving shop…');
     try {
-      await api(`/admin/shops/${s.id}`, { method: 'PATCH', body: JSON.stringify({
+      await apiUpload(`/admin/shops/${s.id}`, {
         name: s.name, category: s.category, description: s.description,
         openingHours: s.openingHours, heroImage: s.heroImage, active: s.active, poiId: s.poiId || null,
-      }) });
+      }, { method: 'PATCH', onProgress: (p) => t.progress(p) });
+      t.success('Shop saved');
       setSaved(true); setTimeout(() => setSaved(false), 2500);
-    } catch { setError('Save failed.'); }
+    } catch (e) { t.error(friendlyError(e, 'Save failed.')); setError('Save failed.'); }
     setSaving(false);
   }
 
@@ -91,11 +94,13 @@ export default function ShopDetail() {
       priceCents: item.priceCents, available: item.available,
       variants: item.variants.filter((v) => v.name.trim()),
     };
+    const t = uploadToast('Saving product…');
     try {
-      if (item.id) await api(`/admin/shop-items/${item.id}`, { method: 'PATCH', body: JSON.stringify(body) });
-      else await api(`/admin/shops/${s.id}/items`, { method: 'POST', body: JSON.stringify(body) });
+      if (item.id) await apiUpload(`/admin/shop-items/${item.id}`, body, { method: 'PATCH', onProgress: (p) => t.progress(p) });
+      else await apiUpload(`/admin/shops/${s.id}/items`, body, { method: 'POST', onProgress: (p) => t.progress(p) });
+      t.success('Product saved');
       setItem(null); load();
-    } catch { setError('Could not save the product.'); }
+    } catch (e) { t.error(friendlyError(e, 'Could not save the product.')); setError('Could not save the product.'); }
   }
 
   async function removeItem(it: ShopItem) {

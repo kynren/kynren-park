@@ -102,3 +102,43 @@ export async function api<T = unknown>(path: string, options: RequestInit = {}):
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
+
+/**
+ * Like `api`, but sends a JSON body via XMLHttpRequest so upload progress can be
+ * reported (fetch can't). Use for anything that ships a large payload (e.g. an
+ * image data URL) where the user should see a progress toast.
+ */
+export function apiUpload<T = unknown>(
+  path: string,
+  body: unknown,
+  opts: { method?: string; onProgress?: (pct: number) => void } = {},
+): Promise<T> {
+  const token = getToken();
+  const method = opts.method ?? 'PATCH';
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(method, `${API_URL}/api${path}`);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    if (opts.onProgress) {
+      xhr.upload.onprogress = (e) => { if (e.lengthComputable) opts.onProgress!((e.loaded / e.total) * 100); };
+    }
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        if (xhr.status === 204 || !xhr.responseText) return resolve(undefined as T);
+        try { resolve(JSON.parse(xhr.responseText) as T); } catch { resolve(undefined as T); }
+        return;
+      }
+      let message = xhr.responseText;
+      try { const j = JSON.parse(xhr.responseText); if (j?.message) message = Array.isArray(j.message) ? j.message.join(', ') : j.message; } catch { /* keep raw */ }
+      if (xhr.status === 401 && typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+        clearSession();
+        window.location.replace('/login?expired=1');
+      }
+      if (xhr.status === 403) message = 'You don’t have access to this — ask an administrator if you need it.';
+      reject(new ApiError(message || `Request failed (${xhr.status})`, xhr.status));
+    };
+    xhr.onerror = () => reject(new ApiError(`Cannot reach the API at ${API_URL}. Is it running?`, 0));
+    xhr.send(JSON.stringify(body));
+  });
+}

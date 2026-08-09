@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, friendlyError } from '../../../../lib/api';
+import { api, apiUpload, friendlyError } from '../../../../lib/api';
+import { uploadToast } from '../../../../lib/toast';
 
 interface Slot {
   key: string; label: string; location: string; aspect: number;
@@ -56,12 +57,14 @@ export default function AppImages() {
   async function save() {
     if (!edit) return;
     setSaving(true); setError('');
+    const t = uploadToast('Uploading image…');
     try {
-      await api(`/admin/images/${edit.key}`, { method: 'PUT', body: JSON.stringify({
+      await apiUpload(`/admin/images/${edit.key}`, {
         imageUrl: edit.imageUrl, imageUrlDark: edit.imageUrlDark, fit: edit.fit, position: edit.position, fade: edit.fade, animation: edit.animation,
-      }) });
+      }, { method: 'PUT', onProgress: (p) => t.progress(p) });
+      t.success('Image saved');
       setEdit(null); load();
-    } catch (e) { setError(friendlyError(e, 'Save failed.')); }
+    } catch (e) { t.error(friendlyError(e, 'Save failed.')); setError(friendlyError(e, 'Save failed.')); }
     finally { setSaving(false); }
   }
 

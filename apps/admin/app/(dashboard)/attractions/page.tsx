@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, friendlyError } from '../../../lib/api';
+import { api, apiUpload, friendlyError } from '../../../lib/api';
+import { uploadToast } from '../../../lib/toast';
 import { confirmDelete } from '../../../lib/confirm';
 import { QrButton } from '../../../components/QrButton';
 
@@ -87,11 +88,13 @@ export default function AttractionsAdmin() {
     if (!form) return;
     if (!form.name.trim()) { setError('Name is required.'); return; }
     const body = { ...form, poiId: form.poiId || null };
+    const t = uploadToast('Saving attraction…');
     try {
-      if (form.id) await api(`/admin/attractions/${form.id}`, { method: 'PATCH', body: JSON.stringify(body) });
-      else await api('/admin/attractions', { method: 'POST', body: JSON.stringify(body) });
+      if (form.id) await apiUpload(`/admin/attractions/${form.id}`, body, { method: 'PATCH', onProgress: (p) => t.progress(p) });
+      else await apiUpload('/admin/attractions', body, { method: 'POST', onProgress: (p) => t.progress(p) });
+      t.success('Attraction saved');
       setForm(null); load();
-    } catch (e) { setError(friendlyError(e, 'Save failed.')); }
+    } catch (e) { t.error(friendlyError(e, 'Save failed.')); setError(friendlyError(e, 'Save failed.')); }
   }
 
   async function remove(a: Attraction) {

@@ -7,6 +7,7 @@ import { Sidebar } from '../../components/Sidebar';
 import { TopHeader } from '../../components/TopHeader';
 import { PageNav } from '../../components/PageNav';
 import { ConfirmHost } from '../../lib/confirm';
+import { ToastHost } from '../../lib/toast';
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -26,6 +27,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         <div className="main-scroll"><PageNav />{children}</div>
       </main>
       <ConfirmHost />
+      <ToastHost />
     </div>
   );
 }
