@@ -5,7 +5,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Svg, { Rect, Circle, Ellipse, Path, G, Polygon, Polyline } from 'react-native-svg';
+import Svg, { Rect, Circle, Ellipse, Path, G, Polygon, Polyline, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
 import { useLocation } from '../../lib/location';
 import { useSync } from '../../lib/sync';
 import { fmtTime } from '../../lib/format';
@@ -123,7 +123,8 @@ function dijkstra(adj: number[][], nodes: Geo[], start: number, goal: number): n
 }
 
 const MIN_SCALE = 1;
-const MAX_SCALE = 4.5;
+const MAX_SCALE = 10;
+const INITIAL_SCALE = 10; // opening zoom (experimental — the map fills the screen, zoom out to see more)
 // Render the base map at this multiple of the viewport so it decodes at full
 // source resolution and stays sharp when zoomed in (capped by the image itself).
 const BASE_OVERSAMPLE = 3;
@@ -180,7 +181,7 @@ export default function MapScreen() {
   const pulse = useRef(new Animated.Value(0)).current;
 
   // Pan/zoom live on the UI thread as reanimated shared values → native-smooth.
-  const scale = useSharedValue(1);
+  const scale = useSharedValue(INITIAL_SCALE);
   const panX = useSharedValue(0);
   const panY = useSharedValue(0);
   const startScale = useSharedValue(1);
@@ -217,14 +218,13 @@ export default function MapScreen() {
     return () => { ok = false; };
   }, [mapImageUrl]);
 
-  // The rectangle the map occupies. CONTAIN: the whole map is visible, nothing
-  // cropped. A blurred, zoomed copy of the same map fills the rest of the screen
-  // behind it, so it still looks full-screen (no empty bands). Pins project into
-  // this rect; guests pinch-zoom and pan for detail.
+  // The rectangle the map occupies. COVER: the map fills the whole screen
+  // (overflowing the longer side); its edges are faded out with a vignette so it
+  // blends softly. Pins project into this rect; guests pinch-zoom and pan.
   const fit = useMemo(() => {
     if (!imgAspect) return { w: vw, h: vh, x: 0, y: 0 };
-    if (imgAspect > vw / vh) { const h = vw / imgAspect; return { w: vw, h, x: 0, y: (vh - h) / 2 }; }
-    const w = vh * imgAspect; return { w, h: vh, x: (vw - w) / 2, y: 0 };
+    if (imgAspect > vw / vh) { const w = vh * imgAspect; return { w, h: vh, x: (vw - w) / 2, y: 0 }; }
+    const h = vw / imgAspect; return { w: vw, h, x: 0, y: (vh - h) / 2 };
   }, [imgAspect, vw, vh]);
   // Mirror the map rect to the UI thread for the pan-clamp worklet.
   useEffect(() => { fitX.value = fit.x; fitY.value = fit.y; fitW.value = fit.w; fitH.value = fit.h; }, [fit]);
@@ -644,14 +644,6 @@ export default function MapScreen() {
   return (
     <View style={[styles.root, { backgroundColor: mapBg }]} onLayout={onLayout}>
       <View style={[styles.viewport, { backgroundColor: mapBg }]}>
-        {/* Blurred, zoomed copy of the map fills the screen behind the sharp,
-            fully-visible map so nothing is cropped yet it still looks full-screen. */}
-        {mapImageUrl && (
-          <>
-            <Image source={{ uri: mapImageUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" blurRadius={22} />
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.10)' }]} pointerEvents="none" />
-          </>
-        )}
         <GestureDetector gesture={gesture}>
         <Reanimated.View style={[styles.canvas, { width: vw, height: vh }, canvasStyle]}>
           {mapImageUrl ? (
@@ -732,6 +724,25 @@ export default function MapScreen() {
 
         </Reanimated.View>
         </GestureDetector>
+
+        {/* Edge-fade vignette — softly fades the map's edges into the background. */}
+        {mapImageUrl && vw > 0 && (() => {
+          const f = Math.round(Math.min(vw, vh) * 0.16);
+          return (
+            <Svg pointerEvents="none" style={StyleSheet.absoluteFill} width={vw} height={vh}>
+              <Defs>
+                <SvgGradient id="fadeT" x1="0" y1="0" x2="0" y2="1"><Stop offset="0" stopColor={mapBg} stopOpacity={1} /><Stop offset="1" stopColor={mapBg} stopOpacity={0} /></SvgGradient>
+                <SvgGradient id="fadeB" x1="0" y1="0" x2="0" y2="1"><Stop offset="0" stopColor={mapBg} stopOpacity={0} /><Stop offset="1" stopColor={mapBg} stopOpacity={1} /></SvgGradient>
+                <SvgGradient id="fadeL" x1="0" y1="0" x2="1" y2="0"><Stop offset="0" stopColor={mapBg} stopOpacity={1} /><Stop offset="1" stopColor={mapBg} stopOpacity={0} /></SvgGradient>
+                <SvgGradient id="fadeR" x1="0" y1="0" x2="1" y2="0"><Stop offset="0" stopColor={mapBg} stopOpacity={0} /><Stop offset="1" stopColor={mapBg} stopOpacity={1} /></SvgGradient>
+              </Defs>
+              <Rect x={0} y={0} width={vw} height={f} fill="url(#fadeT)" />
+              <Rect x={0} y={vh - f} width={vw} height={f} fill="url(#fadeB)" />
+              <Rect x={0} y={0} width={f} height={vh} fill="url(#fadeL)" />
+              <Rect x={vw - f} y={0} width={f} height={vh} fill="url(#fadeR)" />
+            </Svg>
+          );
+        })()}
 
         {/* Popup — anchored to the selected marker and moves with it (pan/zoom). */}
         {selected && (

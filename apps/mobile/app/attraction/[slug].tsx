@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
-import { ScrollView, View, Text, StyleSheet, Image } from 'react-native';
+import { View, Text, StyleSheet, Image, Animated } from 'react-native';
 import { Touchable } from '../../components/Touchable';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
@@ -35,6 +35,15 @@ export default function AttractionDetail() {
   const [seen, setSeen] = useState(false);
   const [showAccess, setShowAccess] = useState(false);
 
+  // Collapsing header: the title slides into the top bar once the hero image
+  // has scrolled off the screen.
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const [barActive, setBarActive] = useState(false);
+  useEffect(() => {
+    const id = scrollY.addListener(({ value }) => setBarActive(value > HERO_HEIGHT - 60));
+    return () => scrollY.removeListener(id);
+  }, [scrollY]);
+
   useEffect(() => {
     if (!user || !attraction) return;
     api<{ attractionId: string }[]>('/me/favorites').then((f) => setFavorite(f.some((x) => x.attractionId === attraction.id))).catch(() => undefined);
@@ -68,6 +77,8 @@ export default function AttractionDetail() {
   const next = sessions.find((s) => new Date(s.endTime).getTime() > ref && s.status !== 'CANCELLED');
   const statusLine = next ? `Next show at ${fmtTime(next.revisedStart ?? next.startTime)}` : 'No more shows today';
 
+  const barOpacity = scrollY.interpolate({ inputRange: [HERO_HEIGHT - 90, HERO_HEIGHT - 30], outputRange: [0, 1], extrapolate: 'clamp' });
+
   const access: string[] = [];
   if (attraction.wheelchairAccessible) access.push('♿  Step-free access');
   if (attraction.hasAudioDescription) access.push('🔊  Audio described');
@@ -86,11 +97,25 @@ export default function AttractionDetail() {
           <Text style={styles.headerTitle} numberOfLines={1}>{attraction.name}</Text>
         </View>
       )}
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+      {/* Collapsing top bar — fades in with the title once the hero scrolls away. */}
+      {attraction.heroImage && (
+        <Animated.View style={[styles.collapseBar, { backgroundColor: categoryColor[attraction.category] ?? theme.brand, paddingTop: insets.top + 8, opacity: barOpacity }]} pointerEvents={barActive ? 'auto' : 'none'}>
+          <Touchable style={styles.headerBack} onPress={() => router.back()} hitSlop={8}>
+            <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><Path d="M15 5l-7 7 7 7" /></Svg>
+          </Touchable>
+          <Text style={styles.headerTitle} numberOfLines={1}>{attraction.name}</Text>
+        </Animated.View>
+      )}
+      <Animated.ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 40 }}
+        scrollEventThrottle={16}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
+      >
         {/* Full-bleed hero image scrolls with the content (back button floats over it). */}
         {attraction.heroImage ? (
           <View style={styles.hero}>
-            <Image source={{ uri: attraction.heroImage }} style={styles.heroImg} resizeMode="contain" />
+            <Image source={{ uri: attraction.heroImage }} style={styles.heroImg} resizeMode="cover" />
             <Touchable style={[styles.backBtn, { top: insets.top + 8 }]} onPress={() => router.back()}>
               <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><Path d="M15 5l-7 7 7 7" /></Svg>
             </Touchable>
@@ -181,10 +206,12 @@ export default function AttractionDetail() {
             <Text style={[styles.seenTxt, { color: seen ? theme.ok : pal.text }]}>{seen ? '✓ Seen it' : 'Mark as seen'}</Text>
           </Touchable>
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
     </View>
   );
 }
+
+const HERO_HEIGHT = 300;
 
 function Divider({ color }: { color: string }) {
   return <View style={{ height: 1, backgroundColor: color, marginVertical: 16 }} />;
@@ -208,6 +235,7 @@ const styles = StyleSheet.create({
   heroFallback: { color: '#fff', fontSize: 24, fontWeight: '800', textAlign: 'center', paddingHorizontal: 20 },
   backBtn: { position: 'absolute', left: 14, width: 42, height: 42, borderRadius: 21, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
   headerBar: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingBottom: 14 },
+  collapseBar: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingBottom: 12, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 6 },
   headerBack: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
   headerTitle: { flex: 1, color: '#fff', fontSize: 19, fontWeight: '800' },
   pad: { paddingHorizontal: 18 },

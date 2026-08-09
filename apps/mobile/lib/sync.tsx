@@ -69,7 +69,7 @@ export interface Session {
   attraction: { id: string; slug: string; name: string; category: string };
 }
 export interface MenuItem { id: string; name: string; description?: string | null; priceCents: number; dietaryTags: string[]; }
-export interface Restaurant { id: string; slug: string; name: string; cuisine?: string | null; openingHours?: string | null; menuItems: MenuItem[]; poiId?: string | null; }
+export interface Restaurant { id: string; slug: string; name: string; cuisine?: string | null; openingHours?: string | null; heroImage?: string | null; menuItems: MenuItem[]; poiId?: string | null; }
 export interface ShopVariant { name: string; priceCents?: number; }
 export interface ShopItem { id: string; name: string; description?: string | null; image?: string | null; priceCents: number; variants?: ShopVariant[] | null; }
 export interface Shop { id: string; slug: string; name: string; category?: string | null; description?: string | null; openingHours?: string | null; heroImage?: string | null; items: ShopItem[]; poiId?: string | null; }
