@@ -210,14 +210,14 @@ export default function MapScreen() {
     return () => { ok = false; };
   }, [mapImageUrl]);
 
-  // The rectangle the map occupies. COVER: fill the whole viewport, overflowing
-  // the longer side, so the map is shown at full size (fills the screen height)
-  // and the guest swipes across it. Pins project into this same rect; guests can
-  // pinch-zoom out to see the whole map. Pan is enabled at base zoom.
+  // The rectangle the map occupies. CONTAIN: the whole map is visible, nothing
+  // cropped. A blurred, zoomed copy of the same map fills the rest of the screen
+  // behind it, so it still looks full-screen (no empty bands). Pins project into
+  // this rect; guests pinch-zoom and pan for detail.
   const fit = useMemo(() => {
     if (!imgAspect) return { w: vw, h: vh, x: 0, y: 0 };
-    if (imgAspect > vw / vh) { const w = vh * imgAspect; return { w, h: vh, x: (vw - w) / 2, y: 0 }; }
-    const h = vw / imgAspect; return { w: vw, h, x: 0, y: (vh - h) / 2 };
+    if (imgAspect > vw / vh) { const h = vw / imgAspect; return { w: vw, h, x: 0, y: (vh - h) / 2 }; }
+    const w = vh * imgAspect; return { w, h: vh, x: (vw - w) / 2, y: 0 };
   }, [imgAspect, vw, vh]);
   // Mirror the map rect to the UI thread for the pan-clamp worklet.
   useEffect(() => { fitX.value = fit.x; fitY.value = fit.y; fitW.value = fit.w; fitH.value = fit.h; }, [fit]);
@@ -649,6 +649,14 @@ export default function MapScreen() {
   return (
     <View style={[styles.root, { backgroundColor: mapBg }]} onLayout={onLayout}>
       <View style={[styles.viewport, { backgroundColor: mapBg }]}>
+        {/* Blurred, zoomed copy of the map fills the screen behind the sharp,
+            fully-visible map so nothing is cropped yet it still looks full-screen. */}
+        {mapImageUrl && (
+          <>
+            <Image source={{ uri: mapImageUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" blurRadius={22} />
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.10)' }]} pointerEvents="none" />
+          </>
+        )}
         <GestureDetector gesture={gesture}>
         <Reanimated.View style={[styles.canvas, { width: vw, height: vh }, canvasStyle]}>
           {mapImageUrl ? (
