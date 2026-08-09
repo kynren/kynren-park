@@ -32,7 +32,7 @@ const colorOf = (p: Poi) => p.color || TYPE_COLOR[p.type] || '#6b6460';
 
 export default function MapEditor() {
   const [pois, setPois] = useState<Poi[]>([]);
-  const [config, setConfig] = useState<MapConfig>({ markerColor: '#1a73e8', markerStyle: 'pulse', mapImageUrl: null, initialZoom: 1.5, maxZoom: 8, centerLat: null, centerLng: null });
+  const [config, setConfig] = useState<MapConfig>({ markerColor: '#1a73e8', markerStyle: 'pulse', mapImageUrl: null, initialZoom: 2, maxZoom: 8, centerLat: null, centerLng: null });
   const [maps, setMaps] = useState<ParkMap[]>([]);
   const [newMapName, setNewMapName] = useState('');
   const [showLabels, setShowLabels] = useState(true);
@@ -60,7 +60,7 @@ export default function MapEditor() {
   }, []);
   const load = useCallback(() => {
     api<Poi[]>('/admin/pois').then(setPois).catch(() => undefined);
-    api<MapConfig>('/admin/map-config').then((c) => setConfig({ markerColor: c.markerColor, markerStyle: c.markerStyle, mapImageUrl: c.mapImageUrl, initialZoom: c.initialZoom ?? 1.5, maxZoom: c.maxZoom ?? 8, centerLat: c.centerLat ?? null, centerLng: c.centerLng ?? null })).catch(() => undefined);
+    api<MapConfig>('/admin/map-config').then((c) => setConfig({ markerColor: c.markerColor, markerStyle: c.markerStyle, mapImageUrl: c.mapImageUrl, initialZoom: c.initialZoom ?? 2, maxZoom: c.maxZoom ?? 8, centerLat: c.centerLat ?? null, centerLng: c.centerLng ?? null })).catch(() => undefined);
     api<ParkMap[]>('/admin/maps').then(setMaps).catch(() => undefined);
     loadEntities();
   }, [loadEntities]);
@@ -464,8 +464,8 @@ export default function MapEditor() {
             <h3 style={{ margin: 0 }}>Initial mobile view</h3>
             <p className="hint" style={{ margin: '6px 0 12px' }}>How the map first appears in the app. Guests can still pinch-zoom and pan.</p>
             <div style={{ display: 'grid', gap: 12 }}>
-              <div className="form-row"><label>Initial zoom ({(config.initialZoom ?? 1.5).toFixed(1)}×)</label>
-                <input type="range" min={1} max={config.maxZoom ?? 8} step={0.5} value={config.initialZoom ?? 1.5} onChange={(e) => saveConfig({ initialZoom: Number(e.target.value) })} />
+              <div className="form-row"><label>Initial zoom ({(config.initialZoom ?? 2).toFixed(1)}×)</label>
+                <input type="range" min={1} max={config.maxZoom ?? 8} step={0.5} value={config.initialZoom ?? 2} onChange={(e) => saveConfig({ initialZoom: Number(e.target.value) })} />
               </div>
               <div className="form-row"><label>Maximum zoom ({(config.maxZoom ?? 8).toFixed(1)}×)</label>
                 <input type="range" min={2} max={12} step={0.5} value={config.maxZoom ?? 8} onChange={(e) => saveConfig({ maxZoom: Number(e.target.value) })} />

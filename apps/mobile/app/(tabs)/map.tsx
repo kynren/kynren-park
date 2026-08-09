@@ -180,7 +180,7 @@ export default function MapScreen() {
   const pulse = useRef(new Animated.Value(0)).current;
 
   // Pan/zoom live on the UI thread as reanimated shared values → native-smooth.
-  const scale = useSharedValue(1.5);
+  const scale = useSharedValue(2);
   const maxScaleSV = useSharedValue(8); // effective max zoom (from admin map config), read by the pinch worklet
   const panX = useSharedValue(0);
   const panY = useSharedValue(0);
@@ -344,7 +344,7 @@ export default function MapScreen() {
   useEffect(() => {
     if (appliedInitial.current || !cfg || vw === 0 || !imgAspect) return;
     appliedInitial.current = true;
-    const z = Math.max(MIN_SCALE, Math.min(maxScale, cfg.initialZoom ?? 1.5));
+    const z = Math.max(MIN_SCALE, Math.min(maxScale, cfg.initialZoom ?? 2));
     let px = 0, py = 0;
     if (cfg.centerLat != null && cfg.centerLng != null) {
       const p = project.toXY(cfg.centerLat, cfg.centerLng);
