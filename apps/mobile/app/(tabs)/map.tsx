@@ -123,6 +123,21 @@ const MAX_SCALE = 4.5;
 const BASE_OVERSAMPLE = 3;
 const HALF_MILE_M = 804.672; // only show the location beacon within this distance of the park
 
+// Clamp one axis of the pan so the map never leaves the viewport: when the map
+// is larger than the viewport on this axis you can pan to its edges (no
+// overscroll); when it's smaller it stays centred. Runs on both threads.
+function clampAxis(pan: number, s: number, rectStart: number, rectLen: number, vp: number): number {
+  'worklet';
+  const startScreen0 = vp / 2 + (rectStart - vp / 2) * s; // screen pos of the rect's start at pan=0
+  const contentLen = rectLen * s;
+  if (contentLen >= vp) {
+    const hi = -startScreen0;                    // pan so the start edge reaches the viewport edge
+    const lo = vp - contentLen - startScreen0;   // pan so the end edge reaches the other viewport edge
+    return Math.max(lo, Math.min(hi, pan));
+  }
+  return (vp - contentLen) / 2 - startScreen0;   // smaller than viewport → keep centred
+}
+
 export default function MapScreen() {
   const { bundle, date } = useSync();
   const router = useRouter();
@@ -162,6 +177,11 @@ export default function MapScreen() {
   const startY = useSharedValue(0);
   const vpw = useSharedValue(375);
   const vph = useSharedValue(680);
+  // The map rectangle (cover fit) mirrored onto the UI thread for pan clamping.
+  const fitX = useSharedValue(0);
+  const fitY = useSharedValue(0);
+  const fitW = useSharedValue(375);
+  const fitH = useSharedValue(680);
 
   const win = Dimensions.get('window');
   const vw = vp.w || win.width;
@@ -182,21 +202,20 @@ export default function MapScreen() {
     return () => { ok = false; };
   }, [mapImageUrl]);
 
-  // The rectangle the whole map occupies inside the viewport ("contain" fit).
-  // Letterbox space around it is filled with mapBg.
+  // The rectangle the map occupies. COVER: fill the whole viewport, overflowing
+  // the longer side, so a wide map shows large and the guest pans to explore it
+  // (pins project into this same rect, so they always sit on the map).
   const fit = useMemo(() => {
     if (!imgAspect) return { w: vw, h: vh, x: 0, y: 0 };
-    if (imgAspect > vw / vh) { const h = vw / imgAspect; return { w: vw, h, x: 0, y: (vh - h) / 2 }; }
-    const w = vh * imgAspect; return { w, h: vh, x: (vw - w) / 2, y: 0 };
+    if (imgAspect > vw / vh) { const w = vh * imgAspect; return { w, h: vh, x: (vw - w) / 2, y: 0 }; }
+    const h = vw / imgAspect; return { w: vw, h, x: 0, y: (vh - h) / 2 };
   }, [imgAspect, vw, vh]);
+  // Mirror the map rect to the UI thread for the pan-clamp worklet.
+  useEffect(() => { fitX.value = fit.x; fitY.value = fit.y; fitW.value = fit.w; fitH.value = fit.h; }, [fit]);
 
-  // Free panning with a gentle boundary (map can't be fully lost) at any zoom.
-  // JS-thread version for programmatic moves (buttons, deep links).
+  // Clamp the pan to the map edges (JS-thread version for buttons / deep links).
   function clampPanJS(x: number, y: number, s: number) {
-    const w = vw, h = vh;
-    const maxX = ((s - 1) * w) / 2;
-    const maxY = ((s - 1) * h) / 2;
-    return { x: Math.max(-maxX, Math.min(maxX, x)), y: Math.max(-maxY, Math.min(maxY, y)) };
+    return { x: clampAxis(x, s, fit.x, fit.w, vw), y: clampAxis(y, s, fit.y, fit.h, vh) };
   }
   // Animate to a scale + pan (used by zoom/recenter/fit and deep links).
   function animateTo(s: number, x: number, y: number, ms = 220) {
@@ -229,17 +248,17 @@ export default function MapScreen() {
   const gesture = useMemo(() => {
     const clamp = (x: number, y: number, s: number) => {
       'worklet';
-      const w = vpw.value || 375, h = vph.value || 680;
-      // No overscroll: the pannable range is bounded by the image edges.
-      const maxX = ((s - 1) * w) / 2;
-      const maxY = ((s - 1) * h) / 2;
-      return { x: Math.max(-maxX, Math.min(maxX, x)), y: Math.max(-maxY, Math.min(maxY, y)) };
+      // No overscroll: bounded by the map edges. Works even at base zoom, so a
+      // map wider than the screen can be swiped across.
+      return {
+        x: clampAxis(x, s, fitX.value, fitW.value, vpw.value || 375),
+        y: clampAxis(y, s, fitY.value, fitH.value, vph.value || 680),
+      };
     };
     const pan = Gesture.Pan()
       .maxPointers(1)
       .onStart(() => { startX.value = panX.value; startY.value = panY.value; })
       .onUpdate((e) => {
-        if (scale.value <= MIN_SCALE) return; // only pan when zoomed in
         const c = clamp(startX.value + e.translationX, startY.value + e.translationY, scale.value);
         panX.value = c.x; panY.value = c.y;
       });
