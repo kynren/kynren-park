@@ -192,6 +192,10 @@ export default function MapScreen() {
   const fitY = useSharedValue(0);
   const fitW = useSharedValue(375);
   const fitH = useSharedValue(680);
+  // Selected marker position (canvas coords) → used to anchor its popup so the
+  // popup sticks to the marker and moves with it as the guest pans/zooms.
+  const selX = useSharedValue(0);
+  const selY = useSharedValue(0);
 
   const win = Dimensions.get('window');
   const vw = vp.w || win.width;
@@ -295,6 +299,14 @@ export default function MapScreen() {
   // Counter-scale for markers so they stay the same size regardless of zoom
   // (each marker sets its transformOrigin to its own anchor point).
   const invScale = useAnimatedStyle(() => ({ transform: [{ scale: 1 / scale.value }] }));
+  // Position the popup at the selected marker's live screen position (the same
+  // transform the canvas applies), so it tracks the marker while panning/zooming.
+  const calloutStyle = useAnimatedStyle(() => {
+    const w = vpw.value || 375, h = vph.value || 680;
+    const sx = w / 2 + (selX.value - w / 2) * scale.value + panX.value;
+    const sy = h / 2 + (selY.value - h / 2) * scale.value + panY.value;
+    return { transform: [{ translateX: sx }, { translateY: sy }] };
+  });
 
   // Mirror the live zoom into React state (in coarse 0.25 steps) so pins can be
   // clustered as the guest zooms — recomputes only a handful of times, not every
@@ -380,6 +392,11 @@ export default function MapScreen() {
     }
     return out;
   }, [cats, bundle, project, poiById, nextByAttraction, favs, pois]);
+
+  // The selected pin's *current* position (it re-projects when the map changes),
+  // mirrored to the UI thread so its popup stays glued to it.
+  const selPin = selected ? (pins.find((p) => p.id === selected.id) ?? selected) : null;
+  useEffect(() => { if (selPin) { selX.value = selPin.x; selY.value = selPin.y; } }, [selPin?.x, selPin?.y]);
 
   // Disney-style grouping: hotspots are grouped into their AREA (mapZone) and
   // shown as one labelled area bubble when zoomed out; as the guest zooms into an
@@ -732,39 +749,42 @@ export default function MapScreen() {
         </Reanimated.View>
         </GestureDetector>
 
-        {/* Popup — centred on the map with a margin, themed to match light/dark. */}
+        {/* Popup — anchored to the selected marker and moves with it (pan/zoom). */}
         {selected && (
-          <View style={styles.calloutWrap} pointerEvents="box-none">
-            <Touchable style={[styles.calloutCard, { backgroundColor: cpal.card }]} onPress={openDetail}>
-              <View style={[styles.calloutIcon, selected.kind === 'evening' && { backgroundColor: '#2c3e70' }]}>
-                <Text style={{ fontSize: 18 }}>{selected.emoji ?? '🎭'}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.calloutTitle, { color: cpal.ink }]} numberOfLines={1}>{selected.title}</Text>
-                {selected.subtitle && <Text style={styles.calloutSub} numberOfLines={1}>{selected.subtitle}</Text>}
-                <Text style={[styles.calloutMeta, { color: cpal.muted }]}>
-                  {selectedDist != null
-                    ? `📍 ${fmtDist(selectedDist)} away · ~${walkMins(selectedDist)} min walk`
-                    : selected.kind === 'restaurant'
-                      ? selected.zone ?? 'The Storied Lands'
-                      : selected.nextTime
-                        ? `Next show ${fmtTime(selected.nextTime)}`
-                        : 'No more shows today'}
-                </Text>
-                <Text style={styles.calloutHint}>Tap for details ›</Text>
-              </View>
-              {selected.attractionId && (
-                <Pressable hitSlop={8} onPress={() => toggleFav(selected.attractionId!)}>
-                  <Text style={[styles.calloutHeart, { color: cpal.muted }, favs.has(selected.attractionId) && { color: theme.brand }]}>
-                    {favs.has(selected.attractionId) ? '♥' : '♡'}
+          <Reanimated.View style={[styles.calloutAnchor, calloutStyle]} pointerEvents="box-none">
+            <View style={styles.calloutFloat} pointerEvents="box-none">
+              <Touchable style={[styles.calloutCard, { backgroundColor: cpal.card }]} onPress={openDetail}>
+                <View style={[styles.calloutIcon, selected.kind === 'evening' && { backgroundColor: '#2c3e70' }]}>
+                  <Text style={{ fontSize: 18 }}>{selected.emoji ?? '🎭'}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.calloutTitle, { color: cpal.ink }]} numberOfLines={1}>{selected.title}</Text>
+                  {selected.subtitle && <Text style={styles.calloutSub} numberOfLines={1}>{selected.subtitle}</Text>}
+                  <Text style={[styles.calloutMeta, { color: cpal.muted }]}>
+                    {selectedDist != null
+                      ? `📍 ${fmtDist(selectedDist)} away · ~${walkMins(selectedDist)} min walk`
+                      : selected.kind === 'restaurant'
+                        ? selected.zone ?? 'The Storied Lands'
+                        : selected.nextTime
+                          ? `Next show ${fmtTime(selected.nextTime)}`
+                          : 'No more shows today'}
                   </Text>
+                  <Text style={styles.calloutHint}>Tap for details ›</Text>
+                </View>
+                {selected.attractionId && (
+                  <Pressable hitSlop={8} onPress={() => toggleFav(selected.attractionId!)}>
+                    <Text style={[styles.calloutHeart, { color: cpal.muted }, favs.has(selected.attractionId) && { color: theme.brand }]}>
+                      {favs.has(selected.attractionId) ? '♥' : '♡'}
+                    </Text>
+                  </Pressable>
+                )}
+                <Pressable hitSlop={8} onPress={() => setSelected(null)}>
+                  <Text style={[styles.calloutClose, { color: cpal.muted }]}>✕</Text>
                 </Pressable>
-              )}
-              <Pressable hitSlop={8} onPress={() => setSelected(null)}>
-                <Text style={[styles.calloutClose, { color: cpal.muted }]}>✕</Text>
-              </Pressable>
-            </Touchable>
-          </View>
+              </Touchable>
+              <View style={[styles.calloutArrow, { borderTopColor: cpal.card }]} />
+            </View>
+          </Reanimated.View>
         )}
 
         {/* Location banner — the app needs GPS to show your position & distances */}
@@ -1009,8 +1029,12 @@ const styles = StyleSheet.create({
   hintChipTxt: { color: '#fff', fontSize: 12, fontWeight: '800', letterSpacing: 0.6 },
   walkPill: { position: 'absolute', right: 14, bottom: 74, backgroundColor: '#fff', borderRadius: 999, paddingVertical: 9, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 5 },
   walkPillTxt: { color: theme.ink, fontWeight: '800', fontSize: 13 },
-  calloutWrap: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, zIndex: 30 },
-  calloutCard: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, padding: 14, width: '100%', maxWidth: 360, shadowColor: '#000', shadowOpacity: 0.28, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 12 },
+  // Zero-size point translated to the marker's screen position; the card floats
+  // above it and a little arrow points down at the pin.
+  calloutAnchor: { position: 'absolute', top: 0, left: 0, width: 0, height: 0, zIndex: 30 },
+  calloutFloat: { position: 'absolute', left: -150, bottom: 52, width: 300, alignItems: 'center' },
+  calloutArrow: { width: 0, height: 0, borderLeftWidth: 8, borderRightWidth: 8, borderTopWidth: 9, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginTop: -1 },
+  calloutCard: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, padding: 14, width: 300, shadowColor: '#000', shadowOpacity: 0.28, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 12 },
   calloutIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.brand },
   calloutTitle: { fontWeight: '800', fontSize: 15, color: theme.ink },
   calloutSub: { color: theme.brand, fontWeight: '600', fontSize: 11, marginTop: 1 },
