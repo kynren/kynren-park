@@ -270,6 +270,17 @@ export default function MapEditor() {
       loadEntities(); // any attraction/restaurant that was linked returns to the palette
     } catch (e) { setErr(friendlyError(e, 'Could not delete the hotspot.')); }
   }
+  // Wipe every hotspot from the map. Deleting each POI also unlinks its
+  // attraction/restaurant/shop, so they all return to the palette to re-place.
+  async function clearAllHotspots() {
+    if (pois.length === 0) return;
+    if (!(await confirmDelete(`Remove all ${pois.length} hotspots from the map? Attractions, restaurants and shops will return to the palette so you can place them again. This can’t be undone.`))) return;
+    try {
+      await Promise.all(pois.map((p) => api(`/admin/pois/${p.id}`, { method: 'DELETE' })));
+      setPois([]); setSelId(null); setModalOpen(false); setErr('');
+      loadEntities();
+    } catch (e) { setErr(friendlyError(e, 'Could not clear all hotspots.')); load(); }
+  }
   async function saveConfig(patch: Partial<MapConfig>) {
     const next = { ...config, ...patch };
     setConfig(next);
@@ -356,6 +367,10 @@ export default function MapEditor() {
                 <span key={type} draggable style={dragChipStyle}
                   onDragStart={(e) => e.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'facility', type, name: label } as DragEntity))}>{label}</span>
               ))}
+            </div>
+            <div style={{ borderTop: '1px solid var(--line)', margin: '14px 0 0', paddingTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <span style={{ fontSize: 12, color: 'var(--muted)' }}>{pois.length} hotspot{pois.length === 1 ? '' : 's'} on the map</span>
+              <button className="tbtn danger" onClick={clearAllHotspots} disabled={pois.length === 0}>Clear all hotspots</button>
             </div>
           </div>
           <div className="editcard">
