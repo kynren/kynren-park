@@ -26,6 +26,7 @@ export default function ScheduleAdmin() {
   const [form, setForm] = useState<Form | null>(null);
   const [error, setError] = useState('');
   const [repeat, setRepeat] = useState(false);
+  const [startDate, setStartDate] = useState(OPENING_DAY); // the session/recurrence start date (in the dialog)
   const [until, setUntil] = useState('');
   const [days, setDays] = useState<number[]>([1, 2, 3, 4, 5, 6, 0]);
 
@@ -60,7 +61,7 @@ export default function ScheduleAdmin() {
 
   function openNew() {
     setForm({ ...EMPTY, attractionId: attractions[0]?.id ?? '' });
-    setRepeat(false); setUntil(addDays(date, 7)); setDays([1, 2, 3, 4, 5, 6, 0]); setError('');
+    setRepeat(false); setStartDate(date); setUntil(addDays(date, 7)); setDays([1, 2, 3, 4, 5, 6, 0]); setError('');
   }
   function openEdit(s: Session) {
     setForm({ id: s.id, attractionId: s.attraction.id, start: fmt(s.startTime), end: fmt(s.endTime), status: s.status });
@@ -76,12 +77,12 @@ export default function ScheduleAdmin() {
         await api(`/admin/sessions/${form.id}`, { method: 'PATCH', body: JSON.stringify({ start: form.start, end: form.end, status: form.status }) });
       } else if (repeat) {
         if (!until) { setError('Choose an end date for the repeat.'); return; }
-        if (days.length === 0) { setError('Select at least one day.'); return; }
-        await api('/admin/sessions/recurring', { method: 'POST', body: JSON.stringify({ attractionId: form.attractionId, startDate: date, endDate: until, days, start: form.start, end: form.end, status: form.status }) });
+        if (days.length === 0) { setError('Select at least one day of the week.'); return; }
+        await api('/admin/sessions/recurring', { method: 'POST', body: JSON.stringify({ attractionId: form.attractionId, startDate, endDate: until, days, start: form.start, end: form.end, status: form.status }) });
       } else {
-        await api('/admin/sessions', { method: 'POST', body: JSON.stringify({ attractionId: form.attractionId, date, start: form.start, end: form.end, status: form.status }) });
+        await api('/admin/sessions', { method: 'POST', body: JSON.stringify({ attractionId: form.attractionId, date: startDate, start: form.start, end: form.end, status: form.status }) });
       }
-      setForm(null); load(date);
+      setForm(null); setDate(startDate); load(startDate);
     } catch { setError('Save failed — check the times and range.'); }
   }
 
@@ -155,6 +156,11 @@ export default function ScheduleAdmin() {
                   {attractions.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
               </div>
+              {!form.id && (
+                <div className="form-row full"><label>{repeat ? 'Start date' : 'Date'}</label>
+                  <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                </div>
+              )}
               <div className="form-row"><label>Start (HH:MM)</label><input value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} placeholder="11:00" /></div>
               <div className="form-row"><label>End (HH:MM)</label><input value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} placeholder="11:30" /></div>
               <div className="form-row full"><label>Status</label>
@@ -167,13 +173,12 @@ export default function ScheduleAdmin() {
             {!form.id && (
               <div style={{ marginTop: 14, borderTop: '1px solid var(--line)', paddingTop: 14 }}>
                 <label className="checkline" style={{ fontWeight: 600 }}>
-                  <input type="checkbox" checked={repeat} onChange={(e) => setRepeat(e.target.checked)} /> Repeat this session
+                  <input type="checkbox" checked={repeat} onChange={(e) => setRepeat(e.target.checked)} /> Repeat on selected days of the week
                 </label>
                 {repeat && (
                   <div style={{ marginTop: 12, display: 'grid', gap: 12 }}>
-                    <div className="form-row"><label>Repeat until</label><input type="date" value={until} min={date} onChange={(e) => setUntil(e.target.value)} /></div>
                     <div className="form-row">
-                      <label>On days</label>
+                      <label>Days of the week</label>
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         {WEEKDAYS.map(([n, lbl]) => (
                           <button key={n} type="button" onClick={() => toggleDay(n)}
@@ -181,13 +186,14 @@ export default function ScheduleAdmin() {
                         ))}
                       </div>
                     </div>
-                    <p className="hint" style={{ margin: 0 }}>Creates one session per selected weekday from {date} to {until || '…'}.</p>
+                    <div className="form-row"><label>Repeat until</label><input type="date" value={until} min={startDate} onChange={(e) => setUntil(e.target.value)} /></div>
+                    <p className="hint" style={{ margin: 0 }}>Creates a session at {form.start} on each selected day from {startDate} to {until || '…'}.</p>
                   </div>
                 )}
               </div>
             )}
 
-            <p className="hint">Start date: {date}. Times are park time (UTC).</p>
+            <p className="hint">Times are park time (UTC).</p>
             {error && <div className="error">{error}</div>}
             <div className="modal-foot">
               <button className="btn-ghost" onClick={() => setForm(null)}>Cancel</button>

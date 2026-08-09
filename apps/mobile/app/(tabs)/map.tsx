@@ -161,6 +161,7 @@ export default function MapScreen() {
   const [cats, setCats] = useState<Set<Cat>>(() => new Set<Cat>(['shows']));
   const [selected, setSelected] = useState<Pin | null>(null);
   const [search, setSearch] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false); // the search bar shows only when the search icon is tapped
   const [pendingSelect, setPendingSelect] = useState<string | null>(null);
   const [pendingSpot, setPendingSpot] = useState<string | null>(null);
   // "Find on Map" isolation: when set, only this pin is shown (others hidden)
@@ -501,6 +502,7 @@ export default function MapScreen() {
     setCats((p) => new Set(p).add(r.kind));
     setPendingSelect(r.id);
     setSearch('');
+    setSearchOpen(false);
     Keyboard.dismiss();
   }
   // Once the pins for the chosen layer are ready, select & centre the result.
@@ -671,6 +673,9 @@ export default function MapScreen() {
             <ParkBasemap vw={vw} vh={vh} />
           )}
 
+          {/* Tapping the map background (not a pin) dismisses the popup / closes search. */}
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => { setSelected(null); setSearchOpen(false); Keyboard.dismiss(); }} />
+
           {/* Walking route from the guest to the selected place — follows the path
               network through the park (map-style casing over a coloured line). */}
           {selected && route && (
@@ -782,11 +787,13 @@ export default function MapScreen() {
           </View>
         )}
 
-        {/* Search */}
+        {/* Search — opens from the 🔍 control below the locate button */}
+        {searchOpen && (
         <View style={[styles.searchWrap, { top: insets.top + 8 }]}>
           <View style={styles.searchBar}>
             <Text style={styles.searchIcon}>🔍</Text>
             <TextInput
+              autoFocus
               style={styles.searchInput}
               placeholder="Search the map…"
               placeholderTextColor="#8a8a8a"
@@ -794,9 +801,7 @@ export default function MapScreen() {
               onChangeText={setSearch}
               returnKeyType="search"
             />
-            {search.length > 0 && (
-              <Touchable onPress={() => setSearch('')} hitSlop={8}><Text style={styles.searchClear}>✕</Text></Touchable>
-            )}
+            <Touchable onPress={() => { setSearch(''); setSearchOpen(false); Keyboard.dismiss(); }} hitSlop={8}><Text style={styles.searchClear}>✕</Text></Touchable>
           </View>
           {search.trim().length > 0 && (
             <View style={styles.searchResults}>
@@ -813,6 +818,7 @@ export default function MapScreen() {
             </View>
           )}
         </View>
+        )}
 
         {/* Profile */}
         <Touchable style={[styles.profileBtn, { top: insets.top + 8 }]} onPress={() => router.push('/profile')}>
@@ -832,6 +838,9 @@ export default function MapScreen() {
           </Touchable>
           <Touchable style={styles.ctrlBtn} onPress={recenter}>
             <Text style={{ fontSize: 17 }}>📍</Text>
+          </Touchable>
+          <Touchable style={styles.ctrlBtn} onPress={() => { setSelected(null); setSearchOpen(true); }}>
+            <Text style={{ fontSize: 16 }}>🔍</Text>
           </Touchable>
         </View>
 
