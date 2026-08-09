@@ -42,13 +42,13 @@ export default function RestaurantScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       {/* Collapsing top bar — with a hero it fades in as you scroll; without, it's solid. */}
       <Animated.View
-        style={[styles.collapseBar, { backgroundColor: theme.brand, paddingTop: insets.top + 8, opacity: hero ? barOpacity : 1 }]}
+        style={[styles.collapseBar, { paddingTop: insets.top + 8, opacity: hero ? barOpacity : 1 }]}
         pointerEvents={hero && !barActive ? 'none' : 'auto'}
       >
         <Touchable style={styles.headerBack} onPress={() => router.back()} hitSlop={8}>
           <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><Path d="M15 5l-7 7 7 7" /></Svg>
         </Touchable>
-        <Text style={styles.headerTitle} numberOfLines={1}>{restaurant.name}</Text>
+        <Text style={styles.headerTitle} numberOfLines={2}>{restaurant.name}</Text>
       </Animated.View>
 
       <Animated.ScrollView
@@ -114,9 +114,9 @@ const styles = StyleSheet.create({
   hero: { width: '100%', height: HERO_HEIGHT, backgroundColor: '#0e1013' },
   heroImg: { width: '100%', height: HERO_HEIGHT },
   backBtn: { position: 'absolute', left: 14, width: 42, height: 42, borderRadius: 21, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
-  collapseBar: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingBottom: 12, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 6 },
+  collapseBar: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingBottom: 12, backgroundColor: '#ffffff', borderBottomWidth: 1, borderBottomColor: theme.border, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 6 },
   headerBack: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
-  headerTitle: { flex: 1, color: '#fff', fontSize: 19, fontWeight: '800' },
+  headerTitle: { flex: 1, color: theme.ink, fontSize: 17, fontWeight: '800', lineHeight: 21 },
   h1: { fontSize: 24, fontWeight: '800', color: theme.ink },
   cuisine: { color: theme.brand, fontWeight: '600', marginTop: 2 },
   hoursChip: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start', backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, marginTop: 12 },

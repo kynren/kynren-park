@@ -97,13 +97,13 @@ export default function AttractionDetail() {
           <Text style={styles.headerTitle} numberOfLines={1}>{attraction.name}</Text>
         </View>
       )}
-      {/* Collapsing top bar — fades in with the title once the hero scrolls away. */}
+      {/* Collapsing top bar — a white bar with the dark title fades in once the hero scrolls away. */}
       {attraction.heroImage && (
-        <Animated.View style={[styles.collapseBar, { backgroundColor: categoryColor[attraction.category] ?? theme.brand, paddingTop: insets.top + 8, opacity: barOpacity }]} pointerEvents={barActive ? 'auto' : 'none'}>
+        <Animated.View style={[styles.collapseBar, { backgroundColor: pal.screen, borderBottomColor: pal.line, paddingTop: insets.top + 8, opacity: barOpacity }]} pointerEvents={barActive ? 'auto' : 'none'}>
           <Touchable style={styles.headerBack} onPress={() => router.back()} hitSlop={8}>
             <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><Path d="M15 5l-7 7 7 7" /></Svg>
           </Touchable>
-          <Text style={styles.headerTitle} numberOfLines={1}>{attraction.name}</Text>
+          <Text style={[styles.collapseTitle, { color: pal.text }]} numberOfLines={2}>{attraction.name}</Text>
         </Animated.View>
       )}
       <Animated.ScrollView
@@ -235,7 +235,8 @@ const styles = StyleSheet.create({
   heroFallback: { color: '#fff', fontSize: 24, fontWeight: '800', textAlign: 'center', paddingHorizontal: 20 },
   backBtn: { position: 'absolute', left: 14, width: 42, height: 42, borderRadius: 21, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
   headerBar: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingBottom: 14 },
-  collapseBar: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingBottom: 12, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 6 },
+  collapseBar: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingBottom: 12, borderBottomWidth: 1, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 6 },
+  collapseTitle: { flex: 1, fontSize: 17, fontWeight: '800', lineHeight: 21 },
   headerBack: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
   headerTitle: { flex: 1, color: '#fff', fontSize: 19, fontWeight: '800' },
   pad: { paddingHorizontal: 18 },

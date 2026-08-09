@@ -474,7 +474,9 @@ export class ManageController {
   async updateMapConfig(@Body() b: any) {
     const existing = await this.prisma.mapConfig.findFirst();
     const data = pick(b, ['markerColor', 'markerStyle', 'mapImageUrl']);
-    for (const k of ['minLat', 'maxLat', 'minLng', 'maxLng']) if (b[k] !== undefined) data[k] = b[k] === null ? null : Number(b[k]);
+    for (const k of ['minLat', 'maxLat', 'minLng', 'maxLng', 'initialZoom', 'maxZoom', 'centerLat', 'centerLng']) {
+      if (b[k] !== undefined) data[k] = b[k] === null ? null : Number(b[k]);
+    }
     if (existing) return this.prisma.mapConfig.update({ where: { id: existing.id }, data });
     return this.prisma.mapConfig.create({ data: { singleton: true, ...data } });
   }

@@ -290,6 +290,12 @@ model MapConfig {
   maxLat      Float?
   minLng      Float?
   maxLng      Float?
+  // Initial mobile map view (admin-tunable): opening zoom, max zoom, and the
+  // lat/lng to centre on. Null centre → the middle of the map.
+  initialZoom Float    @default(1.5)
+  maxZoom     Float    @default(8)
+  centerLat   Float?
+  centerLng   Float?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

@@ -7,7 +7,7 @@ import { uploadToast } from '../../../../lib/toast';
 import { QrButton } from '../../../../components/QrButton';
 
 interface Poi { id: string; type: string; name: string; lat: number; lng: number; color: string | null; mapZone: string | null; image: string | null }
-interface MapConfig { markerColor: string; markerStyle: string; mapImageUrl: string | null }
+interface MapConfig { markerColor: string; markerStyle: string; mapImageUrl: string | null; initialZoom?: number; maxZoom?: number; centerLat?: number | null; centerLng?: number | null }
 interface ParkMap { id: string; name: string; imageUrl: string | null; bgColor: string | null; isDefault: boolean }
 interface EntityLite { id: string; name: string; poiId: string | null; heroImage?: string | null; category?: string }
 type DragEntity = { kind: 'attraction' | 'restaurant' | 'shop' | 'facility'; id?: string; type?: string; name: string; heroImage?: string | null };
@@ -32,7 +32,7 @@ const colorOf = (p: Poi) => p.color || TYPE_COLOR[p.type] || '#6b6460';
 
 export default function MapEditor() {
   const [pois, setPois] = useState<Poi[]>([]);
-  const [config, setConfig] = useState<MapConfig>({ markerColor: '#1a73e8', markerStyle: 'pulse', mapImageUrl: null });
+  const [config, setConfig] = useState<MapConfig>({ markerColor: '#1a73e8', markerStyle: 'pulse', mapImageUrl: null, initialZoom: 1.5, maxZoom: 8, centerLat: null, centerLng: null });
   const [maps, setMaps] = useState<ParkMap[]>([]);
   const [newMapName, setNewMapName] = useState('');
   const [showLabels, setShowLabels] = useState(true);
@@ -60,7 +60,7 @@ export default function MapEditor() {
   }, []);
   const load = useCallback(() => {
     api<Poi[]>('/admin/pois').then(setPois).catch(() => undefined);
-    api<MapConfig>('/admin/map-config').then((c) => setConfig({ markerColor: c.markerColor, markerStyle: c.markerStyle, mapImageUrl: c.mapImageUrl })).catch(() => undefined);
+    api<MapConfig>('/admin/map-config').then((c) => setConfig({ markerColor: c.markerColor, markerStyle: c.markerStyle, mapImageUrl: c.mapImageUrl, initialZoom: c.initialZoom ?? 1.5, maxZoom: c.maxZoom ?? 8, centerLat: c.centerLat ?? null, centerLng: c.centerLng ?? null })).catch(() => undefined);
     api<ParkMap[]>('/admin/maps').then(setMaps).catch(() => undefined);
     loadEntities();
   }, [loadEntities]);
@@ -311,6 +311,12 @@ export default function MapEditor() {
     setConfig(next);
     await api('/admin/map-config', { method: 'PATCH', body: JSON.stringify(patch) }).catch(() => undefined);
   }
+  // Capture the point currently at the centre of the editor as the app's initial centre.
+  function setCentreToView() {
+    const r = canvasRef.current?.getBoundingClientRect(); if (!r) return;
+    const { lat, lng } = unproj(r.left + r.width / 2, r.top + r.height / 2);
+    saveConfig({ centerLat: lat, centerLng: lng });
+  }
 
   const entrance = pois.find((p) => p.type === 'ENTRANCE');
   const custPos = entrance ? proj(entrance) : { left: 50, top: 72 };
@@ -452,6 +458,27 @@ export default function MapEditor() {
               </select>
             </div>
             <p style={{ color: 'var(--muted)', fontSize: 12, margin: 0 }}>Manage the base map image under <b>Base maps</b> above.</p>
+          </div>
+
+          <div className="editcard">
+            <h3 style={{ margin: 0 }}>Initial mobile view</h3>
+            <p className="hint" style={{ margin: '6px 0 12px' }}>How the map first appears in the app. Guests can still pinch-zoom and pan.</p>
+            <div style={{ display: 'grid', gap: 12 }}>
+              <div className="form-row"><label>Initial zoom ({(config.initialZoom ?? 1.5).toFixed(1)}×)</label>
+                <input type="range" min={1} max={config.maxZoom ?? 8} step={0.5} value={config.initialZoom ?? 1.5} onChange={(e) => saveConfig({ initialZoom: Number(e.target.value) })} />
+              </div>
+              <div className="form-row"><label>Maximum zoom ({(config.maxZoom ?? 8).toFixed(1)}×)</label>
+                <input type="range" min={2} max={12} step={0.5} value={config.maxZoom ?? 8} onChange={(e) => saveConfig({ maxZoom: Number(e.target.value) })} />
+              </div>
+              <div>
+                <button className="tbtn" onClick={setCentreToView}>◎ Set centre to current view</button>
+                {config.centerLat != null && config.centerLng != null ? (
+                  <div className="hint" style={{ marginTop: 6 }}>Centre: {config.centerLat.toFixed(5)}, {config.centerLng.toFixed(5)} · <button className="tbtn" style={{ padding: '2px 8px' }} onClick={() => saveConfig({ centerLat: null, centerLng: null })}>Reset to middle</button></div>
+                ) : (
+                  <div className="hint" style={{ marginTop: 6 }}>Centre: middle of the map. Pan/zoom the editor to the spot you want, then tap the button.</div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>

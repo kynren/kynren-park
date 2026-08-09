@@ -123,8 +123,7 @@ function dijkstra(adj: number[][], nodes: Geo[], start: number, goal: number): n
 }
 
 const MIN_SCALE = 1;
-const MAX_SCALE = 10;
-const INITIAL_SCALE = 10; // opening zoom (experimental — the map fills the screen, zoom out to see more)
+const MAX_SCALE = 12; // absolute ceiling; the effective max comes from the admin map config
 // Render the base map at this multiple of the viewport so it decodes at full
 // source resolution and stays sharp when zoomed in (capped by the image itself).
 const BASE_OVERSAMPLE = 3;
@@ -181,7 +180,8 @@ export default function MapScreen() {
   const pulse = useRef(new Animated.Value(0)).current;
 
   // Pan/zoom live on the UI thread as reanimated shared values → native-smooth.
-  const scale = useSharedValue(INITIAL_SCALE);
+  const scale = useSharedValue(1.5);
+  const maxScaleSV = useSharedValue(8); // effective max zoom (from admin map config), read by the pinch worklet
   const panX = useSharedValue(0);
   const panY = useSharedValue(0);
   const startScale = useSharedValue(1);
@@ -207,6 +207,9 @@ export default function MapScreen() {
   // Fill the screen edges (letterbox around a "contain" image) with the map's
   // own average colour so they blend, instead of a flat mismatched green.
   const mapBg = bundle?.defaultMap?.bgColor || GRASS;
+  // Admin-tunable initial view (see App Settings → Map): opening zoom, max zoom, centre.
+  const cfg = bundle?.mapConfig;
+  const maxScale = Math.min(MAX_SCALE, cfg?.maxZoom ?? 8);
 
   // Measure the base map's aspect so we can show it whole (no cropping) and land
   // pins on the fitted image rather than the full viewport.
@@ -281,7 +284,7 @@ export default function MapScreen() {
     const pinch = Gesture.Pinch()
       .onStart(() => { startScale.value = scale.value; })
       .onUpdate((e) => {
-        const target = Math.max(MIN_SCALE, Math.min(MAX_SCALE, startScale.value * e.scale));
+        const target = Math.max(MIN_SCALE, Math.min(maxScaleSV.value, startScale.value * e.scale));
         const r = target / scale.value;
         const cx = (vpw.value || 375) / 2, cy = (vph.value || 680) / 2;
         const nx = e.focalX - cx - (e.focalX - cx - panX.value) * r;
@@ -333,6 +336,24 @@ export default function MapScreen() {
       lat >= b.minLat && lat <= b.maxLat && lng >= b.minLng && lng <= b.maxLng;
     return { toXY, inBounds };
   }, [fit]);
+
+  // Keep the pinch worklet's max zoom in sync with the admin config.
+  useEffect(() => { maxScaleSV.value = maxScale; }, [maxScale]);
+  // Apply the admin's initial zoom + centre once, after the map has measured its aspect.
+  const appliedInitial = useRef(false);
+  useEffect(() => {
+    if (appliedInitial.current || !cfg || vw === 0 || !imgAspect) return;
+    appliedInitial.current = true;
+    const z = Math.max(MIN_SCALE, Math.min(maxScale, cfg.initialZoom ?? 1.5));
+    let px = 0, py = 0;
+    if (cfg.centerLat != null && cfg.centerLng != null) {
+      const p = project.toXY(cfg.centerLat, cfg.centerLng);
+      px = (vw / 2 - p.x) * z; py = (vh / 2 - p.y) * z;
+    }
+    const c = clampPanJS(px, py, z);
+    scale.value = z; panX.value = c.x; panY.value = c.y;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cfg, vw, imgAspect]);
 
   const nextByAttraction = useMemo(() => {
     const m = new Map<string, string>();
@@ -449,7 +470,7 @@ export default function MapScreen() {
   function zoomToCluster(c: Cluster) {
     selection();
     const need = c.r ? (AREA_OPEN_PX / c.r) * 1.15 : 0; // zoom needed to open an area
-    const s = Math.min(MAX_SCALE, Math.max(zoom * 1.9, 2.4, need));
+    const s = Math.min(maxScale, Math.max(zoom * 1.9, 2.4, need));
     const cc = clampPanJS((vw / 2 - c.x) * s, (vh / 2 - c.y) * s, s);
     animateTo(s, cc.x, cc.y);
   }
@@ -618,7 +639,7 @@ export default function MapScreen() {
   const selectedDist = route?.meters ?? null;
 
   function zoomTo(next: number) {
-    const s = Math.max(MIN_SCALE, Math.min(MAX_SCALE, +next.toFixed(2)));
+    const s = Math.max(MIN_SCALE, Math.min(maxScale, +next.toFixed(2)));
     const c = clampPanJS(panX.value, panY.value, s);
     animateTo(s, c.x, c.y, 160);
   }

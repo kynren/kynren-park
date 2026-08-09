@@ -21,6 +21,10 @@ export interface MapConfig {
   markerColor: string;
   markerStyle: string;
   mapImageUrl?: string | null;
+  initialZoom?: number | null;
+  maxZoom?: number | null;
+  centerLat?: number | null;
+  centerLng?: number | null;
 }
 export interface ParkMap {
   id: string;
