@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { confirmDelete } from '../lib/confirm';
+import { usePaged, Pager } from './Pager';
 
 export interface Field {
   key: string;
@@ -31,6 +32,7 @@ export function SimpleCrud({
 }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [form, setForm] = useState<Row | null>(null);
+  const { page, setPage, totalPages, pageRows, total, start, end } = usePaged(rows, 10);
 
   useEffect(() => {
     const raw = typeof window !== 'undefined' ? localStorage.getItem(storageKey) : null;
@@ -63,7 +65,7 @@ export function SimpleCrud({
         <thead><tr>{columns.map((c) => <th key={c.key}>{c.label}</th>)}<th></th></tr></thead>
         <tbody>
           {rows.length === 0 && <tr><td colSpan={columns.length + 1} style={{ color: 'var(--muted)' }}>{emptyText}</td></tr>}
-          {rows.map((r) => (
+          {pageRows.map((r) => (
             <tr key={r.id}>
               {columns.map((c) => (
                 <td key={c.key}>{renderCell ? renderCell(r, c.key) : String(r[c.key] ?? '—') || '—'}</td>
@@ -76,6 +78,7 @@ export function SimpleCrud({
           ))}
         </tbody>
       </table>
+      <Pager page={page} setPage={setPage} totalPages={totalPages} total={total} start={start} end={end} />
 
       {form && (
         <div className="modal-back" onClick={(e) => e.target === e.currentTarget && setForm(null)}>

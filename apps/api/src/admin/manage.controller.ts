@@ -653,6 +653,22 @@ export class ManageController {
     }));
   }
 
+  @Delete('users/:id')
+  async deleteUser(@Param('id') id: string) {
+    // Dependent rows (bookings, orders, favourites, seen, tokens, itineraries)
+    // cascade from the User relation, so a single delete cleans everything up.
+    await this.prisma.user.delete({ where: { id } });
+    return { deleted: true };
+  }
+
+  @Post('users/bulk-delete')
+  async bulkDeleteUsers(@Body() b: any) {
+    const ids: string[] = Array.isArray(b?.ids) ? b.ids.filter((x: unknown) => typeof x === 'string') : [];
+    if (ids.length === 0) return { deleted: 0 };
+    const res = await this.prisma.user.deleteMany({ where: { id: { in: ids } } });
+    return { deleted: res.count };
+  }
+
   // ---- System console: database stats --------------------------------------
   @Get('db-stats')
   async dbStats() {

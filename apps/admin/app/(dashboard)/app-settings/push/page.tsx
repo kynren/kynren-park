@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../../../lib/api';
 import { confirmDelete } from '../../../../lib/confirm';
+import { usePaged, Pager } from '../../../../components/Pager';
 
 interface Template {
   id: string; name: string; action: string; title: string; body: string;
@@ -20,6 +21,7 @@ export default function PushTemplates() {
   const [rows, setRows] = useState<Template[]>([]);
   const [form, setForm] = useState<Form | null>(null);
   const [error, setError] = useState('');
+  const { page, setPage, totalPages, pageRows, total, start, end } = usePaged(rows, 10);
 
   const load = useCallback(() => { api<Template[]>('/admin/notification-templates').then(setRows).catch(() => setError('Could not load templates.')); }, []);
   useEffect(load, [load]);
@@ -55,7 +57,7 @@ export default function PushTemplates() {
         <thead><tr><th>Name</th><th>Action</th><th>Title</th><th>Sound</th><th>Status</th><th></th></tr></thead>
         <tbody>
           {rows.length === 0 && <tr><td colSpan={6} style={{ color: 'var(--muted)' }}>No templates yet.</td></tr>}
-          {rows.map((t) => (
+          {pageRows.map((t) => (
             <tr key={t.id} className={t.active ? '' : 'rowdim'}>
               <td><b>{t.name}</b></td>
               <td><span className="pillbadge park">{ACTION_LABEL[t.action] ?? t.action}</span></td>
@@ -70,6 +72,7 @@ export default function PushTemplates() {
           ))}
         </tbody>
       </table>
+      <Pager page={page} setPage={setPage} totalPages={totalPages} total={total} start={start} end={end} />
 
       {form && (
         <div className="modal-back" onClick={(e) => e.target === e.currentTarget && setForm(null)}>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, apiUpload, friendlyError } from '../../../lib/api';
 import { uploadToast } from '../../../lib/toast';
+import { usePaged, Pager } from '../../../components/Pager';
 import { confirmDelete } from '../../../lib/confirm';
 import { QrButton } from '../../../components/QrButton';
 
@@ -53,6 +54,7 @@ export default function AttractionsAdmin() {
   const [pois, setPois] = useState<Poi[]>([]);
   const [form, setForm] = useState<Form | null>(null);
   const [error, setError] = useState('');
+  const { page, setPage, totalPages, pageRows, total, start, end } = usePaged(rows, 10);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(() => {
@@ -118,7 +120,7 @@ export default function AttractionsAdmin() {
         <thead><tr><th></th><th>Name</th><th>Category</th><th>Duration</th><th>Map pin</th><th>Status</th><th></th></tr></thead>
         <tbody>
           {rows.length === 0 && <tr><td colSpan={7} style={{ color: 'var(--muted)' }}>No attractions yet.</td></tr>}
-          {rows.map((a) => (
+          {pageRows.map((a) => (
             <tr key={a.id} className={a.active ? '' : 'rowdim'}>
               <td>
                 <div style={{ width: 52, height: 40, borderRadius: 8, overflow: 'hidden', background: 'var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -141,6 +143,7 @@ export default function AttractionsAdmin() {
           ))}
         </tbody>
       </table>
+      <Pager page={page} setPage={setPage} totalPages={totalPages} total={total} start={start} end={end} />
 
       {form && (
         <div className="modal-back" onClick={(e) => e.target === e.currentTarget && setForm(null)}>

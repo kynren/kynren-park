@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { api } from '../../../../lib/api';
 import { confirmDelete } from '../../../../lib/confirm';
 import { QrButton } from '../../../../components/QrButton';
+import { usePaged, Pager } from '../../../../components/Pager';
 
 interface Shop {
   id: string; name: string; slug: string; category: string | null;
@@ -18,6 +19,7 @@ export default function ShopsAdmin() {
   const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
+  const { page, setPage, totalPages, pageRows, total, start, end } = usePaged(rows, 10);
 
   const load = useCallback(() => {
     api<Shop[]>('/admin/shops').then(setRows).catch(() => setError('Could not load shops.'));
@@ -56,7 +58,7 @@ export default function ShopsAdmin() {
         </thead>
         <tbody>
           {rows.length === 0 && <tr><td colSpan={7} style={{ color: 'var(--muted)' }}>No shops yet.</td></tr>}
-          {rows.map((s) => (
+          {pageRows.map((s) => (
             <tr key={s.id} className={s.active ? '' : 'rowdim'} style={{ cursor: 'pointer' }} onClick={() => router.push(`/app-settings/shops/${s.id}`)}>
               <td style={{ width: 52 }}>
                 <div style={{ width: 44, height: 44, borderRadius: 8, background: 'var(--panel,#f0ece6)', overflow: 'hidden' }}>
@@ -77,6 +79,7 @@ export default function ShopsAdmin() {
           ))}
         </tbody>
       </table>
+      <Pager page={page} setPage={setPage} totalPages={totalPages} total={total} start={start} end={end} />
 
       {creating && (
         <div className="modal-back" onClick={(e) => e.target === e.currentTarget && setCreating(false)}>

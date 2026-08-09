@@ -194,6 +194,14 @@ button.primary:hover { filter: brightness(0.95); }
 .set-tag { align-self: flex-start; margin-top: auto; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--green-soft); color: var(--green); }
 .set-tag.soon { background: #fbf1dd; color: var(--warn); }
 
+.dtable tr.rowsel { background: color-mix(in srgb, var(--green) 10%, transparent); }
+/* pagination */
+.pager { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+.pager-info { font-size: 12.5px; color: var(--muted); }
+.pager-btns { display: flex; align-items: center; gap: 10px; }
+.pager-page { font-size: 12.5px; color: var(--muted); }
+.pager .tbtn:disabled { opacity: 0.45; cursor: default; }
+
 /* toasts (upload progress, success/error) */
 .toast-wrap { position: fixed; right: 18px; bottom: 18px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; width: 340px; max-width: calc(100vw - 36px); }
 .toast-card { background: var(--card, #fff); border: 1px solid var(--line, #e6e2dc); border-radius: 12px; box-shadow: 0 10px 34px rgba(20,25,40,0.20); padding: 12px 14px; animation: toastin .18s ease; }
