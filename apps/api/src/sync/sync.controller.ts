@@ -27,7 +27,7 @@ export class SyncController {
     const start = new Date(`${day}T00:00:00.000Z`);
     const end = new Date(`${day}T23:59:59.999Z`);
 
-    const [attractions, pois, walkEdges, restaurants, shops, ticketTypes, content, announcements, sessions, mapConfig, defaultMap, branding] =
+    const [attractions, pois, walkEdges, restaurants, shops, ticketTypes, content, announcements, weekly, mapConfig, defaultMap, branding] =
       await Promise.all([
         this.prisma.attraction.findMany({ where: { active: true }, orderBy: { sortOrder: 'asc' } }),
         this.prisma.pointOfInterest.findMany(),
@@ -48,15 +48,31 @@ export class SyncController {
           orderBy: { createdAt: 'desc' },
           take: 20,
         }),
-        this.prisma.showSession.findMany({
-          where: { startTime: { gte: start, lte: end } },
-          orderBy: { startTime: 'asc' },
+        // The programme is defined weekly (by day of the week); materialise the
+        // sessions for the requested date's weekday below.
+        this.prisma.weeklySession.findMany({
+          where: { dayOfWeek: new Date(`${day}T00:00:00.000Z`).getUTCDay() },
+          orderBy: { start: 'asc' },
           include: { attraction: { select: { id: true, slug: true, name: true, category: true } } },
         }),
         this.prisma.mapConfig.findFirst(),
         this.prisma.parkMap.findFirst({ where: { isDefault: true } }),
         this.prisma.branding.findFirst(),
       ]);
+
+    // Materialise the weekly programme into concrete sessions for this date, so
+    // the app keeps its existing (dated) session shape.
+    const sessions = weekly.map((w) => ({
+      id: `${w.id}:${day}`,
+      attractionId: w.attractionId,
+      date: start,
+      startTime: new Date(`${day}T${w.start}:00.000Z`),
+      endTime: new Date(`${day}T${w.end}:00.000Z`),
+      status: w.status,
+      revisedStart: null as Date | null,
+      note: null as string | null,
+      attraction: w.attraction,
+    }));
 
     // The live, admin-designed home screen (published default), or null → the
     // app falls back to its built-in home look.

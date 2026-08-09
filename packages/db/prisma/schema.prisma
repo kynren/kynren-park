@@ -197,6 +197,7 @@ model Attraction {
   poi            PointOfInterest?   @relation(fields: [poiId], references: [id])
   poiId          String?            @unique
   sessions       ShowSession[]
+  weeklySessions WeeklySession[]
   favorites      Favorite[]
   seen           AttractionSeen[]
   sortOrder      Int                @default(0)
@@ -223,6 +224,24 @@ model ShowSession {
 
   @@index([date])
   @@index([attractionId, date])
+}
+
+// The weekly programme: a show runs on a given weekday at a given time. This is
+// the source of truth for scheduling (the park repeats a weekly pattern across
+// the season), so admins pick days of the week — not calendar dates.
+model WeeklySession {
+  id           String        @id @default(cuid())
+  attraction   Attraction    @relation(fields: [attractionId], references: [id], onDelete: Cascade)
+  attractionId String
+  dayOfWeek    Int           // 0 = Sunday … 6 = Saturday
+  start        String        // "HH:MM" park time
+  end          String        // "HH:MM" park time
+  status       SessionStatus @default(SCHEDULED)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([dayOfWeek])
+  @@index([attractionId])
 }
 
 model PointOfInterest {

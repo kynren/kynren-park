@@ -20,12 +20,25 @@ export class ScheduleService {
   ) {}
 
   async byDate(dateStr: string) {
-    const { start, end } = dayRange(dateStr);
-    return this.prisma.showSession.findMany({
-      where: { startTime: { gte: start, lte: end } },
-      orderBy: { startTime: 'asc' },
+    const { start } = dayRange(dateStr);
+    // The programme is defined weekly (by day of the week); materialise it into
+    // concrete sessions for this date so consumers keep the dated session shape.
+    const weekly = await this.prisma.weeklySession.findMany({
+      where: { dayOfWeek: new Date(`${dateStr}T00:00:00.000Z`).getUTCDay() },
+      orderBy: { start: 'asc' },
       include: { attraction: { select: { id: true, slug: true, name: true, category: true } } },
     });
+    return weekly.map((w) => ({
+      id: `${w.id}:${dateStr}`,
+      attractionId: w.attractionId,
+      date: start,
+      startTime: new Date(`${dateStr}T${w.start}:00.000Z`),
+      endTime: new Date(`${dateStr}T${w.end}:00.000Z`),
+      status: w.status,
+      revisedStart: null,
+      note: null,
+      attraction: w.attraction,
+    }));
   }
 
   async updateStatus(id: string, input: UpdateSessionStatusInput) {

@@ -373,6 +373,42 @@ export class ManageController {
     return { deleted: true };
   }
 
+  // ---- Weekly programme (day-of-week schedule) ------------------------------
+  @Get('weekly-sessions')
+  listWeekly() {
+    return this.prisma.weeklySession.findMany({
+      orderBy: [{ dayOfWeek: 'asc' }, { start: 'asc' }],
+      include: { attraction: { select: { id: true, name: true, category: true } } },
+    });
+  }
+
+  /** Create a weekly session on one or more days of the week. */
+  @Post('weekly-sessions')
+  async createWeekly(@Body() b: any) {
+    if (!b?.attractionId || !b?.start || !b?.end) throw new BadRequestException('attractionId, start and end are required');
+    if (!/^\d{2}:\d{2}$/.test(b.start) || !/^\d{2}:\d{2}$/.test(b.end)) throw new BadRequestException('start and end must be HH:MM');
+    const days: number[] = Array.isArray(b.days) && b.days.length ? b.days.map(Number) : [Number(b.dayOfWeek)];
+    const valid = days.filter((d) => Number.isInteger(d) && d >= 0 && d <= 6);
+    if (valid.length === 0) throw new BadRequestException('Select at least one day of the week');
+    await this.prisma.weeklySession.createMany({
+      data: valid.map((dayOfWeek) => ({ attractionId: b.attractionId, dayOfWeek, start: b.start, end: b.end, status: b.status ?? 'SCHEDULED' })),
+    });
+    return { created: valid.length };
+  }
+
+  @Patch('weekly-sessions/:id')
+  updateWeekly(@Param('id') id: string, @Body() b: any) {
+    const data = pick(b, ['start', 'end', 'status']);
+    if (b.dayOfWeek !== undefined) data.dayOfWeek = Number(b.dayOfWeek);
+    return this.prisma.weeklySession.update({ where: { id }, data });
+  }
+
+  @Delete('weekly-sessions/:id')
+  async deleteWeekly(@Param('id') id: string) {
+    await this.prisma.weeklySession.delete({ where: { id } });
+    return { deleted: true };
+  }
+
   // ---- Map POIs / hotspots ---------------------------------------------------
   @Get('pois')
   listPois() {
