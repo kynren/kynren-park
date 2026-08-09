@@ -210,13 +210,14 @@ export default function MapScreen() {
     return () => { ok = false; };
   }, [mapImageUrl]);
 
-  // The rectangle the map occupies. CONTAIN: show the whole map (fit the longer
-  // side) so the default view isn't over-zoomed and nothing is cropped; guests
-  // pinch-zoom and pan for detail. Pins project into this same rect.
+  // The rectangle the map occupies. COVER: fill the whole viewport, overflowing
+  // the longer side, so the map is shown at full size (fills the screen height)
+  // and the guest swipes across it. Pins project into this same rect; guests can
+  // pinch-zoom out to see the whole map. Pan is enabled at base zoom.
   const fit = useMemo(() => {
     if (!imgAspect) return { w: vw, h: vh, x: 0, y: 0 };
-    if (imgAspect > vw / vh) { const h = vw / imgAspect; return { w: vw, h, x: 0, y: (vh - h) / 2 }; }
-    const w = vh * imgAspect; return { w, h: vh, x: (vw - w) / 2, y: 0 };
+    if (imgAspect > vw / vh) { const w = vh * imgAspect; return { w, h: vh, x: (vw - w) / 2, y: 0 }; }
+    const h = vw / imgAspect; return { w: vw, h, x: 0, y: (vh - h) / 2 };
   }, [imgAspect, vw, vh]);
   // Mirror the map rect to the UI thread for the pan-clamp worklet.
   useEffect(() => { fitX.value = fit.x; fitY.value = fit.y; fitW.value = fit.w; fitH.value = fit.h; }, [fit]);
