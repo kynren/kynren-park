@@ -293,7 +293,25 @@ export default function MapScreen() {
         const c = clamp(nx, ny, target);
         panX.value = c.x; panY.value = c.y;
       });
-    return Gesture.Simultaneous(pan, pinch);
+    // Double-tap to zoom in, centred on the tapped point.
+    const doubleTap = Gesture.Tap()
+      .numberOfTaps(2)
+      .maxDuration(320)
+      .onEnd((e) => {
+        'worklet';
+        const cur = scale.value;
+        const target = Math.min(maxScaleSV.value, cur * 1.8);
+        if (target <= cur + 0.001) return;
+        const r = target / cur;
+        const cx = (vpw.value || 375) / 2, cy = (vph.value || 680) / 2;
+        const nx = e.x - cx - (e.x - cx - panX.value) * r;
+        const ny = e.y - cy - (e.y - cy - panY.value) * r;
+        const c = clamp(nx, ny, target);
+        scale.value = withTiming(target, { duration: 180 });
+        panX.value = withTiming(c.x, { duration: 180 });
+        panY.value = withTiming(c.y, { duration: 180 });
+      });
+    return Gesture.Simultaneous(pan, pinch, doubleTap);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -746,8 +764,9 @@ export default function MapScreen() {
         </Reanimated.View>
         </GestureDetector>
 
-        {/* Edge-fade vignette — softly fades the map's edges into the background. */}
-        {mapImageUrl && vw > 0 && (() => {
+        {/* Edge-fade vignette — softly fades the map's edges into the background,
+            only at the default view (hidden once the guest zooms in). */}
+        {mapImageUrl && vw > 0 && zoom <= (cfg?.initialZoom ?? 2) + 0.001 && (() => {
           const f = Math.round(Math.min(vw, vh) * 0.16);
           return (
             <Svg pointerEvents="none" style={StyleSheet.absoluteFill} width={vw} height={vh}>
