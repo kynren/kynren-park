@@ -64,6 +64,10 @@ interface Pin {
   zone?: string | null;
 }
 
+// A rendered map marker: either one/many loose pins (a count bubble) or a whole
+// area grouped by its mapZone (a labelled bubble that opens up on zoom).
+interface Cluster { x: number; y: number; pins: Pin[]; zone?: string; r?: number }
+
 // Great-circle distance so proximity reflects real metres, not map pixels.
 function distMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
   const R = 6371000;
@@ -122,6 +126,7 @@ const MAX_SCALE = 4.5;
 // source resolution and stays sharp when zoomed in (capped by the image itself).
 const BASE_OVERSAMPLE = 3;
 const HALF_MILE_M = 804.672; // only show the location beacon within this distance of the park
+const AREA_OPEN_PX = 90; // an area stays grouped until its pins span more than this on screen
 
 // Clamp one axis of the pan so the map never leaves the viewport: when the map
 // is larger than the viewport on this axis you can pan to its edges (no
@@ -372,20 +377,38 @@ export default function MapScreen() {
     return out;
   }, [cats, bundle, project, poiById, nextByAttraction, favs, pois]);
 
-  // Group pins that sit within ~44 screen-px of each other at the current zoom
-  // into a single cluster (a count bubble). The selected pin is kept out so it
-  // always stays individually visible.
+  // Disney-style grouping: hotspots are grouped into their AREA (mapZone) and
+  // shown as one labelled area bubble when zoomed out; as the guest zooms into an
+  // area (its pins spread past ~AREA_OPEN_PX on screen) it "opens up" into the
+  // individual pins. Zone-less pins fall back to proximity count-clusters.
   const clustered = useMemo(() => {
-    const thr = 44 / Math.max(zoom, 0.001); // map-space distance for ~44px on screen
-    const thr2 = thr * thr;
-    // Find on Map isolates a single pin; otherwise cluster everything (minus the
-    // selected pin, which is always drawn individually on top).
     const base = soloId ? pins.filter((p) => p.id === soloId) : pins;
     const src = selected ? base.filter((p) => p.id !== selected.id) : base;
-    const clusters: { x: number; y: number; pins: Pin[] }[] = [];
+
+    // Bucket by area (mapZone); pins without a zone go loose.
+    const zones = new Map<string, Pin[]>();
+    const loose: Pin[] = [];
     for (const p of src) {
+      if (p.zone) { const a = zones.get(p.zone); if (a) a.push(p); else zones.set(p.zone, [p]); }
+      else loose.push(p);
+    }
+
+    const out: Cluster[] = [];
+    for (const [zone, zp] of zones) {
+      if (zp.length < 2) { loose.push(...zp); continue; }
+      const cx = zp.reduce((s, p) => s + p.x, 0) / zp.length;
+      const cy = zp.reduce((s, p) => s + p.y, 0) / zp.length;
+      const r = Math.max(...zp.map((p) => Math.hypot(p.x - cx, p.y - cy))); // map-space radius
+      if (r * zoom <= AREA_OPEN_PX) out.push({ x: cx, y: cy, pins: zp, zone, r }); // closed → area bubble
+      else loose.push(...zp); // opened → individual pins below
+    }
+
+    // Proximity-cluster the loose pins so overlapping markers still merge.
+    const thr = 44 / Math.max(zoom, 0.001), thr2 = thr * thr;
+    for (const p of loose) {
       let placed = false;
-      for (const c of clusters) {
+      for (const c of out) {
+        if (c.zone) continue; // never merge into a labelled area
         const dx = c.x - p.x, dy = c.y - p.y;
         if (dx * dx + dy * dy <= thr2) {
           c.pins.push(p);
@@ -394,15 +417,17 @@ export default function MapScreen() {
           placed = true; break;
         }
       }
-      if (!placed) clusters.push({ x: p.x, y: p.y, pins: [p] });
+      if (!placed) out.push({ x: p.x, y: p.y, pins: [p] });
     }
-    return clusters;
+    return out;
   }, [pins, zoom, selected, soloId]);
 
-  // Tapping a cluster zooms in and centres on it, so its pins spread apart.
-  function zoomToCluster(c: { x: number; y: number; pins: Pin[] }) {
+  // Tapping a cluster/area zooms in and centres on it, so its pins spread apart
+  // (an area zooms enough to open into its individual pins).
+  function zoomToCluster(c: Cluster) {
     selection();
-    const s = Math.min(MAX_SCALE, Math.max(zoom * 1.9, 2.4));
+    const need = c.r ? (AREA_OPEN_PX / c.r) * 1.15 : 0; // zoom needed to open an area
+    const s = Math.min(MAX_SCALE, Math.max(zoom * 1.9, 2.4, need));
     const cc = clampPanJS((vw / 2 - c.x) * s, (vh / 2 - c.y) * s, s);
     animateTo(s, cc.x, cc.y);
   }
@@ -653,15 +678,23 @@ export default function MapScreen() {
             </Svg>
           )}
 
-          {clustered.map((c) =>
-            c.pins.length === 1 ? (
-              renderPin(c.pins[0])
-            ) : (
+          {clustered.map((c) => {
+            if (c.zone) {
+              // A whole area, grouped — a labelled bubble that opens on zoom.
+              return (
+                <Pressable key={'z:' + c.zone} style={[styles.areaWrap, { left: c.x, top: c.y }]} onPress={() => zoomToCluster(c)}>
+                  <View style={styles.areaBubble}><Text style={styles.areaCount}>{c.pins.length}</Text></View>
+                  <View style={styles.areaLabel}><Text style={styles.areaLabelTxt} numberOfLines={1}>{c.zone}</Text></View>
+                </Pressable>
+              );
+            }
+            if (c.pins.length === 1) return renderPin(c.pins[0]);
+            return (
               <Pressable key={'c:' + c.pins.map((p) => p.id).join(',')} style={[styles.clusterWrap, { left: c.x, top: c.y }]} onPress={() => zoomToCluster(c)}>
                 <View style={styles.cluster}><Text style={styles.clusterTxt}>{c.pins.length}</Text></View>
               </Pressable>
-            ),
-          )}
+            );
+          })}
           {/* Keep the selected pin drawn on top (it's excluded from clustering). */}
           {selected && renderPin(selected)}
 
@@ -946,6 +979,11 @@ const styles = StyleSheet.create({
   clusterWrap: { position: 'absolute', width: 40, height: 40, marginLeft: -20, marginTop: -20, alignItems: 'center', justifyContent: 'center' },
   cluster: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.brand, alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3, shadowOffset: { width: 0, height: 2 }, elevation: 6 },
   clusterTxt: { color: '#fff', fontWeight: '800', fontSize: 15 },
+  areaWrap: { position: 'absolute', width: 130, marginLeft: -65, marginTop: -23, alignItems: 'center' },
+  areaBubble: { width: 46, height: 46, borderRadius: 23, backgroundColor: theme.brand, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 7 },
+  areaCount: { color: '#fff', fontWeight: '800', fontSize: 17 },
+  areaLabel: { marginTop: 4, maxWidth: 130, backgroundColor: 'rgba(20,20,20,0.82)', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 },
+  areaLabelTxt: { color: '#fff', fontWeight: '800', fontSize: 11, letterSpacing: 0.2 },
   showAllWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 90 },
   showAllChip: { backgroundColor: 'rgba(20,20,20,0.82)', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 5 },
   showAllTxt: { color: '#fff', fontWeight: '800', fontSize: 13, letterSpacing: 0.3 },
