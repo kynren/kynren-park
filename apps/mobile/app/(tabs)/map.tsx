@@ -127,6 +127,9 @@ const MAX_SCALE = 4.5;
 const BASE_OVERSAMPLE = 3;
 const HALF_MILE_M = 804.672; // only show the location beacon within this distance of the park
 const AREA_OPEN_PX = 90; // an area stays grouped until its pins span more than this on screen
+// Markers live inside the zoomed canvas but are counter-scaled so they keep a
+// constant screen size (their anchor point still tracks the map).
+const AnimatedPressable = Reanimated.createAnimatedComponent(Pressable);
 
 // Clamp one axis of the pan so the map never leaves the viewport: when the map
 // is larger than the viewport on this axis you can pan to its edges (no
@@ -286,6 +289,9 @@ export default function MapScreen() {
   const canvasStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: panX.value }, { translateY: panY.value }, { scale: scale.value }],
   }));
+  // Counter-scale for markers so they stay the same size regardless of zoom
+  // (each marker sets its transformOrigin to its own anchor point).
+  const invScale = useAnimatedStyle(() => ({ transform: [{ scale: 1 / scale.value }] }));
 
   // Mirror the live zoom into React state (in coarse 0.25 steps) so pins can be
   // clustered as the guest zooms — recomputes only a handful of times, not every
@@ -436,9 +442,10 @@ export default function MapScreen() {
   // and for the currently-selected pin (kept out of clusters so it's visible).
   function renderPin(pin: Pin) {
     const isSel = selected?.id === pin.id;
+    const wrap = [styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }, invScale];
     if (pin.kind === 'evening') {
       return (
-        <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => { selection(); setSelected(pin); }}>
+        <AnimatedPressable key={pin.id} style={wrap} onPress={() => { selection(); setSelected(pin); }}>
           <View style={[styles.pinHead, styles.pinEvening, isSel && styles.pinSel]}>
             {pin.image ? <Image source={{ uri: pin.image }} style={styles.pinImg} /> : <Text style={styles.pinEmoji}>🌙</Text>}
           </View>
@@ -446,31 +453,31 @@ export default function MapScreen() {
           {pin.nextTime && (
             <View style={styles.pinTime}><Text style={styles.pinTimeTxt} numberOfLines={1}>{fmtTime(pin.nextTime)}</Text></View>
           )}
-        </Pressable>
+        </AnimatedPressable>
       );
     }
     if (pin.kind === 'restaurant') {
       return (
-        <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => { selection(); setSelected(pin); }}>
+        <AnimatedPressable key={pin.id} style={wrap} onPress={() => { selection(); setSelected(pin); }}>
           <View style={[styles.pinHead, isSel && styles.pinSel]}>
             {pin.image ? <Image source={{ uri: pin.image }} style={styles.pinImg} /> : <Text style={styles.pinEmoji}>🍴</Text>}
           </View>
           <View style={styles.pinTail} />
-        </Pressable>
+        </AnimatedPressable>
       );
     }
     if (pin.kind === 'facility') {
       return (
-        <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => { selection(); setSelected(pin); }}>
+        <AnimatedPressable key={pin.id} style={wrap} onPress={() => { selection(); setSelected(pin); }}>
           <View style={[styles.pinHead, { backgroundColor: pin.color ?? '#6b6460' }, isSel && styles.pinSel]}>
             {pin.image ? <Image source={{ uri: pin.image }} style={styles.pinImg} /> : <Text style={styles.pinEmoji}>{pin.emoji}</Text>}
           </View>
           <View style={[styles.pinTail, { borderTopColor: pin.color ?? '#6b6460' }]} />
-        </Pressable>
+        </AnimatedPressable>
       );
     }
     return (
-      <Pressable key={pin.id} style={[styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }]} onPress={() => { selection(); setSelected(pin); }}>
+      <AnimatedPressable key={pin.id} style={wrap} onPress={() => { selection(); setSelected(pin); }}>
         <View style={[styles.pinHead, isSel && styles.pinSel]}>
           {pin.image ? <Image source={{ uri: pin.image }} style={styles.pinImg} /> : <Text style={styles.pinNum}>{pin.number}</Text>}
         </View>
@@ -478,7 +485,7 @@ export default function MapScreen() {
         {pin.nextTime && (
           <View style={styles.pinTime}><Text style={styles.pinTimeTxt} numberOfLines={1}>{fmtTime(pin.nextTime)}</Text></View>
         )}
-      </Pressable>
+      </AnimatedPressable>
     );
   }
 
@@ -682,17 +689,17 @@ export default function MapScreen() {
             if (c.zone) {
               // A whole area, grouped — a labelled bubble that opens on zoom.
               return (
-                <Pressable key={'z:' + c.zone} style={[styles.areaWrap, { left: c.x, top: c.y }]} onPress={() => zoomToCluster(c)}>
+                <AnimatedPressable key={'z:' + c.zone} style={[styles.areaWrap, { left: c.x, top: c.y }, invScale]} onPress={() => zoomToCluster(c)}>
                   <View style={styles.areaBubble}><Text style={styles.areaCount}>{c.pins.length}</Text></View>
                   <View style={styles.areaLabel}><Text style={styles.areaLabelTxt} numberOfLines={1}>{c.zone}</Text></View>
-                </Pressable>
+                </AnimatedPressable>
               );
             }
             if (c.pins.length === 1) return renderPin(c.pins[0]);
             return (
-              <Pressable key={'c:' + c.pins.map((p) => p.id).join(',')} style={[styles.clusterWrap, { left: c.x, top: c.y }]} onPress={() => zoomToCluster(c)}>
+              <AnimatedPressable key={'c:' + c.pins.map((p) => p.id).join(',')} style={[styles.clusterWrap, { left: c.x, top: c.y }, invScale]} onPress={() => zoomToCluster(c)}>
                 <View style={styles.cluster}><Text style={styles.clusterTxt}>{c.pins.length}</Text></View>
-              </Pressable>
+              </AnimatedPressable>
             );
           })}
           {/* Keep the selected pin drawn on top (it's excluded from clustering). */}
@@ -700,7 +707,7 @@ export default function MapScreen() {
 
           {/* You are here — glowing location beacon (hidden when far from the park) */}
           {showMe && (
-            <View style={[styles.meWrap, { left: youAreHere.x, top: youAreHere.y }]} pointerEvents="none">
+            <Reanimated.View style={[styles.meWrap, { left: youAreHere.x, top: youAreHere.y }, invScale]} pointerEvents="none">
               <View style={[styles.meGlow, { backgroundColor: markerColor }]} />
               <Animated.View
                 style={[
@@ -713,7 +720,7 @@ export default function MapScreen() {
                 ]}
               />
               <View style={[styles.meDot, { backgroundColor: markerColor }]} />
-            </View>
+            </Reanimated.View>
           )}
 
         </Reanimated.View>
@@ -966,7 +973,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: GRASS },
   viewport: { flex: 1, overflow: 'hidden', backgroundColor: GRASS },
   canvas: { position: 'absolute', left: 0, top: 0 },
-  pinWrap: { position: 'absolute', alignItems: 'center', width: 60, marginLeft: -30, marginTop: -46 },
+  pinWrap: { position: 'absolute', alignItems: 'center', width: 60, marginLeft: -30, marginTop: -46, transformOrigin: '30px 44px' },
   pinHead: { width: 36, height: 36, borderRadius: 18, backgroundColor: theme.brand, alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: '#fff', overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3, shadowOffset: { width: 0, height: 2 }, elevation: 5 },
   pinImg: { width: '100%', height: '100%' },
   pinEvening: { backgroundColor: '#2c3e70' },
@@ -976,10 +983,10 @@ const styles = StyleSheet.create({
   pinTail: { width: 0, height: 0, borderLeftWidth: 7, borderRightWidth: 7, borderTopWidth: 11, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: theme.brand, marginTop: -3 },
   pinTime: { marginTop: 1, backgroundColor: '#fff', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 2, shadowOffset: { width: 0, height: 1 }, elevation: 3 },
   pinTimeTxt: { color: theme.ink, fontWeight: '800', fontSize: 11 },
-  clusterWrap: { position: 'absolute', width: 40, height: 40, marginLeft: -20, marginTop: -20, alignItems: 'center', justifyContent: 'center' },
+  clusterWrap: { position: 'absolute', width: 40, height: 40, marginLeft: -20, marginTop: -20, alignItems: 'center', justifyContent: 'center', transformOrigin: '20px 20px' },
   cluster: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.brand, alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3, shadowOffset: { width: 0, height: 2 }, elevation: 6 },
   clusterTxt: { color: '#fff', fontWeight: '800', fontSize: 15 },
-  areaWrap: { position: 'absolute', width: 130, marginLeft: -65, marginTop: -23, alignItems: 'center' },
+  areaWrap: { position: 'absolute', width: 130, marginLeft: -65, marginTop: -23, alignItems: 'center', transformOrigin: '65px 23px' },
   areaBubble: { width: 46, height: 46, borderRadius: 23, backgroundColor: theme.brand, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 7 },
   areaCount: { color: '#fff', fontWeight: '800', fontSize: 17 },
   areaLabel: { marginTop: 4, maxWidth: 130, backgroundColor: 'rgba(20,20,20,0.82)', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 },
@@ -987,7 +994,7 @@ const styles = StyleSheet.create({
   showAllWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 90 },
   showAllChip: { backgroundColor: 'rgba(20,20,20,0.82)', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 5 },
   showAllTxt: { color: '#fff', fontWeight: '800', fontSize: 13, letterSpacing: 0.3 },
-  meWrap: { position: 'absolute', width: 60, height: 60, marginLeft: -30, marginTop: -30, alignItems: 'center', justifyContent: 'center', zIndex: 5 },
+  meWrap: { position: 'absolute', width: 60, height: 60, marginLeft: -30, marginTop: -30, alignItems: 'center', justifyContent: 'center', zIndex: 5, transformOrigin: '30px 30px' },
   meGlow: { position: 'absolute', width: 46, height: 46, borderRadius: 23, opacity: 0.18 },
   meDot: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#1a73e8', borderWidth: 3.5, borderColor: '#fff', shadowColor: '#1a73e8', shadowOpacity: 0.6, shadowRadius: 5, shadowOffset: { width: 0, height: 1 }, elevation: 6 },
   mePulse: { position: 'absolute', width: 22, height: 22, borderRadius: 11, backgroundColor: '#1a73e8' },
