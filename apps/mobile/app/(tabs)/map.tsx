@@ -455,49 +455,28 @@ export default function MapScreen() {
 
   // A single map pin (its look depends on the kind). Used for standalone pins
   // and for the currently-selected pin (kept out of clusters so it's visible).
+  // A single map pin — a clean white teardrop with a dark/tinted icon (Disney
+  // style). The category shows as the pin's ring + tail colour; a hero image, if
+  // set, fills the pin. Show/evening pins carry a "next time" pill.
   function renderPin(pin: Pin) {
     const isSel = selected?.id === pin.id;
+    const tint = pin.kind === 'evening' ? '#2c3e70'
+      : pin.kind === 'restaurant' ? '#f5601e'
+        : pin.kind === 'facility' ? (pin.color ?? '#6b6460')
+          : theme.brand;
+    const glyph = pin.kind === 'evening' ? '🌙' : pin.kind === 'restaurant' ? '🍴' : pin.kind === 'facility' ? (pin.emoji ?? '•') : null;
     const wrap = [styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }, invScale];
-    if (pin.kind === 'evening') {
-      return (
-        <AnimatedPressable key={pin.id} style={wrap} onPress={() => { selection(); setSelected(pin); }}>
-          <View style={[styles.pinHead, styles.pinEvening, isSel && styles.pinSel]}>
-            {pin.image ? <Image source={{ uri: pin.image }} style={styles.pinImg} /> : <Text style={styles.pinEmoji}>🌙</Text>}
-          </View>
-          <View style={[styles.pinTail, { borderTopColor: '#2c3e70' }]} />
-          {pin.nextTime && (
-            <View style={styles.pinTime}><Text style={styles.pinTimeTxt} numberOfLines={1}>{fmtTime(pin.nextTime)}</Text></View>
-          )}
-        </AnimatedPressable>
-      );
-    }
-    if (pin.kind === 'restaurant') {
-      return (
-        <AnimatedPressable key={pin.id} style={wrap} onPress={() => { selection(); setSelected(pin); }}>
-          <View style={[styles.pinHead, isSel && styles.pinSel]}>
-            {pin.image ? <Image source={{ uri: pin.image }} style={styles.pinImg} /> : <Text style={styles.pinEmoji}>🍴</Text>}
-          </View>
-          <View style={styles.pinTail} />
-        </AnimatedPressable>
-      );
-    }
-    if (pin.kind === 'facility') {
-      return (
-        <AnimatedPressable key={pin.id} style={wrap} onPress={() => { selection(); setSelected(pin); }}>
-          <View style={[styles.pinHead, { backgroundColor: pin.color ?? '#6b6460' }, isSel && styles.pinSel]}>
-            {pin.image ? <Image source={{ uri: pin.image }} style={styles.pinImg} /> : <Text style={styles.pinEmoji}>{pin.emoji}</Text>}
-          </View>
-          <View style={[styles.pinTail, { borderTopColor: pin.color ?? '#6b6460' }]} />
-        </AnimatedPressable>
-      );
-    }
     return (
       <AnimatedPressable key={pin.id} style={wrap} onPress={() => { selection(); setSelected(pin); }}>
-        <View style={[styles.pinHead, isSel && styles.pinSel]}>
-          {pin.image ? <Image source={{ uri: pin.image }} style={styles.pinImg} /> : <Text style={styles.pinNum}>{pin.number}</Text>}
+        <View style={[styles.pinHead, { borderColor: tint }, isSel && styles.pinSel]}>
+          {pin.image
+            ? <Image source={{ uri: pin.image }} style={styles.pinImg} />
+            : glyph
+              ? <Text style={styles.pinEmoji}>{glyph}</Text>
+              : <Text style={[styles.pinNum, { color: tint }]}>{pin.number}</Text>}
         </View>
-        <View style={styles.pinTail} />
-        {pin.nextTime && (
+        <View style={[styles.pinTail, { borderTopColor: tint }]} />
+        {pin.nextTime && (pin.kind === 'show' || pin.kind === 'evening') && (
           <View style={styles.pinTime}><Text style={styles.pinTimeTxt} numberOfLines={1}>{fmtTime(pin.nextTime)}</Text></View>
         )}
       </AnimatedPressable>
@@ -754,31 +733,27 @@ export default function MapScreen() {
           <Reanimated.View style={[styles.calloutAnchor, calloutStyle]} pointerEvents="box-none">
             <View style={styles.calloutFloat} pointerEvents="box-none">
               <Touchable style={[styles.calloutCard, { backgroundColor: cpal.card }]} onPress={openDetail}>
-                <View style={[styles.calloutIcon, selected.kind === 'evening' && { backgroundColor: '#2c3e70' }]}>
-                  <Text style={{ fontSize: 18 }}>{selected.emoji ?? '🎭'}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.calloutTitle, { color: cpal.ink }]} numberOfLines={1}>{selected.title}</Text>
-                  {selected.subtitle && <Text style={styles.calloutSub} numberOfLines={1}>{selected.subtitle}</Text>}
-                  <Text style={[styles.calloutMeta, { color: cpal.muted }]}>
-                    {selectedDist != null
-                      ? `📍 ${fmtDist(selectedDist)} away · ~${walkMins(selectedDist)} min walk`
-                      : selected.kind === 'restaurant'
-                        ? selected.zone ?? 'The Storied Lands'
-                        : selected.nextTime
-                          ? `Next show ${fmtTime(selected.nextTime)}`
-                          : 'No more shows today'}
-                  </Text>
-                  <Text style={styles.calloutHint}>Tap for details ›</Text>
-                </View>
-                {selected.attractionId && (
-                  <Pressable hitSlop={8} onPress={() => toggleFav(selected.attractionId!)}>
-                    <Text style={[styles.calloutHeart, { color: cpal.muted }, favs.has(selected.attractionId) && { color: theme.brand }]}>
-                      {favs.has(selected.attractionId) ? '♥' : '♡'}
-                    </Text>
-                  </Pressable>
+                {selected.image ? (
+                  <Image source={{ uri: selected.image }} style={styles.calloutThumb} />
+                ) : (
+                  <View style={[styles.calloutThumb, styles.calloutThumbFallback, selected.kind === 'evening' && { backgroundColor: '#2c3e70' }]}>
+                    <Text style={{ fontSize: 26 }}>{selected.emoji ?? '🎭'}</Text>
+                  </View>
                 )}
-                <Pressable hitSlop={8} onPress={() => setSelected(null)}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.calloutTitle, { color: cpal.ink }]} numberOfLines={2}>{selected.title}</Text>
+                  <Text style={[styles.calloutSub, { color: cpal.muted }]} numberOfLines={1}>{selected.subtitle ?? selected.zone ?? 'Kynren — The Storied Lands'}</Text>
+                  <Text style={[styles.calloutStatus, { color: cpal.ink }]} numberOfLines={1}>
+                    {selectedDist != null
+                      ? `${fmtDist(selectedDist)} away · ~${walkMins(selectedDist)} min walk`
+                      : selected.nextTime
+                        ? `Next show ${fmtTime(selected.nextTime)}`
+                        : selected.kind === 'restaurant'
+                          ? 'Tap for menu & times'
+                          : 'Tap for details'}
+                  </Text>
+                </View>
+                <Pressable hitSlop={10} onPress={() => setSelected(null)} style={styles.calloutCloseBtn}>
                   <Text style={[styles.calloutClose, { color: cpal.muted }]}>✕</Text>
                 </Pressable>
               </Touchable>
@@ -1000,11 +975,10 @@ const styles = StyleSheet.create({
   viewport: { flex: 1, overflow: 'hidden', backgroundColor: GRASS },
   canvas: { position: 'absolute', left: 0, top: 0 },
   pinWrap: { position: 'absolute', alignItems: 'center', width: 60, marginLeft: -30, marginTop: -46, transformOrigin: '30px 44px' },
-  pinHead: { width: 36, height: 36, borderRadius: 18, backgroundColor: theme.brand, alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: '#fff', overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3, shadowOffset: { width: 0, height: 2 }, elevation: 5 },
+  pinHead: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#fff', overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3, shadowOffset: { width: 0, height: 2 }, elevation: 5 },
   pinImg: { width: '100%', height: '100%' },
-  pinEvening: { backgroundColor: '#2c3e70' },
   pinSel: { transform: [{ scale: 1.2 }] },
-  pinNum: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  pinNum: { color: theme.ink, fontWeight: '800', fontSize: 15 },
   pinEmoji: { fontSize: 16 },
   pinTail: { width: 0, height: 0, borderLeftWidth: 7, borderRightWidth: 7, borderTopWidth: 11, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: theme.brand, marginTop: -3 },
   pinTime: { marginTop: 1, backgroundColor: '#fff', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 2, shadowOffset: { width: 0, height: 1 }, elevation: 3 },
@@ -1032,16 +1006,16 @@ const styles = StyleSheet.create({
   // Zero-size point translated to the marker's screen position; the card floats
   // above it and a little arrow points down at the pin.
   calloutAnchor: { position: 'absolute', top: 0, left: 0, width: 0, height: 0, zIndex: 30 },
-  calloutFloat: { position: 'absolute', left: -150, bottom: 52, width: 300, alignItems: 'center' },
-  calloutArrow: { width: 0, height: 0, borderLeftWidth: 8, borderRightWidth: 8, borderTopWidth: 9, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginTop: -1 },
-  calloutCard: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, padding: 14, width: 300, shadowColor: '#000', shadowOpacity: 0.28, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 12 },
-  calloutIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.brand },
-  calloutTitle: { fontWeight: '800', fontSize: 15, color: theme.ink },
-  calloutSub: { color: theme.brand, fontWeight: '600', fontSize: 11, marginTop: 1 },
-  calloutMeta: { color: theme.muted, fontSize: 11, marginTop: 2 },
-  calloutHint: { color: theme.brand, fontSize: 11, fontWeight: '700', marginTop: 3 },
-  calloutHeart: { fontSize: 20, color: theme.muted, paddingHorizontal: 2 },
-  calloutClose: { color: theme.muted, fontSize: 15, fontWeight: '700', paddingHorizontal: 2 },
+  calloutFloat: { position: 'absolute', left: -164, bottom: 52, width: 328, alignItems: 'center' },
+  calloutArrow: { width: 0, height: 0, borderLeftWidth: 9, borderRightWidth: 9, borderTopWidth: 11, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginTop: -1 },
+  calloutCard: { flexDirection: 'row', alignItems: 'center', gap: 13, borderRadius: 18, paddingVertical: 14, paddingLeft: 14, paddingRight: 30, width: 328, shadowColor: '#000', shadowOpacity: 0.24, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 12 },
+  calloutThumb: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#e7e2da' },
+  calloutThumbFallback: { alignItems: 'center', justifyContent: 'center', backgroundColor: theme.brand },
+  calloutTitle: { fontWeight: '800', fontSize: 17, lineHeight: 21, letterSpacing: -0.2 },
+  calloutSub: { fontSize: 13, fontWeight: '600', marginTop: 2 },
+  calloutStatus: { fontSize: 13, fontWeight: '700', marginTop: 3 },
+  calloutCloseBtn: { position: 'absolute', top: 6, right: 8, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  calloutClose: { fontSize: 14, fontWeight: '700' },
   geoBanner: { position: 'absolute', left: 14, right: 66, borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'rgba(15,15,15,0.92)', paddingVertical: 12, paddingHorizontal: 16, zIndex: 65 },
   geoIcon: { fontSize: 18 },
   geoTxt: { flex: 1, color: '#f0a8a8', fontSize: 14, fontWeight: '600' },
