@@ -20,6 +20,7 @@ const FACILITY_PALETTE: [string, string][] = [
 const dragChipStyle: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 999, background: 'var(--card)', border: '1px solid var(--line)', fontSize: 12, fontWeight: 600, cursor: 'grab' };
 // Fixed projection bounds for the park, so pins never reproject when one is added/moved.
 const PARK_BOUNDS = { minLat: 54.668, maxLat: 54.675, minLng: -1.684, maxLng: -1.674 };
+const CANVAS_ASPECT = 7 / 5; // the .mapcanvas aspect-ratio; the base map is contain-fitted inside it
 
 const TYPES = ['ATTRACTION', 'RESTAURANT', 'RESTROOM', 'SHOP', 'FIRST_AID', 'ENTRANCE', 'PARKING', 'ACCESSIBILITY', 'BABY_CHANGING', 'PICNIC', 'INFO'];
 const TYPE_COLOR: Record<string, string> = {
@@ -39,6 +40,7 @@ export default function MapEditor() {
   const [attractions, setAttractions] = useState<EntityLite[]>([]);
   const [restaurants, setRestaurants] = useState<EntityLite[]>([]);
   const [shops, setShops] = useState<EntityLite[]>([]);
+  const [mapAspect, setMapAspect] = useState<number | null>(null); // natural aspect of the base map image
   const [err, setErr] = useState('');
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragId = useRef<string | null>(null);
@@ -185,24 +187,34 @@ export default function MapEditor() {
     }
   }
 
-  // Stable fixed bounds → a dropped/dragged pin stays exactly where it's placed
-  // (deriving bounds from the POI extent used to reproject everything on change).
   const bounds = PARK_BOUNDS;
-  const proj = (p: { lat: number; lng: number }) => ({
-    left: ((p.lng - bounds.minLng) / (bounds.maxLng - bounds.minLng)) * 100,
-    top: ((bounds.maxLat - p.lat) / (bounds.maxLat - bounds.minLat)) * 100,
-  });
+  // The base map is drawn objectFit:contain inside a 7/5 canvas, so it may be
+  // letterboxed. Project markers onto the *image* rectangle (not the canvas box)
+  // so a pin lands on — and stays at — the exact map spot, whatever the map's
+  // aspect. Values are fractions (0–1) of the canvas box.
+  const imgRect = useMemo(() => {
+    const a = mapAspect;
+    if (!a) return { ox: 0, oy: 0, w: 1, h: 1 };
+    if (a > CANVAS_ASPECT) { const h = CANVAS_ASPECT / a; return { ox: 0, oy: (1 - h) / 2, w: 1, h }; }
+    const w = a / CANVAS_ASPECT; return { ox: (1 - w) / 2, oy: 0, w, h: 1 };
+  }, [mapAspect]);
+  const proj = (p: { lat: number; lng: number }) => {
+    const fx = (p.lng - bounds.minLng) / (bounds.maxLng - bounds.minLng);
+    const fy = (bounds.maxLat - p.lat) / (bounds.maxLat - bounds.minLat);
+    return { left: (imgRect.ox + fx * imgRect.w) * 100, top: (imgRect.oy + fy * imgRect.h) * 100 };
+  };
   const clampPan = (x: number, y: number, z: number, w: number, h: number) => ({
     x: Math.min(0, Math.max(w * (1 - z), x)),
     y: Math.min(0, Math.max(h * (1 - z), y)),
   });
   const unproj = (clientX: number, clientY: number) => {
     const r = canvasRef.current!.getBoundingClientRect();
-    // Undo the zoom/pan transform to get the point in un-transformed canvas space.
+    // Undo the zoom/pan transform to get the point in un-transformed canvas space,
+    // then map it through the image rectangle so drops land on the exact spot.
     const cx = (clientX - r.left - view.x) / view.zoom;
     const cy = (clientY - r.top - view.y) / view.zoom;
-    const fx = Math.min(1, Math.max(0, cx / r.width));
-    const fy = Math.min(1, Math.max(0, cy / r.height));
+    const fx = Math.min(1, Math.max(0, (cx / r.width - imgRect.ox) / imgRect.w));
+    const fy = Math.min(1, Math.max(0, (cy / r.height - imgRect.oy) / imgRect.h));
     return { lat: bounds.maxLat - fy * (bounds.maxLat - bounds.minLat), lng: bounds.minLng + fx * (bounds.maxLng - bounds.minLng) };
   };
   // Zoom toward a point (px within the canvas), keeping that point stable.
@@ -316,7 +328,7 @@ export default function MapEditor() {
         <div style={{ position: 'relative' }}>
           <div ref={canvasRef} className="mapcanvas" style={{ overflow: 'hidden' }} onClick={onCanvasClick} onPointerDown={onCanvasPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp} onWheel={onWheelZoom} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
             <div style={{ position: 'absolute', inset: 0, transformOrigin: '0 0', transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}>
-            {defaultMap?.imageUrl && <img src={defaultMap.imageUrl} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' }} />}
+            {defaultMap?.imageUrl && <img src={defaultMap.imageUrl} alt="" onLoad={(e) => { const t = e.currentTarget; if (t.naturalWidth && t.naturalHeight) setMapAspect(t.naturalWidth / t.naturalHeight); }} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' }} />}
             <div className="grid" />
             {pois.map((p) => {
               const { left, top } = proj(p);

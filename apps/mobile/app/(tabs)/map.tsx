@@ -19,8 +19,10 @@ import { selection } from '../../lib/haptics';
 // screen space, so the initial view is always the whole park, edge-to-edge.
 const VBW = 420;
 const VBH = 680;
-const PADX = 0.14; // fraction of width kept as margin around the pin cluster
-const PADY = 0.12;
+// Fixed geographic bounds of the park — the SAME box the admin map editor uses
+// to place hotspots, so a pin placed in admin lands on the exact same map spot
+// here (both map these bounds onto the base-map image rectangle).
+const PARK_BOUNDS = { minLat: 54.668, maxLat: 54.675, minLng: -1.684, maxLng: -1.674 };
 const GRASS = '#a9c97f';
 const FAVS_KEY = 'kynren_favorites';
 
@@ -305,24 +307,19 @@ export default function MapScreen() {
 
   const pois = bundle?.pois ?? [];
 
-  // Project a lat/lng to screen pixels, spreading the park across the viewport
-  // with a little margin so pins never touch the edges.
+  // Project a lat/lng onto the base-map image rectangle using the fixed park
+  // bounds — the exact same mapping the admin map editor uses — so every hotspot
+  // sits on the same map spot where it was placed.
   const project = useMemo(() => {
-    if (pois.length === 0) return null;
-    const lats = pois.map((p) => p.lat);
-    const lngs = pois.map((p) => p.lng);
-    const minLat = Math.min(...lats), maxLat = Math.max(...lats);
-    const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
-    const spanLat = maxLat - minLat || 1;
-    const spanLng = maxLng - minLng || 1;
+    const b = PARK_BOUNDS;
     const toXY = (lat: number, lng: number) => ({
-      x: fit.x + (PADX + ((lng - minLng) / spanLng) * (1 - 2 * PADX)) * fit.w,
-      y: fit.y + (PADY + ((maxLat - lat) / spanLat) * (1 - 2 * PADY)) * fit.h,
+      x: fit.x + ((lng - b.minLng) / (b.maxLng - b.minLng)) * fit.w,
+      y: fit.y + ((b.maxLat - lat) / (b.maxLat - b.minLat)) * fit.h,
     });
     const inBounds = (lat: number, lng: number) =>
-      lat >= minLat - spanLat * 0.6 && lat <= maxLat + spanLat * 0.6 && lng >= minLng - spanLng * 0.6 && lng <= maxLng + spanLng * 0.6;
+      lat >= b.minLat && lat <= b.maxLat && lng >= b.minLng && lng <= b.maxLng;
     return { toXY, inBounds };
-  }, [pois, fit]);
+  }, [fit]);
 
   const nextByAttraction = useMemo(() => {
     const m = new Map<string, string>();
