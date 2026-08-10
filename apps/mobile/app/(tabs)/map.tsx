@@ -243,18 +243,23 @@ export default function MapScreen() {
     panX.value = withTiming(x, { duration: ms });
     panY.value = withTiming(y, { duration: ms });
   }
+  // Zoom to an EXACT target scale while keeping point (x, y) — in canvas
+  // coordinates — at its current on-screen position. No clamp, so the point is
+  // never nudged toward the centre; used for both pin-focus and pin-anchored
+  // zoom-button presses so a selected pin is always the zoom's pivot.
+  function zoomKeeping(x: number, y: number, target: number, ms = 220) {
+    const cur = scale.value;
+    const s = Math.max(MIN_SCALE, Math.min(maxScale, target));
+    const px = (vw / 2 + (x - vw / 2) * cur + panX.value) - (vw / 2 + (x - vw / 2) * s);
+    const py = (vh / 2 + (y - vh / 2) * cur + panY.value) - (vh / 2 + (y - vh / 2) * s);
+    animateTo(s, px, py, ms);
+  }
   // Zoom toward a pin WITHOUT recentring the map: keep the pin at its current
-  // on-screen position while zooming to `target`, and attach the popup right
-  // away (no frame lag) so the bubble stays glued to the pin.
+  // on-screen position while zooming to AT LEAST `target` (never zooms out), and
+  // attach the popup right away (no frame lag) so the bubble stays glued to it.
   function focusPin(pin: { x: number; y: number }, target: number) {
     selX.value = pin.x; selY.value = pin.y;
-    const cur = scale.value;
-    const s = Math.max(MIN_SCALE, Math.min(maxScale, Math.max(cur, target)));
-    // Keep the pin at its exact current screen position while zooming — no clamp,
-    // so it's never nudged toward the centre. The popup stays glued to it.
-    const px = (vw / 2 + (pin.x - vw / 2) * cur + panX.value) - (vw / 2 + (pin.x - vw / 2) * s);
-    const py = (vh / 2 + (pin.y - vh / 2) * cur + panY.value) - (vh / 2 + (pin.y - vh / 2) * s);
-    animateTo(s, px, py);
+    zoomKeeping(pin.x, pin.y, Math.max(scale.value, target));
   }
 
   useEffect(() => {
@@ -335,32 +340,24 @@ export default function MapScreen() {
   // Counter-scale for markers so they stay the same size regardless of zoom
   // (each marker sets its transformOrigin to its own anchor point).
   const invScale = useAnimatedStyle(() => ({ transform: [{ scale: 1 / scale.value }] }));
-  // Position the popup at the selected marker's live screen position (the same
-  // transform the canvas applies), so it tracks the marker while panning/zooming.
-  const calloutStyle = useAnimatedStyle(() => {
-    const w = vpw.value || 375, h = vph.value || 680;
-    // Anchor the popup exactly at the pin's live screen position so it always
-    // stays glued to the pin and moves with it (never repositions independently).
-    const sx = w / 2 + (selX.value - w / 2) * scale.value + panX.value;
-    const sy = h / 2 + (selY.value - h / 2) * scale.value + panY.value;
-    // Keep the card fully on-screen: if the pin is close to a side edge, nudge
-    // the whole card inward (the arrow is counter-shifted to still hit the pin).
-    const half = 128, margin = 10;
-    let shift = 0;
-    if (sx - half < margin) shift = margin - (sx - half);
-    else if (sx + half > w - margin) shift = (w - margin) - (sx + half);
-    return { transform: [{ translateX: sx + shift }, { translateY: sy }] };
-  });
-  // The inverse of the card's edge-nudge, applied to the little arrow so it keeps
-  // pointing exactly at the pin even when the card has been shifted off an edge.
-  const arrowShiftStyle = useAnimatedStyle(() => {
+  // The popup is rendered INSIDE the map canvas, anchored to the selected pin's
+  // own coordinates and counter-scaled like a marker (see popupWrapStyle below),
+  // so it's physically a sibling of the pin and can never drift away from it —
+  // it inherits the canvas's pan/zoom transform the same native way pins do.
+  // Combines the counter-scale with a small horizontal nudge (real screen
+  // pixels, applied AFTER the scale in the transform list) so the card doesn't
+  // run off a side edge near the screen border. The nudge nudges the whole
+  // wrapper (pin anchor included), which is an acceptable trade-off only in
+  // that rare near-edge case — the pin itself never moves, only the popup.
+  const popupWrapStyle = useAnimatedStyle(() => {
     const w = vpw.value || 375;
-    const sx = w / 2 + (selX.value - w / 2) * scale.value + panX.value;
+    const s = scale.value;
+    const sx = w / 2 + (selX.value - w / 2) * s + panX.value; // pin's live screen X
     const half = 128, margin = 10;
     let shift = 0;
     if (sx - half < margin) shift = margin - (sx - half);
     else if (sx + half > w - margin) shift = (w - margin) - (sx + half);
-    return { transform: [{ translateX: -shift }] };
+    return { transform: [{ scale: 1 / s }, { translateX: shift }] };
   });
   // Popup entrance animation (admin-tunable: none | fade | scale | slide | bounce).
   const popupAnim = cfg?.popupAnimation ?? 'scale';
@@ -724,6 +721,9 @@ export default function MapScreen() {
 
   function zoomTo(next: number) {
     const s = Math.max(MIN_SCALE, Math.min(maxScale, +next.toFixed(2)));
+    // With a place selected, the +/- buttons zoom around ITS spot (not the
+    // viewport centre) so the pin — and its glued popup — never appears to jump.
+    if (selPin) { zoomKeeping(selPin.x, selPin.y, s, 160); return; }
     const c = clampPanJS(panX.value, panY.value, s);
     animateTo(s, c.x, c.y, 160);
   }
@@ -822,6 +822,47 @@ export default function MapScreen() {
           {/* Keep the selected pin drawn on top (it's excluded from clustering). */}
           {selected && renderPin(selected)}
 
+          {/* Popup — a SIBLING of the pin inside the transformed canvas, anchored
+              at the pin's own canvas coordinate and counter-scaled exactly like a
+              marker. It inherits the canvas's pan/zoom transform natively, so it
+              is physically glued to the pin and can never drift away from it. */}
+          {selected && (
+            <Reanimated.View
+              pointerEvents="box-none"
+              style={[{ position: 'absolute', left: selPin?.x ?? selected.x, top: selPin?.y ?? selected.y, width: 0, height: 0 }, styles.calloutWrap, popupWrapStyle]}
+            >
+              <Reanimated.View style={[flipDown ? styles.calloutFloatDown : styles.calloutFloat, popupAnimStyle]} pointerEvents="box-none">
+                {flipDown && <View style={[styles.calloutArrowUp, { borderBottomColor: cpal.card }]} />}
+                <Touchable style={[styles.calloutCard, { backgroundColor: cpal.card }]} onPress={openDetail}>
+                  {selected.image ? (
+                    <Image source={{ uri: selected.image }} style={styles.calloutThumb} />
+                  ) : (
+                    <View style={[styles.calloutThumb, styles.calloutThumbFallback, selected.kind === 'evening' && { backgroundColor: '#2c3e70' }]}>
+                      <Text style={{ fontSize: 26 }}>{selected.emoji ?? '🎭'}</Text>
+                    </View>
+                  )}
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.calloutTitle, { color: cpal.ink }]} numberOfLines={2}>{selected.title}</Text>
+                    <Text style={[styles.calloutSub, { color: cpal.muted }]} numberOfLines={1}>{selected.subtitle ?? selected.zone ?? 'Kynren — The Storied Lands'}</Text>
+                    <Text style={[styles.calloutStatus, { color: cpal.ink }]} numberOfLines={1}>
+                      {selectedDist != null
+                        ? `${fmtDist(selectedDist)} away · ~${walkMins(selectedDist)} min walk`
+                        : selected.nextTime
+                          ? `Next show ${fmtTime(selected.nextTime)}`
+                          : selected.kind === 'restaurant'
+                            ? 'Tap for menu & times'
+                            : 'Tap for details'}
+                    </Text>
+                  </View>
+                  <Pressable hitSlop={10} onPress={() => setSelected(null)} style={styles.calloutCloseBtn}>
+                    <Text style={[styles.calloutClose, { color: cpal.muted }]}>✕</Text>
+                  </Pressable>
+                </Touchable>
+                {!flipDown && <View style={[styles.calloutArrow, { borderTopColor: cpal.card }]} />}
+              </Reanimated.View>
+            </Reanimated.View>
+          )}
+
           {/* You are here — glowing location beacon (hidden when far from the park) */}
           {showMe && (
             <Reanimated.View style={[styles.meWrap, { left: youAreHere.x, top: youAreHere.y }, invScale]} pointerEvents="none">
@@ -862,41 +903,6 @@ export default function MapScreen() {
             </Svg>
           );
         })()}
-
-        {/* Popup — anchored to the selected marker and moves with it (pan/zoom). */}
-        {selected && (
-          <Reanimated.View style={[styles.calloutAnchor, calloutStyle]} pointerEvents="box-none">
-            <Reanimated.View style={[flipDown ? styles.calloutFloatDown : styles.calloutFloat, popupAnimStyle]} pointerEvents="box-none">
-              {flipDown && <Reanimated.View style={[styles.calloutArrowUp, { borderBottomColor: cpal.card }, arrowShiftStyle]} />}
-              <Touchable style={[styles.calloutCard, { backgroundColor: cpal.card }]} onPress={openDetail}>
-                {selected.image ? (
-                  <Image source={{ uri: selected.image }} style={styles.calloutThumb} />
-                ) : (
-                  <View style={[styles.calloutThumb, styles.calloutThumbFallback, selected.kind === 'evening' && { backgroundColor: '#2c3e70' }]}>
-                    <Text style={{ fontSize: 26 }}>{selected.emoji ?? '🎭'}</Text>
-                  </View>
-                )}
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.calloutTitle, { color: cpal.ink }]} numberOfLines={2}>{selected.title}</Text>
-                  <Text style={[styles.calloutSub, { color: cpal.muted }]} numberOfLines={1}>{selected.subtitle ?? selected.zone ?? 'Kynren — The Storied Lands'}</Text>
-                  <Text style={[styles.calloutStatus, { color: cpal.ink }]} numberOfLines={1}>
-                    {selectedDist != null
-                      ? `${fmtDist(selectedDist)} away · ~${walkMins(selectedDist)} min walk`
-                      : selected.nextTime
-                        ? `Next show ${fmtTime(selected.nextTime)}`
-                        : selected.kind === 'restaurant'
-                          ? 'Tap for menu & times'
-                          : 'Tap for details'}
-                  </Text>
-                </View>
-                <Pressable hitSlop={10} onPress={() => setSelected(null)} style={styles.calloutCloseBtn}>
-                  <Text style={[styles.calloutClose, { color: cpal.muted }]}>✕</Text>
-                </Pressable>
-              </Touchable>
-              {!flipDown && <Reanimated.View style={[styles.calloutArrow, { borderTopColor: cpal.card }, arrowShiftStyle]} />}
-            </Reanimated.View>
-          </Reanimated.View>
-        )}
 
         {/* Location banner — the app needs GPS to show your position & distances */}
         {!locationReal && !bannerDismissed && (
@@ -1143,9 +1149,9 @@ const styles = StyleSheet.create({
   hintChipTxt: { color: '#fff', fontSize: 12, fontWeight: '800', letterSpacing: 0.6 },
   walkPill: { position: 'absolute', right: 14, bottom: 74, backgroundColor: '#fff', borderRadius: 999, paddingVertical: 9, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 5 },
   walkPillTxt: { color: theme.ink, fontWeight: '800', fontSize: 13 },
-  // Zero-size point translated to the marker's screen position; the card floats
-  // above it and a little arrow points down at the pin.
-  calloutAnchor: { position: 'absolute', top: 0, left: 0, width: 0, height: 0, zIndex: 30 },
+  // The card floats above the (zero-size) pin anchor; a little arrow points
+  // down at the pin. Drawn above every other marker/beacon in the canvas.
+  calloutWrap: { zIndex: 30 },
   calloutFloat: { position: 'absolute', left: -128, bottom: 50, width: 256, alignItems: 'center', transformOrigin: '50% 100%' },
   calloutFloatDown: { position: 'absolute', left: -128, top: 50, width: 256, alignItems: 'center', transformOrigin: '50% 0%' },
   calloutArrow: { width: 0, height: 0, borderLeftWidth: 9, borderRightWidth: 9, borderTopWidth: 11, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginTop: -1 },
