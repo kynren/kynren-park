@@ -180,14 +180,16 @@ export default function MapScreen() {
   const [vp, setVp] = useState(() => { const d = Dimensions.get('window'); return { w: d.width, h: d.height }; });
   const pulse = useRef(new Animated.Value(0)).current;
 
-  // Pan/zoom live on the UI thread as reanimated shared values → native-smooth.
+  // Pan/zoom/rotate live on the UI thread as reanimated shared values → native-smooth.
   const scale = useSharedValue(2);
   const maxScaleSV = useSharedValue(8); // effective max zoom (from admin map config), read by the pinch worklet
   const panX = useSharedValue(0);
   const panY = useSharedValue(0);
+  const rotation = useSharedValue(0); // radians — two-finger rotate, like Puy du Fou / Disneyland's maps
   const startScale = useSharedValue(1);
   const startX = useSharedValue(0);
   const startY = useSharedValue(0);
+  const startRotation = useSharedValue(0);
   const vpw = useSharedValue(375);
   const vph = useSharedValue(680);
   // The map rectangle (cover fit) mirrored onto the UI thread for pan clamping.
@@ -254,12 +256,24 @@ export default function MapScreen() {
     const py = (vh / 2 + (y - vh / 2) * cur + panY.value) - (vh / 2 + (y - vh / 2) * s);
     animateTo(s, px, py, ms);
   }
-  // Zoom toward a pin WITHOUT recentring the map: keep the pin at its current
-  // on-screen position while zooming to AT LEAST `target` (never zooms out), and
-  // attach the popup right away (no frame lag) so the bubble stays glued to it.
+  // Jump to a pin from elsewhere (search, a scanned QR code, "Find on Map" from
+  // a detail screen) and attach the popup right away (no frame lag) so the
+  // bubble stays glued to it. The map's current pan/zoom is whatever was left
+  // over from earlier browsing and has no relation to this target, so: if the
+  // pin already happens to land somewhere reasonably visible under that leftover
+  // view, zoom in keeping it exactly there (never yanks something already on
+  // screen); otherwise that leftover position is meaningless — properly centre
+  // the pin in the viewport instead of zooming toward an arbitrary/off-screen spot.
   function focusPin(pin: { x: number; y: number }, target: number) {
     selX.value = pin.x; selY.value = pin.y;
-    zoomKeeping(pin.x, pin.y, Math.max(scale.value, target));
+    const cur = scale.value;
+    const curX = vw / 2 + (pin.x - vw / 2) * cur + panX.value;
+    const curY = vh / 2 + (pin.y - vh / 2) * cur + panY.value;
+    const margin = 48;
+    const onScreen = curX >= margin && curX <= vw - margin && curY >= margin && curY <= vh - margin;
+    if (onScreen) { zoomKeeping(pin.x, pin.y, Math.max(cur, target)); return; }
+    const s = Math.max(MIN_SCALE, Math.min(maxScale, target));
+    animateTo(s, (vw / 2 - pin.x) * s, (vh / 2 - pin.y) * s);
   }
 
   useEffect(() => {
@@ -330,16 +344,25 @@ export default function MapScreen() {
         panX.value = withTiming(c.x, { duration: 180 });
         panY.value = withTiming(c.y, { duration: 180 });
       });
-    return Gesture.Simultaneous(pan, pinch, doubleTap);
+    // Two-finger rotate — spin the illustrated map around, like the Puy du Fou
+    // and Disneyland park map apps. Pins/labels/popup counter-rotate (below) so
+    // they always stay upright and legible while the artwork turns beneath them.
+    const rotate = Gesture.Rotation()
+      .onStart(() => { startRotation.value = rotation.value; })
+      .onUpdate((e) => { rotation.value = startRotation.value + e.rotation; });
+    return Gesture.Simultaneous(pan, pinch, doubleTap, rotate);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const canvasStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: panX.value }, { translateY: panY.value }, { scale: scale.value }],
+    transform: [{ translateX: panX.value }, { translateY: panY.value }, { rotate: `${rotation.value}rad` }, { scale: scale.value }],
   }));
-  // Counter-scale for markers so they stay the same size regardless of zoom
-  // (each marker sets its transformOrigin to its own anchor point).
-  const invScale = useAnimatedStyle(() => ({ transform: [{ scale: 1 / scale.value }] }));
+  // Counter-scale AND counter-rotate for markers so they stay upright and the
+  // same screen size regardless of zoom/rotation (each marker sets its own
+  // transformOrigin to its own anchor point). Since the map's zoom is a uniform
+  // scale, undoing scale-then-rotate this way exactly cancels the canvas's
+  // rotate-then-scale regardless of which order the parent applied them in.
+  const invScale = useAnimatedStyle(() => ({ transform: [{ scale: 1 / scale.value }, { rotate: `${-rotation.value}rad` }] }));
   // The popup is rendered INSIDE the map canvas, anchored to the selected pin's
   // own coordinates and counter-scaled with the SAME `invScale` markers use — no
   // separate math, no edge-shift — so it is a true sibling of the pin and is
@@ -373,6 +396,19 @@ export default function MapScreen() {
     },
     (need, prev) => { if (need !== prev) runOnJS(setFlipDown)(need); },
   );
+
+  // Show a compass "reset rotation" button once the map has been turned any
+  // noticeable amount, like Google/Apple Maps — tap it to snap back to north-up.
+  const [rotated, setRotated] = useState(false);
+  useAnimatedReaction(
+    () => Math.abs(rotation.value) > 0.02,
+    (isRotated, prev) => { if (isRotated !== prev) runOnJS(setRotated)(isRotated); },
+  );
+  function resetRotation() {
+    rotation.value = withTiming(0, { duration: 260 });
+  }
+  // The compass needle spins opposite the map so it always points to true north.
+  const compassStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${-rotation.value}rad` }] }));
 
   // Mirror the live zoom into React state (in coarse 0.25 steps) so pins can be
   // clustered as the guest zooms — recomputes only a handful of times, not every
@@ -721,6 +757,7 @@ export default function MapScreen() {
   }
   function fitAll() {
     animateTo(1, 0, 0);
+    rotation.value = withTiming(0, { duration: 220 }); // "show the whole park" also squares it back up
   }
   function openDetail() {
     if (!selected) return;
@@ -954,6 +991,13 @@ export default function MapScreen() {
 
         {/* Zoom + locate controls */}
         <View style={[styles.ctrlCol, { top: insets.top + 62 }]}>
+          {/* Compass — only shown once the map has been turned; tap to snap back
+              to north-up, like Google/Apple Maps. */}
+          {rotated && (
+            <Touchable style={styles.ctrlBtn} onPress={resetRotation}>
+              <Reanimated.View style={compassStyle}><Text style={{ fontSize: 17 }}>🧭</Text></Reanimated.View>
+            </Touchable>
+          )}
           <Touchable style={styles.ctrlBtn} onPress={() => zoomTo(scale.value + 0.4)}>
             <Text style={styles.ctrlTxt}>＋</Text>
           </Touchable>
