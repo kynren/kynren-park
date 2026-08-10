@@ -3,6 +3,8 @@ import { ScrollView, View, Text, StyleSheet, Image } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Updates from 'expo-updates';
+import Constants from 'expo-constants';
 import Svg, { Path } from 'react-native-svg';
 import { Touchable } from '../components/Touchable';
 import { ManagedImage } from '../components/ManagedImage';
@@ -100,9 +102,49 @@ export default function ProfileScreen() {
               <Text style={[styles.logoutTxt, { color: theme.brand }]}>Log out</Text>
             </Touchable>
           )}
+
+          {/* Build/update footer — lets us confirm which OTA a device is actually
+              running (tap to check for a newer one right now). */}
+          <VersionFooter pal={pal} />
         </View>
       </ScrollView>
     </View>
+  );
+}
+
+function VersionFooter({ pal }: { pal: ReturnType<typeof usePalette> }) {
+  const [checking, setChecking] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const appVersion = Constants.expoConfig?.version ?? '?';
+  const updateId = Updates.updateId ? Updates.updateId.slice(0, 8) : 'embedded';
+  const publishedAt = Updates.createdAt ? new Date(Updates.createdAt).toLocaleString() : null;
+
+  async function checkNow() {
+    setChecking(true);
+    setMsg(null);
+    try {
+      const res = await Updates.checkForUpdateAsync();
+      if (!res.isAvailable) { setMsg('You’re on the latest version.'); return; }
+      setMsg('Downloading the latest version…');
+      await Updates.fetchUpdateAsync();
+      setMsg('Updated — restarting…');
+      await Updates.reloadAsync();
+    } catch {
+      setMsg('Couldn’t check for updates (offline?).');
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  return (
+    <Touchable onPress={checkNow} disabled={checking} style={{ marginTop: 18, alignItems: 'center' }}>
+      <Text style={{ color: pal.sub, fontSize: 11 }}>
+        v{appVersion} · build {updateId}{publishedAt ? ` · ${publishedAt}` : ''}
+      </Text>
+      <Text style={{ color: theme.brand, fontSize: 11, fontWeight: '700', marginTop: 3 }}>
+        {checking ? 'Checking…' : msg ?? 'Check for updates'}
+      </Text>
+    </Touchable>
   );
 }
 
