@@ -591,10 +591,11 @@ export default function MapScreen() {
     if (!pendingSelect || vw === 0) return;
     const pin = pins.find((p) => p.id === pendingSelect);
     if (!pin) return;
-    // Zoom to the pin in place (no recentring) and open its popup.
+    // Zoom INTO the pin's exact spot (the pin is the zoom pivot, so it never
+    // moves and is not pushed to centre) and open its popup.
     selection();
     setSelected(pin);
-    focusPin(pin, 2.4);
+    focusPin(pin, 3.4);
     setPendingSelect(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingSelect, pins, vw, vh]);
@@ -619,7 +620,7 @@ export default function MapScreen() {
     if (!pin) return;
     selection();
     setSelected(pin);
-    focusPin(pin, 2.6);
+    focusPin(pin, 3.4);
     setPendingSpot(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingSpot, pins, vw, vh]);
@@ -664,10 +665,11 @@ export default function MapScreen() {
     const pin = pins.find((p) => p.id === params.focus);
     if (!pin) return;
     appliedFocus.current = params.focus;
-    // Zoom to the place in place (no recentring) and open its popup.
+    // Zoom into the place's exact spot (pin is the pivot, never pushed to
+    // centre) and open its popup.
     selection();
     setSelected(pin);
-    focusPin(pin, 2.2);
+    focusPin(pin, 3.4);
   }, [params.focus, pins, vw, vh]);
 
   // Walkable POI graph (built once from the POIs).
