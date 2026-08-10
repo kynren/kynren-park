@@ -74,6 +74,23 @@ export class SyncController {
       attraction: w.attraction,
     }));
 
+    // The next date (from today) that actually has shows in the weekly
+    // programme — used by the app's "programme available from" message instead
+    // of a fixed season date. Respects the season opening if one is set.
+    const programWeekdays = new Set(
+      (await this.prisma.weeklySession.findMany({ select: { dayOfWeek: true }, distinct: ['dayOfWeek'] })).map((r) => r.dayOfWeek),
+    );
+    let nextProgramDate: string | null = null;
+    if (programWeekdays.size > 0) {
+      const cursor = new Date(`${day}T00:00:00.000Z`);
+      const seasonOpens = branding?.seasonOpens && /^\d{4}-\d{2}-\d{2}$/.test(branding.seasonOpens) ? new Date(`${branding.seasonOpens}T00:00:00.000Z`) : null;
+      if (seasonOpens && cursor < seasonOpens) cursor.setTime(seasonOpens.getTime());
+      for (let i = 0; i < 366; i++) {
+        if (programWeekdays.has(cursor.getUTCDay())) { nextProgramDate = cursor.toISOString().slice(0, 10); break; }
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
+      }
+    }
+
     // The live, admin-designed home screen (published default), or null → the
     // app falls back to its built-in home look.
     const home = await resolveHomeScreen(this.prisma);
@@ -98,6 +115,7 @@ export class SyncController {
       content,
       announcements,
       sessions,
+      nextProgramDate,
       mapConfig,
       defaultMap,
       branding,

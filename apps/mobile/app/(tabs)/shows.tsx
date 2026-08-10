@@ -11,7 +11,6 @@ import { useThemePref } from '../../lib/theme-context';
 import { SkeletonRows } from '../../components/Shimmer';
 
 const HPAD = 14;
-const OPENING_DATE = '2026-07-18'; // programme becomes available from opening day
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
 function usePalette() {
@@ -153,7 +152,11 @@ export default function ProgramScreen() {
           <View style={{ padding: 16 }}><SkeletonRows count={6} height={54} /></View>
         ) : rows.length === 0 ? (
           <View style={styles.emptyWrap}>
-            <Text style={[styles.emptyBig, { color: pal.text }]}>The programme will be available from {fmtDate(bundle?.branding?.seasonOpens || OPENING_DATE)}.</Text>
+            {bundle?.nextProgramDate ? (
+              <Text style={[styles.emptyBig, { color: pal.text }]}>The programme will be available from {fmtDate(bundle.nextProgramDate)}.</Text>
+            ) : (
+              <Text style={[styles.emptyBig, { color: pal.text }]}>The programme isn’t available yet.</Text>
+            )}
           </View>
         ) : null}
         {bundle && rows.map((r, idx) => (

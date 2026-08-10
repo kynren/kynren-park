@@ -117,6 +117,7 @@ export interface Bundle {
   content: ContentPage[];
   announcements: Announcement[];
   sessions: Session[];
+  nextProgramDate?: string | null;
   mapConfig?: MapConfig | null;
   defaultMap?: ParkMap | null;
   branding?: Branding | null;
@@ -138,8 +139,10 @@ const SyncContext = createContext<SyncState | null>(null);
 const bundleKey = (date: string) => `kynren_bundle_${date}`;
 const etagKey = (date: string) => `kynren_etag_${date}`;
 
-// Opening day is a sensible default so the demo has data out of the box.
-const DEFAULT_DATE = '2026-07-18';
+// Default to the real current date so the home "Coming up" and live schedule
+// always reflect today — the app materialises the weekly programme per date, so
+// off-days simply return no sessions (and the programme "available from" hint).
+const DEFAULT_DATE = new Date().toISOString().slice(0, 10);
 
 export function SyncProvider({ children }: { children: ReactNode }) {
   const [bundle, setBundle] = useState<Bundle | null>(null);
