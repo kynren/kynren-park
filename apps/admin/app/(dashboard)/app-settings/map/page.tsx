@@ -333,6 +333,36 @@ export default function MapEditor() {
       </div>
       {err && <div className="error" onClick={() => setErr('')} style={{ cursor: 'pointer' }}>{err}</div>}
 
+      {/* Place-on-map palette — a full-width row above the map. Drag onto the map. */}
+      <div className="editcard" style={{ marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+          <h3 style={{ margin: 0 }}>Place on map</h3>
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>{pois.length} hotspot{pois.length === 1 ? '' : 's'} · <button className="tbtn danger" style={{ padding: '3px 9px' }} onClick={clearAllHotspots} disabled={pois.length === 0}>Clear all</button></span>
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
+          {attractions.filter((a) => !a.poiId).length === 0 && restaurants.filter((r) => !r.poiId).length === 0 && shops.filter((s) => !s.poiId).length === 0 && (
+            <span style={{ color: 'var(--muted)', fontSize: 13 }}>All attractions, restaurants &amp; shops are placed. ✓ &nbsp;</span>
+          )}
+          {attractions.filter((a) => !a.poiId).map((a) => (
+            <span key={a.id} draggable style={dragChipStyle}
+              onDragStart={(e) => e.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'attraction', id: a.id, name: a.name, heroImage: a.heroImage } as DragEntity))}>🎭 {a.name}</span>
+          ))}
+          {restaurants.filter((r) => !r.poiId).map((r) => (
+            <span key={r.id} draggable style={dragChipStyle}
+              onDragStart={(e) => e.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'restaurant', id: r.id, name: r.name, heroImage: r.heroImage } as DragEntity))}>🍴 {r.name}</span>
+          ))}
+          {shops.filter((s) => !s.poiId).map((s) => (
+            <span key={s.id} draggable style={dragChipStyle}
+              onDragStart={(e) => e.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'shop', id: s.id, name: s.name, heroImage: s.heroImage } as DragEntity))}>🛍️ {s.name}</span>
+          ))}
+          <span style={{ width: 1, alignSelf: 'stretch', background: 'var(--line)', margin: '0 4px' }} />
+          {FACILITY_PALETTE.map(([type, label]) => (
+            <span key={type} draggable style={dragChipStyle}
+              onDragStart={(e) => e.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'facility', type, name: label } as DragEntity))}>{label}</span>
+          ))}
+        </div>
+      </div>
+
       <div className="mapedit">
         <div style={{ position: 'relative' }}>
           <div ref={canvasRef} className="mapcanvas" style={{ overflow: 'hidden' }} onClick={onCanvasClick} onPointerDown={onCanvasPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp} onWheel={onWheelZoom} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
@@ -374,39 +404,6 @@ export default function MapEditor() {
 
         {/* Side panel */}
         <div style={{ display: 'grid', gap: 16 }}>
-          {/* Drag-and-drop palette: unplaced entities + reusable facility types */}
-          <div className="editcard">
-            <h3 style={{ margin: 0 }}>Place on map</h3>
-            <p className="hint" style={{ margin: '6px 0 12px' }}>Drag an item onto the map to drop a hotspot. Delete a hotspot to bring its entity back here.</p>
-            {attractions.filter((a) => !a.poiId).length === 0 && restaurants.filter((r) => !r.poiId).length === 0 && shops.filter((s) => !s.poiId).length === 0 && (
-              <p style={{ color: 'var(--muted)', fontSize: 13, margin: '0 0 10px' }}>All attractions, restaurants &amp; shops are placed. ✓</p>
-            )}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {attractions.filter((a) => !a.poiId).map((a) => (
-                <span key={a.id} draggable style={dragChipStyle}
-                  onDragStart={(e) => e.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'attraction', id: a.id, name: a.name, heroImage: a.heroImage } as DragEntity))}>🎭 {a.name}</span>
-              ))}
-              {restaurants.filter((r) => !r.poiId).map((r) => (
-                <span key={r.id} draggable style={dragChipStyle}
-                  onDragStart={(e) => e.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'restaurant', id: r.id, name: r.name, heroImage: r.heroImage } as DragEntity))}>🍴 {r.name}</span>
-              ))}
-              {shops.filter((s) => !s.poiId).map((s) => (
-                <span key={s.id} draggable style={dragChipStyle}
-                  onDragStart={(e) => e.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'shop', id: s.id, name: s.name, heroImage: s.heroImage } as DragEntity))}>🛍️ {s.name}</span>
-              ))}
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--muted)', margin: '12px 0 6px', fontWeight: 700 }}>Facilities (reusable)</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {FACILITY_PALETTE.map(([type, label]) => (
-                <span key={type} draggable style={dragChipStyle}
-                  onDragStart={(e) => e.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'facility', type, name: label } as DragEntity))}>{label}</span>
-              ))}
-            </div>
-            <div style={{ borderTop: '1px solid var(--line)', margin: '14px 0 0', paddingTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-              <span style={{ fontSize: 12, color: 'var(--muted)' }}>{pois.length} hotspot{pois.length === 1 ? '' : 's'} on the map</span>
-              <button className="tbtn danger" onClick={clearAllHotspots} disabled={pois.length === 0}>Clear all hotspots</button>
-            </div>
-          </div>
           <div className="editcard">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
               <h3 style={{ margin: 0 }}>Base maps</h3>
@@ -443,10 +440,13 @@ export default function MapEditor() {
             </div>
           </div>
 
-          <div className="editcard">
-            <h3>Hotspots</h3>
-            <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0, lineHeight: 1.5 }}>Tap a hotspot to edit it in a popup. Press and hold a hotspot to drag it. Drag an item from “Place on map” above, or click an empty spot to add one.</p>
-          </div>
+          <p style={{ color: 'var(--muted)', fontSize: 12.5, lineHeight: 1.7, margin: '0 2px' }}>
+            <b>Editing hotspots</b><br />
+            • Tap a hotspot to edit it in a popup<br />
+            • Press &amp; hold a hotspot to drag it<br />
+            • Click an empty spot on the map to add one<br />
+            • Drag an item from <b>Place on map</b> to drop it
+          </p>
 
           <div className="editcard">
             <h3>Guest marker &amp; map</h3>
