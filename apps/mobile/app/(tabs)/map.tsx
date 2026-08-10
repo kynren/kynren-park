@@ -163,7 +163,11 @@ export default function MapScreen() {
   const insets = useSafeAreaInsets();
   const dark = useThemePref().scheme === 'dark';
   const cpal = dark
-    ? { card: '#1f1f24', ink: '#ffffff', muted: '#a5a5ad' }
+    // Brighter than a typical "muted" grey — this is an outdoor park app, and
+    // a guest confirmed the popup subtitle was genuinely hard to read even
+    // though the colour technically passed a contrast-ratio check indoors;
+    // direct sunlight eats a lot more contrast than that check accounts for.
+    ? { card: '#1f1f24', ink: '#ffffff', muted: '#cfcfd6' }
     : { card: '#ffffff', ink: theme.ink, muted: theme.muted };
   const params = useLocalSearchParams<{ focus?: string; spot?: string }>();
   // Multiple categories can be active at once; defaults to Shows on first load.
@@ -1014,22 +1018,31 @@ export default function MapScreen() {
         </GestureDetector>
 
         {/* Edge-fade vignette — softly fades the map's edges into the background,
-            only at the default view (hidden once the guest zooms in). */}
+            only at the default view (hidden once the guest zooms in). Wrapped in
+            a plain View with pointerEvents="none" (not just set on the <Svg>
+            itself): react-native-svg's own pointerEvents handling has proven
+            unreliable on iOS for a full-screen overlay like this, and a real
+            device confirmed it was silently swallowing ALL map touches for as
+            long as this vignette was showing (i.e. the entire initial view,
+            until the guest zoomed in past it) — a plain View's pointerEvents is
+            the far more reliably-supported pass-through mechanism. */}
         {mapImageUrl && vw > 0 && zoom <= (cfg?.initialZoom ?? 2) + 0.001 && (() => {
           const f = Math.round(Math.min(vw, vh) * 0.16);
           return (
-            <Svg pointerEvents="none" style={StyleSheet.absoluteFill} width={vw} height={vh}>
-              <Defs>
-                <SvgGradient id="fadeT" x1="0" y1="0" x2="0" y2="1"><Stop offset="0" stopColor={mapBg} stopOpacity={1} /><Stop offset="1" stopColor={mapBg} stopOpacity={0} /></SvgGradient>
-                <SvgGradient id="fadeB" x1="0" y1="0" x2="0" y2="1"><Stop offset="0" stopColor={mapBg} stopOpacity={0} /><Stop offset="1" stopColor={mapBg} stopOpacity={1} /></SvgGradient>
-                <SvgGradient id="fadeL" x1="0" y1="0" x2="1" y2="0"><Stop offset="0" stopColor={mapBg} stopOpacity={1} /><Stop offset="1" stopColor={mapBg} stopOpacity={0} /></SvgGradient>
-                <SvgGradient id="fadeR" x1="0" y1="0" x2="1" y2="0"><Stop offset="0" stopColor={mapBg} stopOpacity={0} /><Stop offset="1" stopColor={mapBg} stopOpacity={1} /></SvgGradient>
-              </Defs>
-              <Rect x={0} y={0} width={vw} height={f} fill="url(#fadeT)" />
-              <Rect x={0} y={vh - f} width={vw} height={f} fill="url(#fadeB)" />
-              <Rect x={0} y={0} width={f} height={vh} fill="url(#fadeL)" />
-              <Rect x={vw - f} y={0} width={f} height={vh} fill="url(#fadeR)" />
-            </Svg>
+            <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+              <Svg pointerEvents="none" style={StyleSheet.absoluteFill} width={vw} height={vh}>
+                <Defs>
+                  <SvgGradient id="fadeT" x1="0" y1="0" x2="0" y2="1"><Stop offset="0" stopColor={mapBg} stopOpacity={1} /><Stop offset="1" stopColor={mapBg} stopOpacity={0} /></SvgGradient>
+                  <SvgGradient id="fadeB" x1="0" y1="0" x2="0" y2="1"><Stop offset="0" stopColor={mapBg} stopOpacity={0} /><Stop offset="1" stopColor={mapBg} stopOpacity={1} /></SvgGradient>
+                  <SvgGradient id="fadeL" x1="0" y1="0" x2="1" y2="0"><Stop offset="0" stopColor={mapBg} stopOpacity={1} /><Stop offset="1" stopColor={mapBg} stopOpacity={0} /></SvgGradient>
+                  <SvgGradient id="fadeR" x1="0" y1="0" x2="1" y2="0"><Stop offset="0" stopColor={mapBg} stopOpacity={0} /><Stop offset="1" stopColor={mapBg} stopOpacity={1} /></SvgGradient>
+                </Defs>
+                <Rect x={0} y={0} width={vw} height={f} fill="url(#fadeT)" />
+                <Rect x={0} y={vh - f} width={vw} height={f} fill="url(#fadeB)" />
+                <Rect x={0} y={0} width={f} height={vh} fill="url(#fadeL)" />
+                <Rect x={vw - f} y={0} width={f} height={vh} fill="url(#fadeR)" />
+              </Svg>
+            </View>
           );
         })()}
 
@@ -1304,7 +1317,7 @@ const styles = StyleSheet.create({
   calloutThumb: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#e7e2da' },
   calloutThumbFallback: { alignItems: 'center', justifyContent: 'center', backgroundColor: theme.brand },
   calloutTitle: { fontWeight: '800', fontSize: 17, lineHeight: 21, letterSpacing: -0.2 },
-  calloutSub: { fontSize: 13, fontWeight: '600', marginTop: 2 },
+  calloutSub: { fontSize: 13, fontWeight: '700', marginTop: 2 },
   calloutStatus: { fontSize: 13, fontWeight: '700', marginTop: 3 },
   calloutCloseBtn: { position: 'absolute', top: 6, right: 8, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
   calloutClose: { fontSize: 14, fontWeight: '700' },
