@@ -124,10 +124,16 @@ function dijkstra(adj: number[][], nodes: Geo[], start: number, goal: number): n
 
 const MIN_SCALE = 1;
 const MAX_SCALE = 12; // absolute ceiling; the effective max comes from the admin map config
-// Render the base map at this multiple of the viewport so it decodes at full
-// source resolution and stays sharp when zoomed in (capped by the image itself).
-const BASE_OVERSAMPLE = 3;
+// Render the base map at this multiple of the viewport so it decodes sharper
+// than the viewport itself (capped by the image's own resolution either way).
+// Lower = a smaller decoded texture, which is lighter to transform every frame
+// during a live pinch/pan/rotate — 2x is still comfortably sharp when zoomed.
+const BASE_OVERSAMPLE = 2;
 const HALF_MILE_M = 804.672; // only show the location beacon within this distance of the park
+// Module-level (not component state) so dismissing the "outside the park"
+// banner sticks for the rest of this app session — surviving tab switches and
+// this screen remounting — and only resets on an actual app reload/relaunch.
+let outsideBannerDismissed = false;
 const AREA_OPEN_PX = 90; // an area stays grouped until its pins span more than this on screen
 // Markers live inside the zoomed canvas but are counter-scaled so they keep a
 // constant screen size (their anchor point still tracks the map).
@@ -168,7 +174,8 @@ export default function MapScreen() {
   // until the guest taps "Show all pins" — like the Disney app's Find on Map.
   const [soloId, setSoloId] = useState<string | null>(null);
   const [hintDismissed, setHintDismissed] = useState(false);
-  const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [bannerDismissed, setBannerDismissedState] = useState(outsideBannerDismissed);
+  function setBannerDismissed(v: boolean) { outsideBannerDismissed = v; setBannerDismissedState(v); }
   const appliedFocus = useRef<string | null>(null);
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null); // debounce the background-tap dismiss so a double-tap doesn't close the popup
   const [favs, setFavs] = useState<Set<string>>(new Set());
@@ -401,13 +408,38 @@ export default function MapScreen() {
   // The compass needle spins opposite the map so it always points to true north.
   const compassStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${-rotation.value}rad` }] }));
 
-  // Mirror the live zoom into React state (in coarse 0.25 steps) so pins can be
-  // clustered as the guest zooms — recomputes only a handful of times, not every
-  // frame. Pins that overlap merge into a count bubble; zooming in splits them.
+  // Mirror the live zoom into React state (in coarse 0.5 steps) so pins can be
+  // clustered as the guest zooms. Re-clustering re-renders every marker on the
+  // JS thread, which is heavy enough to visibly stutter a live pinch gesture if
+  // it fires on every step, so it's throttled: at most one JS update every
+  // ~140ms while the gesture is actively changing, with a trailing update so it
+  // always settles on the true final value once the pinch pauses or ends. Pan
+  // and rotate never touch this (they don't change scale), so they're
+  // unaffected — purely native-thread transforms, already as smooth as RN gets.
   const [zoom, setZoom] = useState(1);
+  const zoomThrottleAt = useRef(0);
+  const zoomTrailingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingZoom = useRef<number | null>(null);
+  const applyZoom = useRef((v: number) => {
+    pendingZoom.current = v;
+    const now = Date.now();
+    if (now - zoomThrottleAt.current >= 140) {
+      zoomThrottleAt.current = now;
+      if (zoomTrailingTimer.current) { clearTimeout(zoomTrailingTimer.current); zoomTrailingTimer.current = null; }
+      setZoom(v);
+    } else if (!zoomTrailingTimer.current) {
+      // Always applies the LATEST pending value when it fires, not whatever
+      // value was current when the timer was scheduled.
+      zoomTrailingTimer.current = setTimeout(() => {
+        zoomTrailingTimer.current = null;
+        zoomThrottleAt.current = Date.now();
+        if (pendingZoom.current != null) setZoom(pendingZoom.current);
+      }, 140);
+    }
+  }).current;
   useAnimatedReaction(
-    () => Math.round(scale.value * 4) / 4,
-    (cur, prev) => { if (cur !== prev) runOnJS(setZoom)(cur); },
+    () => Math.round(scale.value * 2) / 2,
+    (cur, prev) => { if (cur !== prev) runOnJS(applyZoom)(cur); },
   );
 
   const pois = bundle?.pois ?? [];
@@ -665,7 +697,6 @@ export default function MapScreen() {
     // other active filters aren't wiped out by scanning a code.
     setCats((prev) => new Set(prev).add(cat));
     setPendingSpot(targetId);
-    setBannerDismissed(false);
   }, [params.spot, bundle, pois]);
   useEffect(() => {
     if (!pendingSpot || vw === 0) return;
@@ -715,7 +746,6 @@ export default function MapScreen() {
     // other active filters aren't wiped out by "Find on Map" / "Go to".
     setCats((prev) => new Set(prev).add(cat));
     appliedFocus.current = null;
-    setBannerDismissed(false);
   }, [params.focus, bundle, pois]);
   useEffect(() => {
     if (!params.focus || appliedFocus.current === params.focus || vw === 0) return;

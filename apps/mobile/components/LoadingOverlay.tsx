@@ -36,6 +36,15 @@ export function LoadingOverlay() {
     if (b) AsyncStorage.setItem(CACHE, JSON.stringify({ type: b.splashType ?? 'none', url: b.splashMediaUrl ?? null })).catch(() => undefined);
   }, [bundle]);
 
+  // Preload the park map — it's often a large embedded picture (up to 4096px,
+  // usually a multi-MB base64 image, not a plain hosted URL) — while the splash
+  // is up, so decoding is already done and cached by the time the guest opens
+  // the Map tab, instead of it happening (and visibly flashing) on first visit.
+  const mapUrl = bundle?.defaultMap?.imageUrl || bundle?.mapConfig?.mapImageUrl || null;
+  useEffect(() => {
+    if (mapUrl) Image.prefetch(mapUrl).catch(() => undefined);
+  }, [mapUrl]);
+
   // Dismiss once we've shown for MIN_MS and the app is ready (or MAX_MS cap).
   useEffect(() => {
     if (!cfg) return;
@@ -79,10 +88,16 @@ export function LoadingOverlay() {
         // Default: the cinematic Kynren splash sequence.
         <SplashSequence />
       )}
+      {/* Invisible, 1x1 — forces the SAME native image pipeline the Map screen
+          uses to fully decode + cache the map picture now (Image.prefetch's
+          support for embedded base64 pictures, not just hosted URLs, isn't
+          guaranteed on every platform, so this is the belt-and-suspenders way). */}
+      {mapUrl && <Image source={{ uri: mapUrl }} style={styles.preload} />}
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   fill: { ...StyleSheet.absoluteFillObject, zIndex: 1000, backgroundColor: '#0a0616' },
+  preload: { position: 'absolute', width: 1, height: 1, opacity: 0 },
 });
