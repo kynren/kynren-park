@@ -256,22 +256,13 @@ export default function MapScreen() {
     const py = (vh / 2 + (y - vh / 2) * cur + panY.value) - (vh / 2 + (y - vh / 2) * s);
     animateTo(s, px, py, ms);
   }
-  // Jump to a pin from elsewhere (search, a scanned QR code, "Find on Map" from
-  // a detail screen) and attach the popup right away (no frame lag) so the
-  // bubble stays glued to it. The map's current pan/zoom is whatever was left
-  // over from earlier browsing and has no relation to this target, so: if the
-  // pin already happens to land somewhere reasonably visible under that leftover
-  // view, zoom in keeping it exactly there (never yanks something already on
-  // screen); otherwise that leftover position is meaningless — properly centre
-  // the pin in the viewport instead of zooming toward an arbitrary/off-screen spot.
+  // Jump to a pin from elsewhere (search, a scanned QR code, "Find on Map" /
+  // "Go to" from a detail screen): the map's current pan/zoom is whatever was
+  // left over from earlier browsing and has no relation to this target, so
+  // always bring the pin to the centre of the viewport and zoom in on it —
+  // never leave it wherever it happened to land under the stale prior view.
   function focusPin(pin: { x: number; y: number }, target: number) {
     selX.value = pin.x; selY.value = pin.y;
-    const cur = scale.value;
-    const curX = vw / 2 + (pin.x - vw / 2) * cur + panX.value;
-    const curY = vh / 2 + (pin.y - vh / 2) * cur + panY.value;
-    const margin = 48;
-    const onScreen = curX >= margin && curX <= vw - margin && curY >= margin && curY <= vh - margin;
-    if (onScreen) { zoomKeeping(pin.x, pin.y, Math.max(cur, target)); return; }
     const s = Math.max(MIN_SCALE, Math.min(maxScale, target));
     animateTo(s, (vw / 2 - pin.x) * s, (vh / 2 - pin.y) * s);
   }
@@ -651,12 +642,31 @@ export default function MapScreen() {
   useEffect(() => {
     if (!params.spot || !bundle) return;
     const [type, id] = String(params.spot).split(':');
-    // A shop code carries the shop id; resolve it to its map POI so we can centre.
-    const targetId = type === 'shop' ? (bundle.shops?.find((s) => s.id === id)?.poiId ?? id) : id;
-    setCats(new Set<Cat>([type === 'restaurant' ? 'restaurants' : (type === 'poi' || type === 'shop') ? 'facilities' : 'shows']));
+    let targetId = id;
+    let cat: Cat = 'shows';
+    if (type === 'restaurant') {
+      cat = 'restaurants';
+    } else if (type === 'shop') {
+      // A shop code carries the shop id; resolve it to its map POI so we can centre.
+      targetId = bundle.shops?.find((s) => s.id === id)?.poiId ?? id;
+      cat = 'facilities';
+    } else if (type === 'attraction') {
+      cat = 'shows';
+    } else {
+      // A generic "poi" code — the map editor's per-hotspot QR always encodes
+      // this, regardless of what the hotspot actually is, so resolve the real
+      // category from the POI's own type instead of assuming "facility".
+      const poi = pois.find((p) => p.id === id);
+      if (poi?.type === 'RESTAURANT') { targetId = bundle.restaurants?.find((r) => r.poiId === id)?.id ?? id; cat = 'restaurants'; }
+      else if (poi?.type === 'ATTRACTION') { targetId = bundle.attractions?.find((a) => a.poiId === id)?.id ?? id; cat = 'shows'; }
+      else cat = 'facilities'; // a genuine facility hotspot (restroom, first aid, shop, …)
+    }
+    // Add the category rather than replacing the whole set, so the guest's
+    // other active filters aren't wiped out by scanning a code.
+    setCats((prev) => new Set(prev).add(cat));
     setPendingSpot(targetId);
     setBannerDismissed(false);
-  }, [params.spot, bundle]);
+  }, [params.spot, bundle, pois]);
   useEffect(() => {
     if (!pendingSpot || vw === 0) return;
     if (mapImageUrl && imgAspect == null) return; // wait until the projection is final
@@ -700,7 +710,10 @@ export default function MapScreen() {
     if (!params.focus) return;
     const isRestaurant = (bundle?.restaurants ?? []).some((r) => r.id === params.focus);
     const isFacility = pois.some((p) => p.id === params.focus && FACILITY_TYPES[p.type]);
-    setCats(new Set<Cat>([isRestaurant ? 'restaurants' : isFacility ? 'facilities' : 'shows']));
+    const cat: Cat = isRestaurant ? 'restaurants' : isFacility ? 'facilities' : 'shows';
+    // Add the category rather than replacing the whole set, so the guest's
+    // other active filters aren't wiped out by "Find on Map" / "Go to".
+    setCats((prev) => new Set(prev).add(cat));
     appliedFocus.current = null;
     setBannerDismissed(false);
   }, [params.focus, bundle, pois]);
