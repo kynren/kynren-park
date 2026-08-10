@@ -343,7 +343,24 @@ export default function MapScreen() {
     // stays glued to the pin and moves with it (never repositions independently).
     const sx = w / 2 + (selX.value - w / 2) * scale.value + panX.value;
     const sy = h / 2 + (selY.value - h / 2) * scale.value + panY.value;
-    return { transform: [{ translateX: sx }, { translateY: sy }] };
+    // Keep the card fully on-screen: if the pin is close to a side edge, nudge
+    // the whole card inward (the arrow is counter-shifted to still hit the pin).
+    const half = 128, margin = 10;
+    let shift = 0;
+    if (sx - half < margin) shift = margin - (sx - half);
+    else if (sx + half > w - margin) shift = (w - margin) - (sx + half);
+    return { transform: [{ translateX: sx + shift }, { translateY: sy }] };
+  });
+  // The inverse of the card's edge-nudge, applied to the little arrow so it keeps
+  // pointing exactly at the pin even when the card has been shifted off an edge.
+  const arrowShiftStyle = useAnimatedStyle(() => {
+    const w = vpw.value || 375;
+    const sx = w / 2 + (selX.value - w / 2) * scale.value + panX.value;
+    const half = 128, margin = 10;
+    let shift = 0;
+    if (sx - half < margin) shift = margin - (sx - half);
+    else if (sx + half > w - margin) shift = (w - margin) - (sx + half);
+    return { transform: [{ translateX: -shift }] };
   });
   // Popup entrance animation (admin-tunable: none | fade | scale | slide | bounce).
   const popupAnim = cfg?.popupAnimation ?? 'scale';
@@ -404,6 +421,10 @@ export default function MapScreen() {
   const appliedInitial = useRef(false);
   useEffect(() => {
     if (appliedInitial.current || !cfg || vw === 0 || !imgAspect) return;
+    // A deep link (view on map / scanned spot) owns the opening view — mark the
+    // initial view as applied but DON'T move, so it never overrides the focus
+    // once the map's aspect resolves (the cause of the pin "snapping to centre").
+    if (params.focus || params.spot) { appliedInitial.current = true; return; }
     appliedInitial.current = true;
     const z = Math.max(MIN_SCALE, Math.min(maxScale, cfg.initialZoom ?? 2));
     let px = 0, py = 0;
@@ -590,6 +611,7 @@ export default function MapScreen() {
   // Once the pins for the chosen layer are ready, select & centre the result.
   useEffect(() => {
     if (!pendingSelect || vw === 0) return;
+    if (mapImageUrl && imgAspect == null) return; // wait until the projection is final
     const pin = pins.find((p) => p.id === pendingSelect);
     if (!pin) return;
     // Zoom INTO the pin's exact spot (the pin is the zoom pivot, so it never
@@ -599,7 +621,7 @@ export default function MapScreen() {
     focusPin(pin, 3.4);
     setPendingSelect(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingSelect, pins, vw, vh]);
+  }, [pendingSelect, pins, vw, vh, imgAspect, mapImageUrl]);
 
   // Hide the "tap to explore" hint once the guest opens a place.
   useEffect(() => { if (selected) setHintDismissed(true); }, [selected]);
@@ -617,6 +639,7 @@ export default function MapScreen() {
   }, [params.spot, bundle]);
   useEffect(() => {
     if (!pendingSpot || vw === 0) return;
+    if (mapImageUrl && imgAspect == null) return; // wait until the projection is final
     const pin = pins.find((p) => p.id === pendingSpot || p.attractionId === pendingSpot);
     if (!pin) return;
     selection();
@@ -624,7 +647,7 @@ export default function MapScreen() {
     focusPin(pin, 3.4);
     setPendingSpot(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingSpot, pins, vw, vh]);
+  }, [pendingSpot, pins, vw, vh, imgAspect, mapImageUrl]);
 
   const entrance = pois.find((p) => p.type === 'ENTRANCE');
   const locationReal = !!(gps && project && project.inBounds(gps.lat, gps.lng));
@@ -663,6 +686,7 @@ export default function MapScreen() {
   }, [params.focus, bundle, pois]);
   useEffect(() => {
     if (!params.focus || appliedFocus.current === params.focus || vw === 0) return;
+    if (mapImageUrl && imgAspect == null) return; // wait until the projection is final
     const pin = pins.find((p) => p.id === params.focus);
     if (!pin) return;
     appliedFocus.current = params.focus;
@@ -671,7 +695,7 @@ export default function MapScreen() {
     selection();
     setSelected(pin);
     focusPin(pin, 3.4);
-  }, [params.focus, pins, vw, vh]);
+  }, [params.focus, pins, vw, vh, imgAspect, mapImageUrl]);
 
   // Walkable POI graph (built once from the POIs).
   const routeNodes = useMemo<Geo[]>(() => pois.map((p) => ({ lat: p.lat, lng: p.lng })), [pois]);
@@ -843,7 +867,7 @@ export default function MapScreen() {
         {selected && (
           <Reanimated.View style={[styles.calloutAnchor, calloutStyle]} pointerEvents="box-none">
             <Reanimated.View style={[flipDown ? styles.calloutFloatDown : styles.calloutFloat, popupAnimStyle]} pointerEvents="box-none">
-              {flipDown && <View style={[styles.calloutArrowUp, { borderBottomColor: cpal.card }]} />}
+              {flipDown && <Reanimated.View style={[styles.calloutArrowUp, { borderBottomColor: cpal.card }, arrowShiftStyle]} />}
               <Touchable style={[styles.calloutCard, { backgroundColor: cpal.card }]} onPress={openDetail}>
                 {selected.image ? (
                   <Image source={{ uri: selected.image }} style={styles.calloutThumb} />
@@ -869,7 +893,7 @@ export default function MapScreen() {
                   <Text style={[styles.calloutClose, { color: cpal.muted }]}>✕</Text>
                 </Pressable>
               </Touchable>
-              {!flipDown && <View style={[styles.calloutArrow, { borderTopColor: cpal.card }]} />}
+              {!flipDown && <Reanimated.View style={[styles.calloutArrow, { borderTopColor: cpal.card }, arrowShiftStyle]} />}
             </Reanimated.View>
           </Reanimated.View>
         )}

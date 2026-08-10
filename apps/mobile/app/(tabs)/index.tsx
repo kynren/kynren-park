@@ -105,8 +105,8 @@ export default function HomeScreen() {
               </Svg>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.visitTitle, { color: pal.text }]}>Add your visit dates</Text>
-              <Text style={[styles.visitSub, { color: pal.sub }]}>Tell us the dates of your visit to Kynren</Text>
+              <Text style={[styles.visitTitle, { color: pal.text }]}>Plan your perfect visit</Text>
+              <Text style={[styles.visitSub, { color: pal.sub }]}>Pick the shows you don’t want to miss</Text>
             </View>
             <Text style={[styles.chev, { color: pal.sub }]}>›</Text>
           </Touchable>
