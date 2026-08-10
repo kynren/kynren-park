@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { AnnouncementMegaphone } from '../components/AnnouncementMegaphone';
 import { LoadingOverlay } from '../components/LoadingOverlay';
 import { FloatingScanner } from '../components/FloatingScanner';
+import { Walkthrough } from '../components/Walkthrough';
 import * as Notifications from 'expo-notifications';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { SyncProvider, useSync } from '../lib/sync';
@@ -121,6 +122,7 @@ function RootNav() {
       </Stack>
       <FloatingScanner />
       <AnnouncementMegaphone />
+      <Walkthrough />
       <LoadingOverlay />
     </View>
   );

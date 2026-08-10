@@ -17,6 +17,7 @@ const CARDS: { href: string; title: string; desc: string; icon: string; ready: b
   { href: '/app-settings/map', title: 'Map & Hotspots', ready: true, icon: 'M9 4 4 6v14l5-2 6 2 5-2V4l-5 2-6-2z|M9 4v14M15 6v14', desc: 'Plot hotspots, set lat/lng, colours and categories, and tune the map.' },
   { href: '/app-settings/categories', title: 'Categories & Services', ready: true, icon: 'M4 4h7v7H4z|M13 4h7v7h-7z|M4 13h7v7H4z|M13 13h7v7h-7z', desc: 'Toilets, first aid, shops and any category that appears on the map.' },
   { href: '/app-settings/push', title: 'Push Templates', ready: true, icon: 'M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9|M13.7 21a2 2 0 0 1-3.4 0', desc: 'Create push-notification templates and assign them to actions.' },
+  { href: '/app-settings/walkthrough', title: 'Walkthrough', ready: true, icon: 'M12 2 2 7l10 5 10-5-10-5z|M2 17l10 5 10-5|M2 12l10 5 10-5', desc: 'Write the first-time onboarding tour and pick which tab each step appears on.' },
   { href: '/system/api-connection', title: 'API Connections', ready: true, icon: 'M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1|M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1', desc: 'Push and pull data to and from other applications.' },
   { href: '/system/users', title: 'Users', ready: true, icon: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2|M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z|M22 21v-2a4 4 0 0 0-3-3.9', desc: 'Everyone who installed the app and who is in the park right now.' },
 ];

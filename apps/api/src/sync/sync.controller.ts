@@ -27,7 +27,7 @@ export class SyncController {
     const start = new Date(`${day}T00:00:00.000Z`);
     const end = new Date(`${day}T23:59:59.999Z`);
 
-    const [attractions, pois, walkEdges, restaurants, shops, ticketTypes, content, announcements, weekly, mapConfig, defaultMap, branding] =
+    const [attractions, pois, walkEdges, restaurants, shops, ticketTypes, content, announcements, weekly, mapConfig, defaultMap, branding, walkthrough] =
       await Promise.all([
         this.prisma.attraction.findMany({ where: { active: true }, orderBy: { sortOrder: 'asc' } }),
         this.prisma.pointOfInterest.findMany(),
@@ -58,6 +58,7 @@ export class SyncController {
         this.prisma.mapConfig.findFirst(),
         this.prisma.parkMap.findFirst({ where: { isDefault: true } }),
         this.prisma.branding.findFirst(),
+        this.prisma.walkthroughStep.findMany({ where: { active: true }, orderBy: [{ screen: 'asc' }, { order: 'asc' }] }),
       ]);
 
     // Materialise the weekly programme into concrete sessions for this date, so
@@ -116,6 +117,7 @@ export class SyncController {
       announcements,
       sessions,
       nextProgramDate,
+      walkthrough,
       mapConfig,
       defaultMap,
       branding,

@@ -708,6 +708,40 @@ export class ManageController {
     return { deleted: res.count };
   }
 
+  // ---- First-time walkthrough -------------------------------------------------
+  @Get('walkthrough-steps')
+  listWalkthrough() {
+    return this.prisma.walkthroughStep.findMany({ orderBy: [{ screen: 'asc' }, { order: 'asc' }] });
+  }
+
+  @Post('walkthrough-steps')
+  createWalkthrough(@Body() b: any) {
+    if (!b?.title || !b?.body) throw new BadRequestException('title and body are required');
+    return this.prisma.walkthroughStep.create({
+      data: {
+        title: b.title,
+        body: b.body,
+        screen: b.screen ?? 'index',
+        position: b.position ?? 'bottom',
+        order: Number.isFinite(Number(b.order)) ? Number(b.order) : 0,
+        active: b.active ?? true,
+      },
+    });
+  }
+
+  @Patch('walkthrough-steps/:id')
+  updateWalkthrough(@Param('id') id: string, @Body() b: any) {
+    const data = pick(b, ['title', 'body', 'screen', 'position', 'active']);
+    if (b.order !== undefined) data.order = Number(b.order);
+    return this.prisma.walkthroughStep.update({ where: { id }, data });
+  }
+
+  @Delete('walkthrough-steps/:id')
+  async deleteWalkthrough(@Param('id') id: string) {
+    await this.prisma.walkthroughStep.delete({ where: { id } });
+    return { deleted: true };
+  }
+
   // ---- System console: database stats --------------------------------------
   @Get('db-stats')
   async dbStats() {

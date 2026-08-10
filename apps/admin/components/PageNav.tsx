@@ -29,6 +29,7 @@ const LABELS: Record<string, string> = {
   '/app-settings/map': 'Map & Hotspots',
   '/app-settings/push': 'Push Templates',
   '/app-settings/schedule': 'Program Schedule',
+  '/app-settings/walkthrough': 'Walkthrough',
   '/system': 'System',
   '/system/organizations': 'Organizations',
   '/system/agent-log': 'Agent Log',

@@ -587,6 +587,22 @@ model ContentPage {
   createdAt DateTime @default(now())
 }
 
+// A first-time-user walkthrough card — admin-authored, shown once (per device)
+// the first time a guest reaches the given tab. `screen` matches a mobile tab
+// route (index | map | tickets | shows | food); `position` is where on that
+// screen the card appears (top | center | bottom).
+model WalkthroughStep {
+  id        String   @id @default(cuid())
+  order     Int      @default(0)
+  screen    String   @default("index")
+  position  String   @default("bottom")
+  title     String
+  body      String
+  active    Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
+
 // One recorded result of a system health probe (API, DB, SMTP, push, realtime),
 // kept ~90 days to draw the status-page uptime history.
 model HealthCheck {

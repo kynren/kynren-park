@@ -87,6 +87,14 @@ export interface Announcement {
   id: string; title: string; body: string; createdAt: string;
   sentAt?: string | null; startAt?: string | null; endAt?: string | null; recurrence?: string;
 }
+export interface WalkthroughStep {
+  id: string;
+  order: number;
+  screen: string; // matches a mobile tab route: index | map | tickets | shows | food
+  position: 'top' | 'center' | 'bottom';
+  title: string;
+  body: string;
+}
 export interface ManagedImageConfig {
   imageUrl?: string | null;
   imageUrlDark?: string | null;
@@ -118,6 +126,7 @@ export interface Bundle {
   announcements: Announcement[];
   sessions: Session[];
   nextProgramDate?: string | null;
+  walkthrough?: WalkthroughStep[];
   mapConfig?: MapConfig | null;
   defaultMap?: ParkMap | null;
   branding?: Branding | null;
