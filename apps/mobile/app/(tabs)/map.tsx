@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Animated, Image, TextInput, Keyboard, ScrollView, Dimensions, type LayoutChangeEvent } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Animated, Image, TextInput, Keyboard, ScrollView, Dimensions, Platform, type LayoutChangeEvent } from 'react-native';
 import Reanimated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, useAnimatedReaction, runOnJS } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -122,6 +122,9 @@ function dijkstra(adj: number[][], nodes: Geo[], start: number, goal: number): n
   return path[0] === start ? path : null;
 }
 
+// Two-finger map rotation is Android-only — see the note by the Rotation
+// gesture below for why it's disabled on iOS.
+const ROTATE_SUPPORTED = Platform.OS !== 'ios';
 const MIN_SCALE = 1;
 const MAX_SCALE = 12; // absolute ceiling; the effective max comes from the admin map config
 // Render the base map at this multiple of the viewport so it decodes sharper
@@ -345,6 +348,10 @@ export default function MapScreen() {
     // Two-finger rotate — spin the illustrated map around, like the Puy du Fou
     // and Disneyland park map apps. Pins/labels/popup counter-rotate (below) so
     // they always stay upright and legible while the artwork turns beneath them.
+    // iOS-disabled: combined with pan+pinch+double-tap it left the whole map
+    // gesture-dead on first load, and any `rotate` transform on iOS (even at
+    // 0rad) forces text onto a blurrier compositing path — Android is unaffected.
+    if (!ROTATE_SUPPORTED) return Gesture.Simultaneous(pan, pinch, doubleTap);
     const rotate = Gesture.Rotation()
       .onStart(() => { startRotation.value = rotation.value; })
       .onUpdate((e) => { rotation.value = startRotation.value + e.rotation; });
@@ -353,14 +360,18 @@ export default function MapScreen() {
   }, []);
 
   const canvasStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: panX.value }, { translateY: panY.value }, { rotate: `${rotation.value}rad` }, { scale: scale.value }],
+    transform: ROTATE_SUPPORTED
+      ? [{ translateX: panX.value }, { translateY: panY.value }, { rotate: `${rotation.value}rad` }, { scale: scale.value }]
+      : [{ translateX: panX.value }, { translateY: panY.value }, { scale: scale.value }],
   }));
   // Counter-scale AND counter-rotate for markers so they stay upright and the
   // same screen size regardless of zoom/rotation (each marker sets its own
   // transformOrigin to its own anchor point). Since the map's zoom is a uniform
   // scale, undoing scale-then-rotate this way exactly cancels the canvas's
   // rotate-then-scale regardless of which order the parent applied them in.
-  const invScale = useAnimatedStyle(() => ({ transform: [{ scale: 1 / scale.value }, { rotate: `${-rotation.value}rad` }] }));
+  const invScale = useAnimatedStyle(() => ({
+    transform: ROTATE_SUPPORTED ? [{ scale: 1 / scale.value }, { rotate: `${-rotation.value}rad` }] : [{ scale: 1 / scale.value }],
+  }));
   // The popup is rendered INSIDE the map canvas, anchored to the selected pin's
   // own coordinates and counter-scaled with the SAME `invScale` markers use — no
   // separate math, no edge-shift — so it is a true sibling of the pin and is
@@ -1036,7 +1047,7 @@ export default function MapScreen() {
         <View style={[styles.ctrlCol, { top: insets.top + 62 }]}>
           {/* Compass — only shown once the map has been turned; tap to snap back
               to north-up, like Google/Apple Maps. */}
-          {rotated && (
+          {ROTATE_SUPPORTED && rotated && (
             <Touchable style={styles.ctrlBtn} onPress={resetRotation}>
               <Reanimated.View style={compassStyle}><Text style={{ fontSize: 17 }}>🧭</Text></Reanimated.View>
             </Touchable>
