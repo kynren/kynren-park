@@ -136,6 +136,10 @@ h1 { font-size: 24px; margin: 0 0 4px; font-weight: 800; }
 .tile .l { color: var(--muted); font-size: 13px; margin-top: 2px; }
 .toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 18px; flex-wrap: wrap; }
 input, select { padding: 9px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 14px; background: #fff; color: var(--ink); }
+/* Native checkboxes/radios: reset the generic input box styling so the check/uncheck state shows clearly. */
+input[type="checkbox"], input[type="radio"] { width: 17px; height: 17px; padding: 0; border-radius: 4px; accent-color: var(--green); cursor: pointer; flex: 0 0 auto; }
+input[type="radio"] { border-radius: 50%; }
+input[type="range"] { padding: 0; border: 0; accent-color: var(--green); }
 .board { display: grid; gap: 10px; }
 .session { display: grid; grid-template-columns: 90px 1fr auto; align-items: center; gap: 16px; background: var(--card); border-radius: 14px; border-left: 5px solid var(--border); padding: 14px 18px; }
 .session.SCHEDULED { border-left-color: var(--ok); }
@@ -289,7 +293,7 @@ button.primary:hover { filter: brightness(0.95); }
 .rowline:last-child { border-bottom: 0; }
 
 /* ---- Map & Hotspots editor ---- */
-.mapedit { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 330px); gap: 18px; align-items: start; }
+.mapedit { display: grid; grid-template-columns: 1fr; gap: 18px; align-items: start; }
 .mapedit > * { min-width: 0; }
 .editcard { min-width: 0; }
 .editcard input, .editcard select, .editcard textarea { min-width: 0; max-width: 100%; }
