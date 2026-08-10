@@ -325,12 +325,10 @@ export default function MapScreen() {
   // transform the canvas applies), so it tracks the marker while panning/zooming.
   const calloutStyle = useAnimatedStyle(() => {
     const w = vpw.value || 375, h = vph.value || 680;
-    let sx = w / 2 + (selX.value - w / 2) * scale.value + panX.value;
-    let sy = h / 2 + (selY.value - h / 2) * scale.value + panY.value;
-    // Keep the whole card on screen (it's 256 wide and floats ~150px above the
-    // anchor). Clamp so it never clips off an edge.
-    sx = Math.max(134, Math.min(w - 134, sx));
-    sy = Math.max(176, Math.min(h - 24, sy));
+    // Anchor the popup exactly at the pin's live screen position so it always
+    // stays glued to the pin and moves with it (never repositions independently).
+    const sx = w / 2 + (selX.value - w / 2) * scale.value + panX.value;
+    const sy = h / 2 + (selY.value - h / 2) * scale.value + panY.value;
     return { transform: [{ translateX: sx }, { translateY: sy }] };
   });
   // Popup entrance animation (admin-tunable: none | fade | scale | slide | bounce).
