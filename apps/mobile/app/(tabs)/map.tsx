@@ -370,19 +370,34 @@ export default function MapScreen() {
       : [{ translateX: panX.value }, { translateY: panY.value }, { scale: scale.value }],
   }));
   // Counter-scale AND counter-rotate for markers so they stay upright and the
-  // same screen size regardless of zoom/rotation (each marker sets its own
-  // transformOrigin to its own anchor point). Since the map's zoom is a uniform
-  // scale, undoing scale-then-rotate this way exactly cancels the canvas's
-  // rotate-then-scale regardless of which order the parent applied them in.
+  // same screen size regardless of zoom/rotation, pivoting around each
+  // marker's own anchor point (pinOx/pinOy etc. below) rather than its box's
+  // centre. This is done by hand — translate to the anchor, scale/rotate,
+  // translate back — instead of the CSS `transformOrigin` property: combined
+  // with a Reanimated-driven transform, transformOrigin has proven unreliable
+  // on iOS (markers drifting off their true spot, popups rendering blurry),
+  // and this composition works identically on every platform regardless.
+  function pivotStyle(s: number, rot: number, ox: number, oy: number) {
+    'worklet';
+    return { transform: [{ translateX: ox }, { translateY: oy }, { scale: s }, { rotate: `${rot}rad` }, { translateX: -ox }, { translateY: -oy }] };
+  }
+  // Anchor points (local box coords) matching pinWrap/clusterWrap/areaWrap below.
+  const PIN_OX = 30, PIN_OY = 44;
+  const CLUSTER_OX = 20, CLUSTER_OY = 20;
+  const AREA_OX = 65, AREA_OY = 23;
+  const invScalePin = useAnimatedStyle(() => pivotStyle(1 / scale.value, ROTATE_SUPPORTED ? -rotation.value : 0, PIN_OX, PIN_OY));
+  const invScaleCluster = useAnimatedStyle(() => pivotStyle(1 / scale.value, ROTATE_SUPPORTED ? -rotation.value : 0, CLUSTER_OX, CLUSTER_OY));
+  const invScaleArea = useAnimatedStyle(() => pivotStyle(1 / scale.value, ROTATE_SUPPORTED ? -rotation.value : 0, AREA_OX, AREA_OY));
+  // meWrap is a 60×60 box centred on its own anchor (30,30 = its natural
+  // centre), so a plain scale — no explicit pivot needed — is already correct.
   const invScale = useAnimatedStyle(() => ({
     transform: ROTATE_SUPPORTED ? [{ scale: 1 / scale.value }, { rotate: `${-rotation.value}rad` }] : [{ scale: 1 / scale.value }],
   }));
   // The popup is rendered INSIDE the map canvas, anchored to the selected pin's
-  // own coordinates and counter-scaled with the SAME `invScale` markers use — no
-  // separate math, no edge-shift — so it is a true sibling of the pin and is
-  // ALWAYS centred exactly on it (an earlier edge-clamp version nudged the whole
-  // popup — arrow included — away from the pin whenever it was near a screen
-  // edge, which is exactly what looked like the popup "leaving" the pin).
+  // own coordinates. Its zero-size outer wrapper — not the dynamically-sized
+  // card inside it — carries the scale transform: scaling a 0×0 box can't be
+  // "pivoted wrong" (it has no extent), so this is what makes the popup grow
+  // out of the pin without needing transformOrigin at all. See popupWrapStyle.
   // Popup entrance animation (admin-tunable: none | fade | scale | slide | bounce).
   const popupAnim = cfg?.popupAnimation ?? 'scale';
   const popupIn = useSharedValue(0);
@@ -403,17 +418,29 @@ export default function MapScreen() {
       if (finished) runOnJS(setClosingPin)(null);
     });
   }
-  const popupAnimStyle = useAnimatedStyle(() => {
+  // Only 'scale' and 'bounce' entrances actually grow the card from a point;
+  // 'fade'/'slide'/'none' never scale it, so their pivot is irrelevant. Exit
+  // ALWAYS shrinks back into the pin regardless of the entrance style chosen
+  // (admin's "none"/fade would otherwise silently skip any exit animation).
+  const isScaleEntrance = popupAnim === 'scale' || popupAnim === 'bounce';
+  // Combines the pin's own zoom/rotation counter-scale with the popup's pop-in/
+  // out scale, applied to the zero-size OUTER wrapper (see note above) — this
+  // is what makes the card grow out of the pin, entirely transformOrigin-free.
+  const popupWrapStyle = useAnimatedStyle(() => {
+    const popScale = selected ? (isScaleEntrance ? popupIn.value : 1) : popupIn.value; // exit always active
+    const s = Math.max(0.001, popScale) / scale.value;
+    const rot = ROTATE_SUPPORTED ? -rotation.value : 0;
+    return { transform: [{ scale: s }, { rotate: `${rot}rad` }] };
+  });
+  // The inner card only ever animates opacity/position — never scale (that
+  // lives on the wrapper above), so it never needs a transformOrigin either.
+  const popupCardStyle = useAnimatedStyle(() => {
     const t = popupIn.value;
     if (popupAnim === 'none') return {};
     if (popupAnim === 'fade') return { opacity: t };
     if (popupAnim === 'slide') return { opacity: Math.min(1, t * 1.5), transform: [{ translateY: (1 - t) * 20 }] };
-    return { opacity: Math.min(1, t * 1.6), transform: [{ scale: t }] }; // scale / bounce
+    return { opacity: Math.min(1, t * 1.6) }; // scale / bounce
   }, [popupAnim]);
-  // Closing ALWAYS shrinks the popup back into its pin — independent of the
-  // admin's chosen entrance style (which may be "none"/fade and would
-  // otherwise silently skip any exit animation).
-  const popupExitStyle = useAnimatedStyle(() => ({ opacity: popupIn.value, transform: [{ scale: Math.max(0.001, popupIn.value) }] }));
   // When the selected pin is near the top (no room for the popup above it, e.g.
   // at the initial zoom where the map can't pan down), flip the popup below the
   // pin so its content is always visible.
@@ -644,7 +671,7 @@ export default function MapScreen() {
         : pin.kind === 'facility' ? (pin.color ?? '#6b6460')
           : theme.brand;
     const glyph = pin.kind === 'evening' ? '🌙' : pin.kind === 'restaurant' ? '🍴' : pin.kind === 'facility' ? (pin.emoji ?? '•') : null;
-    const wrap = [styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }, invScale];
+    const wrap = [styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }, invScalePin];
     return (
       <AnimatedPressable key={pin.id} style={wrap} onPress={() => { selection(); selX.value = pin.x; selY.value = pin.y; setSelected(pin); }}>
         <View style={[styles.pinHead, { borderColor: tint }, isSel && styles.pinSel]}>
@@ -905,7 +932,7 @@ export default function MapScreen() {
             if (c.zone) {
               // A whole area, grouped — a labelled bubble that opens on zoom.
               return (
-                <AnimatedPressable key={'z:' + c.zone} style={[styles.areaWrap, { left: c.x, top: c.y }, invScale]} onPress={() => zoomToCluster(c)}>
+                <AnimatedPressable key={'z:' + c.zone} style={[styles.areaWrap, { left: c.x, top: c.y }, invScaleArea]} onPress={() => zoomToCluster(c)}>
                   <View style={styles.areaBubble}><Text style={styles.areaCount}>{c.pins.length}</Text></View>
                   <View style={styles.areaLabel}><Text style={styles.areaLabelTxt} numberOfLines={1}>{c.zone}</Text></View>
                 </AnimatedPressable>
@@ -913,7 +940,7 @@ export default function MapScreen() {
             }
             if (c.pins.length === 1) return renderPin(c.pins[0]);
             return (
-              <AnimatedPressable key={'c:' + c.pins.map((p) => p.id).join(',')} style={[styles.clusterWrap, { left: c.x, top: c.y }, invScale]} onPress={() => zoomToCluster(c)}>
+              <AnimatedPressable key={'c:' + c.pins.map((p) => p.id).join(',')} style={[styles.clusterWrap, { left: c.x, top: c.y }, invScaleCluster]} onPress={() => zoomToCluster(c)}>
                 <View style={styles.cluster}><Text style={styles.clusterTxt}>{c.pins.length}</Text></View>
               </AnimatedPressable>
             );
@@ -931,9 +958,9 @@ export default function MapScreen() {
           {displayPin && (
             <Reanimated.View
               pointerEvents="box-none"
-              style={[{ position: 'absolute', left: selPin?.x ?? displayPin.x, top: selPin?.y ?? displayPin.y, width: 0, height: 0 }, styles.calloutWrap, invScale]}
+              style={[{ position: 'absolute', left: selPin?.x ?? displayPin.x, top: selPin?.y ?? displayPin.y, width: 0, height: 0 }, styles.calloutWrap, popupWrapStyle]}
             >
-              <Reanimated.View style={[flipDown ? styles.calloutFloatDown : styles.calloutFloat, selected ? popupAnimStyle : popupExitStyle]} pointerEvents="box-none">
+              <Reanimated.View style={[flipDown ? styles.calloutFloatDown : styles.calloutFloat, popupCardStyle]} pointerEvents="box-none">
                 {flipDown && <View style={[styles.calloutArrowUp, { borderBottomColor: cpal.card }]} />}
                 <Touchable style={[styles.calloutCard, { backgroundColor: cpal.card }]} onPress={openDetail}>
                   {displayPin.image ? (
@@ -1229,7 +1256,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: GRASS },
   viewport: { flex: 1, overflow: 'hidden', backgroundColor: GRASS },
   canvas: { position: 'absolute', left: 0, top: 0 },
-  pinWrap: { position: 'absolute', alignItems: 'center', width: 60, marginLeft: -30, marginTop: -46, transformOrigin: '30px 44px' },
+  pinWrap: { position: 'absolute', alignItems: 'center', width: 60, marginLeft: -30, marginTop: -46 },
   pinHead: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#fff', overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3, shadowOffset: { width: 0, height: 2 }, elevation: 5 },
   pinImg: { width: '100%', height: '100%' },
   pinSel: { transform: [{ scale: 1.2 }] },
@@ -1238,10 +1265,10 @@ const styles = StyleSheet.create({
   pinTail: { width: 0, height: 0, borderLeftWidth: 7, borderRightWidth: 7, borderTopWidth: 11, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: theme.brand, marginTop: -3 },
   pinTime: { marginTop: 1, backgroundColor: '#fff', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 2, shadowOffset: { width: 0, height: 1 }, elevation: 3 },
   pinTimeTxt: { color: theme.ink, fontWeight: '800', fontSize: 11 },
-  clusterWrap: { position: 'absolute', width: 40, height: 40, marginLeft: -20, marginTop: -20, alignItems: 'center', justifyContent: 'center', transformOrigin: '20px 20px' },
+  clusterWrap: { position: 'absolute', width: 40, height: 40, marginLeft: -20, marginTop: -20, alignItems: 'center', justifyContent: 'center' },
   cluster: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.brand, alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3, shadowOffset: { width: 0, height: 2 }, elevation: 6 },
   clusterTxt: { color: '#fff', fontWeight: '800', fontSize: 15 },
-  areaWrap: { position: 'absolute', width: 130, marginLeft: -65, marginTop: -23, alignItems: 'center', transformOrigin: '65px 23px' },
+  areaWrap: { position: 'absolute', width: 130, marginLeft: -65, marginTop: -23, alignItems: 'center' },
   areaBubble: { width: 46, height: 46, borderRadius: 23, backgroundColor: theme.brand, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 7 },
   areaCount: { color: '#fff', fontWeight: '800', fontSize: 17 },
   areaLabel: { marginTop: 4, maxWidth: 130, backgroundColor: 'rgba(20,20,20,0.82)', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 },
@@ -1249,7 +1276,7 @@ const styles = StyleSheet.create({
   showAllWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 90 },
   showAllChip: { backgroundColor: 'rgba(20,20,20,0.82)', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 5 },
   showAllTxt: { color: '#fff', fontWeight: '800', fontSize: 13, letterSpacing: 0.3 },
-  meWrap: { position: 'absolute', width: 60, height: 60, marginLeft: -30, marginTop: -30, alignItems: 'center', justifyContent: 'center', zIndex: 5, transformOrigin: '30px 30px' },
+  meWrap: { position: 'absolute', width: 60, height: 60, marginLeft: -30, marginTop: -30, alignItems: 'center', justifyContent: 'center', zIndex: 5 },
   meGlow: { position: 'absolute', width: 46, height: 46, borderRadius: 23, opacity: 0.18 },
   meDot: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#1a73e8', borderWidth: 3.5, borderColor: '#fff', shadowColor: '#1a73e8', shadowOpacity: 0.6, shadowRadius: 5, shadowOffset: { width: 0, height: 1 }, elevation: 6 },
   mePulse: { position: 'absolute', width: 22, height: 22, borderRadius: 11, backgroundColor: '#1a73e8' },
@@ -1261,8 +1288,8 @@ const styles = StyleSheet.create({
   // The card floats above the (zero-size) pin anchor; a little arrow points
   // down at the pin. Drawn above every other marker/beacon in the canvas.
   calloutWrap: { zIndex: 30 },
-  calloutFloat: { position: 'absolute', left: -128, bottom: 50, width: 256, alignItems: 'center', transformOrigin: '50% 100%' },
-  calloutFloatDown: { position: 'absolute', left: -128, top: 50, width: 256, alignItems: 'center', transformOrigin: '50% 0%' },
+  calloutFloat: { position: 'absolute', left: -128, bottom: 50, width: 256, alignItems: 'center' },
+  calloutFloatDown: { position: 'absolute', left: -128, top: 50, width: 256, alignItems: 'center' },
   calloutArrow: { width: 0, height: 0, borderLeftWidth: 9, borderRightWidth: 9, borderTopWidth: 11, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginTop: -1 },
   calloutArrowUp: { width: 0, height: 0, borderLeftWidth: 9, borderRightWidth: 9, borderBottomWidth: 11, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginBottom: -1 },
   calloutCard: { flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 16, paddingVertical: 12, paddingLeft: 12, paddingRight: 26, width: 256, shadowColor: '#000', shadowOpacity: 0.24, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 12 },
