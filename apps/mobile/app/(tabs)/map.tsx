@@ -819,8 +819,11 @@ export default function MapScreen() {
               </AnimatedPressable>
             );
           })}
-          {/* Keep the selected pin drawn on top (it's excluded from clustering). */}
-          {selected && renderPin(selected)}
+          {/* Keep the selected pin drawn on top (it's excluded from clustering).
+              Uses selPin (the LIVE re-projected coordinate), not the stale
+              `selected` snapshot, so the marker can never drift from the popup
+              anchored to the same point below — both always read one source. */}
+          {selected && renderPin(selPin ?? selected)}
 
           {/* Popup — a SIBLING of the pin inside the transformed canvas, anchored
               at the pin's own canvas coordinate and counter-scaled exactly like a
