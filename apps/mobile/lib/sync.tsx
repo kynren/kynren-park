@@ -16,6 +16,8 @@ export interface Poi {
   color?: string | null;
   icon?: string | null;
   image?: string | null;
+  heroImage?: string | null;
+  openingHours?: string | null;
 }
 export interface MapConfig {
   markerColor: string;

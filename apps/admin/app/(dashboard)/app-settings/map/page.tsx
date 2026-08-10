@@ -6,7 +6,7 @@ import { confirmDelete, promptText } from '../../../../lib/confirm';
 import { uploadToast } from '../../../../lib/toast';
 import { QrButton } from '../../../../components/QrButton';
 
-interface Poi { id: string; type: string; name: string; lat: number; lng: number; color: string | null; mapZone: string | null; image: string | null }
+interface Poi { id: string; type: string; name: string; lat: number; lng: number; color: string | null; mapZone: string | null; image: string | null; description?: string | null; heroImage?: string | null; openingHours?: string | null }
 interface MapConfig { markerColor: string; markerStyle: string; mapImageUrl: string | null; initialZoom?: number; maxZoom?: number; centerLat?: number | null; centerLng?: number | null; popupAnimation?: string }
 interface ParkMap { id: string; name: string; imageUrl: string | null; bgColor: string | null; isDefault: boolean }
 interface EntityLite { id: string; name: string; poiId: string | null; heroImage?: string | null; category?: string }
@@ -127,9 +127,10 @@ export default function MapEditor() {
   // Upload an image file → resized data URL (keeps it reasonable for the app bundle).
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadTarget = useRef<string | null>(null);
-  const uploadKind = useRef<'map' | 'spot'>('map');
+  const uploadKind = useRef<'map' | 'spot' | 'hero'>('map');
   function triggerUpload(id: string) { uploadKind.current = 'map'; uploadTarget.current = id; fileInputRef.current?.click(); }
   function triggerSpotUpload() { uploadKind.current = 'spot'; fileInputRef.current?.click(); }
+  function triggerHeroUpload() { uploadKind.current = 'hero'; fileInputRef.current?.click(); }
   // Returns the resized JPEG data URL plus the image's average colour (used to
   // fill the map screen's edges on mobile so they blend with the map).
   function resizeToDataUrl(file: File, maxDim: number, quality = 0.9): Promise<{ url: string; color: string }> {
@@ -163,14 +164,16 @@ export default function MapEditor() {
     const file = e.target.files?.[0]; e.target.value = '';
     if (!file) return;
     if (file.size > 500 * 1024 * 1024) { alert('Please choose an image under 500 MB.'); return; }
-    if (uploadKind.current === 'spot') {
+    if (uploadKind.current === 'spot' || uploadKind.current === 'hero') {
       if (!selected) return;
+      const isHero = uploadKind.current === 'hero';
+      const field = isHero ? 'heroImage' : 'image';
       const t = uploadToast('Optimising image…');
       try {
-        const { url } = await resizeToDataUrl(file, 512); // small — it sits inside a marker
+        const { url } = await resizeToDataUrl(file, isHero ? 1400 : 512); // hero = detail page; marker = small
         t.label('Uploading…');
-        await apiUpload(`/admin/pois/${selected.id}`, { image: url }, { method: 'PATCH', onProgress: (p) => t.progress(p) });
-        setPois((prev) => prev.map((p) => (p.id === selected.id ? { ...p, image: url } : p)));
+        await apiUpload(`/admin/pois/${selected.id}`, { [field]: url }, { method: 'PATCH', onProgress: (p) => t.progress(p) });
+        setPois((prev) => prev.map((p) => (p.id === selected.id ? { ...p, [field]: url } : p)));
         t.success('Image updated');
       } catch (err) { t.error(friendlyError(err, 'Could not upload the image.')); }
       return;
@@ -519,6 +522,22 @@ export default function MapEditor() {
                   {selected.image && <button className="tbtn" onClick={() => patchSel({ image: null })}>Remove</button>}
                 </div>
               </div>
+              {/* Detail page (facility / help / first aid / shop) */}
+              <div style={{ borderTop: '1px solid var(--line)', paddingTop: 12, marginTop: 2 }}>
+                <div style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 700, marginBottom: 8 }}>Detail page (shown when a guest taps this spot)</div>
+                <div className="form-row" style={{ marginBottom: 10 }}><label>Opening hours</label><input placeholder="10:00–18:00" value={selected.openingHours ?? ''} onChange={(e) => patchSel({ openingHours: e.target.value })} /></div>
+                <div className="form-row" style={{ marginBottom: 10 }}><label>Description</label><textarea value={selected.description ?? ''} onChange={(e) => patchSel({ description: e.target.value })} /></div>
+                <div className="form-row"><label>Detail image (large, top of the page)</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 90, height: 54, borderRadius: 8, overflow: 'hidden', background: 'var(--panel,#f0ece6)' }}>
+                      {selected.heroImage && <img src={selected.heroImage} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                    </div>
+                    <button className="tbtn" onClick={triggerHeroUpload}>Upload</button>
+                    {selected.heroImage && <button className="tbtn" onClick={() => patchSel({ heroImage: null })}>Remove</button>}
+                  </div>
+                </div>
+              </div>
+
               <div className="form-grid">
                 <div className="form-row"><label>Latitude</label><input value={selected.lat.toFixed(5)} onChange={(e) => patchSel({ lat: Number(e.target.value) || selected.lat })} /></div>
                 <div className="form-row"><label>Longitude</label><input value={selected.lng.toFixed(5)} onChange={(e) => patchSel({ lng: Number(e.target.value) || selected.lng })} /></div>

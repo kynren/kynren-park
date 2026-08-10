@@ -431,13 +431,15 @@ export class ManageController {
         icon: b.icon ?? null,
         color: b.color ?? null,
         image: b.image ?? null,
+        heroImage: b.heroImage ?? null,
+        openingHours: b.openingHours ?? null,
       },
     });
   }
 
   @Patch('pois/:id')
   updatePoi(@Param('id') id: string, @Body() b: any) {
-    const data = pick(b, ['type', 'name', 'description', 'mapZone', 'icon', 'color', 'image']);
+    const data = pick(b, ['type', 'name', 'description', 'mapZone', 'icon', 'color', 'image', 'heroImage', 'openingHours']);
     if (b.lat !== undefined) data.lat = Number(b.lat);
     if (b.lng !== undefined) data.lng = Number(b.lng);
     return this.prisma.pointOfInterest.update({ where: { id }, data });

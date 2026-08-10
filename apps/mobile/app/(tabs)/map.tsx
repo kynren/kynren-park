@@ -691,8 +691,15 @@ export default function MapScreen() {
     animateTo(1, 0, 0);
   }
   function openDetail() {
-    if (!selected?.slug) return;
-    router.push(selected.kind === 'restaurant' ? `/restaurant/${selected.slug}` : `/attraction/${selected.slug}`);
+    if (!selected) return;
+    if (selected.kind === 'restaurant' && selected.slug) { router.push(`/restaurant/${selected.slug}`); return; }
+    if ((selected.kind === 'show' || selected.kind === 'evening') && selected.slug) { router.push(`/attraction/${selected.slug}`); return; }
+    if (selected.kind === 'facility') {
+      // A shop placed on the map opens its shop page; other facilities open the facility page.
+      const shop = bundle?.shops?.find((s) => s.poiId === selected.id);
+      if (shop) { router.push(`/shop/${shop.slug}`); return; }
+      router.push(`/facility/${selected.id}`);
+    }
   }
 
   function onLayout(e: LayoutChangeEvent) {
@@ -721,9 +728,7 @@ export default function MapScreen() {
               resizeMode="contain"
               fadeDuration={0}
             />
-          ) : (
-            <ParkBasemap vw={vw} vh={vh} />
-          )}
+          ) : null /* no placeholder map — the solid mapBg shows until the real map is ready */}
 
           {/* Tapping the map background (not a pin) dismisses the popup / closes search. */}
           <Pressable style={StyleSheet.absoluteFill} onPress={() => { setSelected(null); setSearchOpen(false); Keyboard.dismiss(); }} />
