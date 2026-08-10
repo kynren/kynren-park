@@ -17,6 +17,10 @@ export default function PlanScreen() {
     () => new Map((bundle?.attractions ?? []).map((a) => [a.id, a.durationMins])),
     [bundle],
   );
+  const nameById = useMemo(
+    () => new Map((bundle?.attractions ?? []).map((a) => [a.id, a.name])),
+    [bundle],
+  );
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [plan, setPlan] = useState<OptimizedItinerary | null>(null);
   const [loading, setLoading] = useState(false);
@@ -164,7 +168,7 @@ export default function PlanScreen() {
           {plan.unschedulable.length > 0 && (
             <View style={styles.clashBox}>
               <Text style={styles.clashTitle}>Couldn’t fit these in</Text>
-              <Text style={styles.muted}>{plan.unschedulable.join(', ')} — they clash with your other picks.</Text>
+              <Text style={styles.muted}>{plan.unschedulable.map((id) => nameById.get(id) ?? id).join(', ')} — they clash with your other picks.</Text>
             </View>
           )}
         </View>
