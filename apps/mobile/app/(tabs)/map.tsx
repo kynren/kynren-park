@@ -325,8 +325,12 @@ export default function MapScreen() {
   // transform the canvas applies), so it tracks the marker while panning/zooming.
   const calloutStyle = useAnimatedStyle(() => {
     const w = vpw.value || 375, h = vph.value || 680;
-    const sx = w / 2 + (selX.value - w / 2) * scale.value + panX.value;
-    const sy = h / 2 + (selY.value - h / 2) * scale.value + panY.value;
+    let sx = w / 2 + (selX.value - w / 2) * scale.value + panX.value;
+    let sy = h / 2 + (selY.value - h / 2) * scale.value + panY.value;
+    // Keep the whole card on screen (it's 256 wide and floats ~150px above the
+    // anchor). Clamp so it never clips off an edge.
+    sx = Math.max(134, Math.min(w - 134, sx));
+    sy = Math.max(176, Math.min(h - 24, sy));
     return { transform: [{ translateX: sx }, { translateY: sy }] };
   });
 
@@ -549,11 +553,13 @@ export default function MapScreen() {
     if (!pendingSelect || vw === 0) return;
     const pin = pins.find((p) => p.id === pendingSelect);
     if (!pin) return;
-    // Centre on the result, but don't open the popup — it appears only on a tap.
+    // Centre on the result (pin slightly low so its popup fits) and open the
+    // popup — the other pins stay visible.
     const s = 2.4;
-    const c = clampPanJS((vw / 2 - pin.x) * s, (vh / 2 - pin.y) * s, s);
+    const c = clampPanJS((vw / 2 - pin.x) * s, (vh * 0.6 - pin.y) * s, s);
     animateTo(s, c.x, c.y);
-    setSoloId(pin.id); // Find on Map: isolate this pin
+    selection();
+    setSelected(pin);
     setPendingSelect(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingSelect, pins, vw, vh]);
@@ -578,9 +584,8 @@ export default function MapScreen() {
     if (!pin) return;
     selection();
     setSelected(pin);
-    setSoloId(pin.id); // scanned spot: isolate it
     const s = 2.6;
-    const c = clampPanJS((vw / 2 - pin.x) * s, (vh / 2 - pin.y) * s, s);
+    const c = clampPanJS((vw / 2 - pin.x) * s, (vh * 0.6 - pin.y) * s, s);
     animateTo(s, c.x, c.y);
     setPendingSpot(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -616,19 +621,22 @@ export default function MapScreen() {
   useEffect(() => {
     if (!params.focus) return;
     const isRestaurant = (bundle?.restaurants ?? []).some((r) => r.id === params.focus);
-    setCats(new Set<Cat>([isRestaurant ? 'restaurants' : 'shows']));
+    const isFacility = pois.some((p) => p.id === params.focus && FACILITY_TYPES[p.type]);
+    setCats(new Set<Cat>([isRestaurant ? 'restaurants' : isFacility ? 'facilities' : 'shows']));
     appliedFocus.current = null;
     setBannerDismissed(false);
-  }, [params.focus, bundle]);
+  }, [params.focus, bundle, pois]);
   useEffect(() => {
     if (!params.focus || appliedFocus.current === params.focus || vw === 0) return;
     const pin = pins.find((p) => p.id === params.focus);
     if (!pin) return;
     appliedFocus.current = params.focus;
-    setSoloId(pin.id); // "Go to" / Find on Map: isolate it
+    // Centre on the place and open its popup, keeping the other pins visible.
     const s = 2.2;
-    const c = clampPanJS((vw / 2 - pin.x) * s, (vh / 2 - pin.y) * s, s);
+    const c = clampPanJS((vw / 2 - pin.x) * s, (vh * 0.6 - pin.y) * s, s);
     animateTo(s, c.x, c.y);
+    selection();
+    setSelected(pin);
   }, [params.focus, pins, vw, vh]);
 
   // Walkable POI graph (built once from the POIs).
@@ -1066,10 +1074,10 @@ const styles = StyleSheet.create({
   // Zero-size point translated to the marker's screen position; the card floats
   // above it and a little arrow points down at the pin.
   calloutAnchor: { position: 'absolute', top: 0, left: 0, width: 0, height: 0, zIndex: 30 },
-  calloutFloat: { position: 'absolute', left: -164, bottom: 52, width: 328, alignItems: 'center' },
+  calloutFloat: { position: 'absolute', left: -128, bottom: 50, width: 256, alignItems: 'center' },
   calloutArrow: { width: 0, height: 0, borderLeftWidth: 9, borderRightWidth: 9, borderTopWidth: 11, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginTop: -1 },
-  calloutCard: { flexDirection: 'row', alignItems: 'center', gap: 13, borderRadius: 18, paddingVertical: 14, paddingLeft: 14, paddingRight: 30, width: 328, shadowColor: '#000', shadowOpacity: 0.24, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 12 },
-  calloutThumb: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#e7e2da' },
+  calloutCard: { flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 16, paddingVertical: 12, paddingLeft: 12, paddingRight: 26, width: 256, shadowColor: '#000', shadowOpacity: 0.24, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 12 },
+  calloutThumb: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#e7e2da' },
   calloutThumbFallback: { alignItems: 'center', justifyContent: 'center', backgroundColor: theme.brand },
   calloutTitle: { fontWeight: '800', fontSize: 17, lineHeight: 21, letterSpacing: -0.2 },
   calloutSub: { fontSize: 13, fontWeight: '600', marginTop: 2 },
