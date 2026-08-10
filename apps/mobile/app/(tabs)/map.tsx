@@ -1252,24 +1252,32 @@ const TREES: [number, number, number][] = [
   [144, 520, 12], [376, 520, 13], [106, 166, 12], [300, 380, 12],
 ];
 
+// iOS: a shadow-casting view nested inside a LIVE Reanimated scale transform
+// (pins/clusters/areas/the popup card — all inside the pinch-zoomed canvas)
+// gets rasterized into an offscreen bitmap and re-scaled on every frame rather
+// than redrawn crisply, which is what washed out small popup text (subtitle,
+// "Tap for details") while the bold title stayed legible. Dropping the shadow
+// removes that compositing path entirely. Android keeps its shadows.
+const noLiveShadow = Platform.OS === 'ios' ? { shadowOpacity: 0, shadowRadius: 0, shadowColor: 'transparent' } : {};
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: GRASS },
   viewport: { flex: 1, overflow: 'hidden', backgroundColor: GRASS },
   canvas: { position: 'absolute', left: 0, top: 0 },
   pinWrap: { position: 'absolute', alignItems: 'center', width: 60, marginLeft: -30, marginTop: -46 },
-  pinHead: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#fff', overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3, shadowOffset: { width: 0, height: 2 }, elevation: 5 },
+  pinHead: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#fff', overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3, shadowOffset: { width: 0, height: 2 }, elevation: 5, ...noLiveShadow },
   pinImg: { width: '100%', height: '100%' },
   pinSel: { transform: [{ scale: 1.2 }] },
   pinNum: { color: theme.ink, fontWeight: '800', fontSize: 15 },
   pinEmoji: { fontSize: 16 },
   pinTail: { width: 0, height: 0, borderLeftWidth: 7, borderRightWidth: 7, borderTopWidth: 11, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: theme.brand, marginTop: -3 },
-  pinTime: { marginTop: 1, backgroundColor: '#fff', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 2, shadowOffset: { width: 0, height: 1 }, elevation: 3 },
+  pinTime: { marginTop: 1, backgroundColor: '#fff', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 2, shadowOffset: { width: 0, height: 1 }, elevation: 3, ...noLiveShadow },
   pinTimeTxt: { color: theme.ink, fontWeight: '800', fontSize: 11 },
   clusterWrap: { position: 'absolute', width: 40, height: 40, marginLeft: -20, marginTop: -20, alignItems: 'center', justifyContent: 'center' },
-  cluster: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.brand, alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3, shadowOffset: { width: 0, height: 2 }, elevation: 6 },
+  cluster: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.brand, alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3, shadowOffset: { width: 0, height: 2 }, elevation: 6, ...noLiveShadow },
   clusterTxt: { color: '#fff', fontWeight: '800', fontSize: 15 },
   areaWrap: { position: 'absolute', width: 130, marginLeft: -65, marginTop: -23, alignItems: 'center' },
-  areaBubble: { width: 46, height: 46, borderRadius: 23, backgroundColor: theme.brand, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 7 },
+  areaBubble: { width: 46, height: 46, borderRadius: 23, backgroundColor: theme.brand, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 7, ...noLiveShadow },
   areaCount: { color: '#fff', fontWeight: '800', fontSize: 17 },
   areaLabel: { marginTop: 4, maxWidth: 130, backgroundColor: 'rgba(20,20,20,0.82)', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 },
   areaLabelTxt: { color: '#fff', fontWeight: '800', fontSize: 11, letterSpacing: 0.2 },
@@ -1292,7 +1300,7 @@ const styles = StyleSheet.create({
   calloutFloatDown: { position: 'absolute', left: -128, top: 50, width: 256, alignItems: 'center' },
   calloutArrow: { width: 0, height: 0, borderLeftWidth: 9, borderRightWidth: 9, borderTopWidth: 11, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginTop: -1 },
   calloutArrowUp: { width: 0, height: 0, borderLeftWidth: 9, borderRightWidth: 9, borderBottomWidth: 11, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginBottom: -1 },
-  calloutCard: { flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 16, paddingVertical: 12, paddingLeft: 12, paddingRight: 26, width: 256, shadowColor: '#000', shadowOpacity: 0.24, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 12 },
+  calloutCard: { flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 16, paddingVertical: 12, paddingLeft: 12, paddingRight: 26, width: 256, shadowColor: '#000', shadowOpacity: 0.24, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 12, ...noLiveShadow },
   calloutThumb: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#e7e2da' },
   calloutThumbFallback: { alignItems: 'center', justifyContent: 'center', backgroundColor: theme.brand },
   calloutTitle: { fontWeight: '800', fontSize: 17, lineHeight: 21, letterSpacing: -0.2 },
