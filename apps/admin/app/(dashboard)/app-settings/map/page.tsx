@@ -402,8 +402,8 @@ export default function MapEditor() {
           <p className="maphint">🟦 The ringed marker previews the guest’s “you are here” marker. Hotspots are coloured by type unless overridden.</p>
         </div>
 
-        {/* Settings cards — a responsive row below the full-width map. */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16, alignItems: 'start' }}>
+        {/* Settings cards — a responsive row above the full-width map. */}
+        <div style={{ order: -1, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16, alignItems: 'start' }}>
           <div className="editcard">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
               <h3 style={{ margin: 0 }}>Base maps</h3>

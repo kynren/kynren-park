@@ -359,6 +359,18 @@ export default function MapScreen() {
     if (popupAnim === 'slide') return { opacity: Math.min(1, t * 1.5), transform: [{ translateY: (1 - t) * 20 }] };
     return { opacity: Math.min(1, t * 1.6), transform: [{ scale: t }] }; // scale / bounce
   }, [popupAnim]);
+  // When the selected pin is near the top (no room for the popup above it, e.g.
+  // at the initial zoom where the map can't pan down), flip the popup below the
+  // pin so its content is always visible.
+  const [flipDown, setFlipDown] = useState(false);
+  useAnimatedReaction(
+    () => {
+      const h = vph.value || 680;
+      const sy = h / 2 + (selY.value - h / 2) * scale.value + panY.value; // pin's screen Y
+      return sy < 210; // not enough room above → flip below
+    },
+    (need, prev) => { if (need !== prev) runOnJS(setFlipDown)(need); },
+  );
 
   // Mirror the live zoom into React state (in coarse 0.25 steps) so pins can be
   // clustered as the guest zooms — recomputes only a handful of times, not every
@@ -827,7 +839,8 @@ export default function MapScreen() {
         {/* Popup — anchored to the selected marker and moves with it (pan/zoom). */}
         {selected && (
           <Reanimated.View style={[styles.calloutAnchor, calloutStyle]} pointerEvents="box-none">
-            <Reanimated.View style={[styles.calloutFloat, popupAnimStyle]} pointerEvents="box-none">
+            <Reanimated.View style={[flipDown ? styles.calloutFloatDown : styles.calloutFloat, popupAnimStyle]} pointerEvents="box-none">
+              {flipDown && <View style={[styles.calloutArrowUp, { borderBottomColor: cpal.card }]} />}
               <Touchable style={[styles.calloutCard, { backgroundColor: cpal.card }]} onPress={openDetail}>
                 {selected.image ? (
                   <Image source={{ uri: selected.image }} style={styles.calloutThumb} />
@@ -853,7 +866,7 @@ export default function MapScreen() {
                   <Text style={[styles.calloutClose, { color: cpal.muted }]}>✕</Text>
                 </Pressable>
               </Touchable>
-              <View style={[styles.calloutArrow, { borderTopColor: cpal.card }]} />
+              {!flipDown && <View style={[styles.calloutArrow, { borderTopColor: cpal.card }]} />}
             </Reanimated.View>
           </Reanimated.View>
         )}
@@ -1107,7 +1120,9 @@ const styles = StyleSheet.create({
   // above it and a little arrow points down at the pin.
   calloutAnchor: { position: 'absolute', top: 0, left: 0, width: 0, height: 0, zIndex: 30 },
   calloutFloat: { position: 'absolute', left: -128, bottom: 50, width: 256, alignItems: 'center', transformOrigin: '50% 100%' },
+  calloutFloatDown: { position: 'absolute', left: -128, top: 50, width: 256, alignItems: 'center', transformOrigin: '50% 0%' },
   calloutArrow: { width: 0, height: 0, borderLeftWidth: 9, borderRightWidth: 9, borderTopWidth: 11, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginTop: -1 },
+  calloutArrowUp: { width: 0, height: 0, borderLeftWidth: 9, borderRightWidth: 9, borderBottomWidth: 11, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginBottom: -1 },
   calloutCard: { flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 16, paddingVertical: 12, paddingLeft: 12, paddingRight: 26, width: 256, shadowColor: '#000', shadowOpacity: 0.24, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 12 },
   calloutThumb: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#e7e2da' },
   calloutThumbFallback: { alignItems: 'center', justifyContent: 'center', backgroundColor: theme.brand },
