@@ -169,6 +169,11 @@ export default function MapScreen() {
   // Multiple categories can be active at once; defaults to Shows on first load.
   const [cats, setCats] = useState<Set<Cat>>(() => new Set<Cat>(['shows']));
   const [selected, setSelected] = useState<Pin | null>(null);
+  // Kept briefly after `selected` clears so the popup can shrink back into its
+  // pin instead of just vanishing — see dismissPopup(). Null once the shrink
+  // animation finishes.
+  const [closingPin, setClosingPin] = useState<Pin | null>(null);
+  const displayPin = selected ?? closingPin;
   const [search, setSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false); // the search bar shows only when the search icon is tapped
   const [pendingSelect, setPendingSelect] = useState<string | null>(null);
@@ -382,10 +387,22 @@ export default function MapScreen() {
   const popupAnim = cfg?.popupAnimation ?? 'scale';
   const popupIn = useSharedValue(0);
   useEffect(() => {
+    // Exit is handled separately by dismissPopup() (shrinks back into the pin
+    // instead of just vanishing) — this effect only ever animates IN.
     if (selected) popupIn.value = popupAnim === 'bounce' ? withSpring(1, { damping: 9, stiffness: 190 }) : withTiming(1, { duration: 200 });
-    else popupIn.value = 0;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.id, popupAnim]);
+  // Close the popup by shrinking it back down into its pin, then clear it —
+  // used for every "close this popup" action (tapping away, the ✕, switching
+  // filters/search) so it never just instantly vanishes.
+  function dismissPopup() {
+    if (!selected) return;
+    setClosingPin(selected);
+    setSelected(null);
+    popupIn.value = withTiming(0, { duration: 200 }, (finished) => {
+      if (finished) runOnJS(setClosingPin)(null);
+    });
+  }
   const popupAnimStyle = useAnimatedStyle(() => {
     const t = popupIn.value;
     if (popupAnim === 'none') return {};
@@ -393,6 +410,10 @@ export default function MapScreen() {
     if (popupAnim === 'slide') return { opacity: Math.min(1, t * 1.5), transform: [{ translateY: (1 - t) * 20 }] };
     return { opacity: Math.min(1, t * 1.6), transform: [{ scale: t }] }; // scale / bounce
   }, [popupAnim]);
+  // Closing ALWAYS shrinks the popup back into its pin — independent of the
+  // admin's chosen entrance style (which may be "none"/fade and would
+  // otherwise silently skip any exit animation).
+  const popupExitStyle = useAnimatedStyle(() => ({ opacity: popupIn.value, transform: [{ scale: Math.max(0.001, popupIn.value) }] }));
   // When the selected pin is near the top (no room for the popup above it, e.g.
   // at the initial zoom where the map can't pan down), flip the popup below the
   // pin so its content is always visible.
@@ -553,7 +574,7 @@ export default function MapScreen() {
 
   // The selected pin's *current* position (it re-projects when the map changes),
   // mirrored to the UI thread so its popup stays glued to it.
-  const selPin = selected ? (pins.find((p) => p.id === selected.id) ?? selected) : null;
+  const selPin = displayPin ? (pins.find((p) => p.id === displayPin.id) ?? displayPin) : null;
   useEffect(() => { if (selPin) { selX.value = selPin.x; selY.value = selPin.y; } }, [selPin?.x, selPin?.y]);
 
   // Disney-style grouping: hotspots are grouped into their AREA (mapZone) and
@@ -562,7 +583,7 @@ export default function MapScreen() {
   // individual pins. Zone-less pins fall back to proximity count-clusters.
   const clustered = useMemo(() => {
     const base = soloId ? pins.filter((p) => p.id === soloId) : pins;
-    const src = selected ? base.filter((p) => p.id !== selected.id) : base;
+    const src = displayPin ? base.filter((p) => p.id !== displayPin.id) : base;
 
     // Bucket by area (mapZone); pins without a zone go loose.
     const zones = new Map<string, Pin[]>();
@@ -599,7 +620,7 @@ export default function MapScreen() {
       if (!placed) out.push({ x: p.x, y: p.y, pins: [p] });
     }
     return out;
-  }, [pins, zoom, selected, soloId]);
+  }, [pins, zoom, displayPin, soloId]);
 
   // Tapping a cluster/area zooms in and centres on it, so its pins spread apart
   // (an area zooms enough to open into its individual pins).
@@ -860,7 +881,7 @@ export default function MapScreen() {
             style={StyleSheet.absoluteFill}
             onPress={() => {
               if (dismissTimer.current) { clearTimeout(dismissTimer.current); dismissTimer.current = null; return; } // 2nd tap → keep popup
-              dismissTimer.current = setTimeout(() => { dismissTimer.current = null; setSelected(null); setSearchOpen(false); Keyboard.dismiss(); }, 280);
+              dismissTimer.current = setTimeout(() => { dismissTimer.current = null; dismissPopup(); setSearchOpen(false); Keyboard.dismiss(); }, 280);
             }}
           />
 
@@ -901,41 +922,41 @@ export default function MapScreen() {
               Uses selPin (the LIVE re-projected coordinate), not the stale
               `selected` snapshot, so the marker can never drift from the popup
               anchored to the same point below — both always read one source. */}
-          {selected && renderPin(selPin ?? selected)}
+          {displayPin && renderPin(selPin ?? displayPin)}
 
           {/* Popup — a SIBLING of the pin inside the transformed canvas, anchored
               at the pin's own canvas coordinate and counter-scaled exactly like a
               marker. It inherits the canvas's pan/zoom transform natively, so it
               is physically glued to the pin and can never drift away from it. */}
-          {selected && (
+          {displayPin && (
             <Reanimated.View
               pointerEvents="box-none"
-              style={[{ position: 'absolute', left: selPin?.x ?? selected.x, top: selPin?.y ?? selected.y, width: 0, height: 0 }, styles.calloutWrap, invScale]}
+              style={[{ position: 'absolute', left: selPin?.x ?? displayPin.x, top: selPin?.y ?? displayPin.y, width: 0, height: 0 }, styles.calloutWrap, invScale]}
             >
-              <Reanimated.View style={[flipDown ? styles.calloutFloatDown : styles.calloutFloat, popupAnimStyle]} pointerEvents="box-none">
+              <Reanimated.View style={[flipDown ? styles.calloutFloatDown : styles.calloutFloat, selected ? popupAnimStyle : popupExitStyle]} pointerEvents="box-none">
                 {flipDown && <View style={[styles.calloutArrowUp, { borderBottomColor: cpal.card }]} />}
                 <Touchable style={[styles.calloutCard, { backgroundColor: cpal.card }]} onPress={openDetail}>
-                  {selected.image ? (
-                    <Image source={{ uri: selected.image }} style={styles.calloutThumb} />
+                  {displayPin.image ? (
+                    <Image source={{ uri: displayPin.image }} style={styles.calloutThumb} />
                   ) : (
-                    <View style={[styles.calloutThumb, styles.calloutThumbFallback, selected.kind === 'evening' && { backgroundColor: '#2c3e70' }]}>
-                      <Text style={{ fontSize: 26 }}>{selected.emoji ?? '🎭'}</Text>
+                    <View style={[styles.calloutThumb, styles.calloutThumbFallback, displayPin.kind === 'evening' && { backgroundColor: '#2c3e70' }]}>
+                      <Text style={{ fontSize: 26 }}>{displayPin.emoji ?? '🎭'}</Text>
                     </View>
                   )}
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.calloutTitle, { color: cpal.ink }]} numberOfLines={2}>{selected.title}</Text>
-                    <Text style={[styles.calloutSub, { color: cpal.muted }]} numberOfLines={1}>{selected.subtitle ?? selected.zone ?? 'Kynren — The Storied Lands'}</Text>
+                    <Text style={[styles.calloutTitle, { color: cpal.ink }]} numberOfLines={2}>{displayPin.title}</Text>
+                    <Text style={[styles.calloutSub, { color: cpal.muted }]} numberOfLines={1}>{displayPin.subtitle ?? displayPin.zone ?? 'Kynren — The Storied Lands'}</Text>
                     <Text style={[styles.calloutStatus, { color: cpal.ink }]} numberOfLines={1}>
                       {selectedDist != null
                         ? `${fmtDist(selectedDist)} away · ~${walkMins(selectedDist)} min walk`
-                        : selected.nextTime
-                          ? `Next show ${fmtTime(selected.nextTime)}`
-                          : selected.kind === 'restaurant'
+                        : displayPin.nextTime
+                          ? `Next show ${fmtTime(displayPin.nextTime)}`
+                          : displayPin.kind === 'restaurant'
                             ? 'Tap for menu & times'
                             : 'Tap for details'}
                     </Text>
                   </View>
-                  <Pressable hitSlop={10} onPress={() => setSelected(null)} style={styles.calloutCloseBtn}>
+                  <Pressable hitSlop={10} onPress={dismissPopup} style={styles.calloutCloseBtn}>
                     <Text style={[styles.calloutClose, { color: cpal.muted }]}>✕</Text>
                   </Pressable>
                 </Touchable>
@@ -1064,7 +1085,7 @@ export default function MapScreen() {
           <Touchable style={styles.ctrlBtn} onPress={recenter}>
             <Text style={{ fontSize: 17 }}>📍</Text>
           </Touchable>
-          <Touchable style={styles.ctrlBtn} onPress={() => { setSelected(null); setSearchOpen(true); }}>
+          <Touchable style={styles.ctrlBtn} onPress={() => { dismissPopup(); setSearchOpen(true); }}>
             <Text style={{ fontSize: 16 }}>🔍</Text>
           </Touchable>
         </View>
@@ -1072,7 +1093,7 @@ export default function MapScreen() {
         {/* Find on Map isolation: a chip to bring every pin back. */}
         {soloId && (
           <View style={[styles.showAllWrap, { top: insets.top + 58 }]} pointerEvents="box-none">
-            <Touchable style={styles.showAllChip} onPress={() => { setSoloId(null); setSelected(null); }}>
+            <Touchable style={styles.showAllChip} onPress={() => { setSoloId(null); dismissPopup(); }}>
               <Text style={styles.showAllTxt}>← Show all pins</Text>
             </Touchable>
           </View>
@@ -1104,7 +1125,7 @@ export default function MapScreen() {
           {PILLS.map((p) => {
             const on = cats.has(p.key);
             return (
-              <Touchable key={p.key} haptic="selection" style={[styles.pill, on && styles.pillOn]} onPress={() => { setCats((prev) => { const n = new Set(prev); if (n.has(p.key)) n.delete(p.key); else n.add(p.key); return n; }); setSelected(null); setSoloId(null); }}>
+              <Touchable key={p.key} haptic="selection" style={[styles.pill, on && styles.pillOn]} onPress={() => { setCats((prev) => { const n = new Set(prev); if (n.has(p.key)) n.delete(p.key); else n.add(p.key); return n; }); dismissPopup(); setSoloId(null); }}>
                 <Text style={[styles.pillEmoji, on && { color: '#fff' }]}>{p.emoji}</Text>
                 <Text style={[styles.pillLabel, on && styles.pillLabelOn]}>{p.label}</Text>
               </Touchable>
