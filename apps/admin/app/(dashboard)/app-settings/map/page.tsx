@@ -333,38 +333,10 @@ export default function MapEditor() {
       </div>
       {err && <div className="error" onClick={() => setErr('')} style={{ cursor: 'pointer' }}>{err}</div>}
 
-      {/* Place-on-map palette — a full-width row above the map. Drag onto the map. */}
-      <div className="editcard" style={{ marginBottom: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-          <h3 style={{ margin: 0 }}>Place on map</h3>
-          <span style={{ fontSize: 12, color: 'var(--muted)' }}>{pois.length} hotspot{pois.length === 1 ? '' : 's'} · <button className="tbtn danger" style={{ padding: '3px 9px' }} onClick={clearAllHotspots} disabled={pois.length === 0}>Clear all</button></span>
-        </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
-          {attractions.filter((a) => !a.poiId).length === 0 && restaurants.filter((r) => !r.poiId).length === 0 && shops.filter((s) => !s.poiId).length === 0 && (
-            <span style={{ color: 'var(--muted)', fontSize: 13 }}>All attractions, restaurants &amp; shops are placed. ✓ &nbsp;</span>
-          )}
-          {attractions.filter((a) => !a.poiId).map((a) => (
-            <span key={a.id} draggable style={dragChipStyle}
-              onDragStart={(e) => e.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'attraction', id: a.id, name: a.name, heroImage: a.heroImage } as DragEntity))}>🎭 {a.name}</span>
-          ))}
-          {restaurants.filter((r) => !r.poiId).map((r) => (
-            <span key={r.id} draggable style={dragChipStyle}
-              onDragStart={(e) => e.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'restaurant', id: r.id, name: r.name, heroImage: r.heroImage } as DragEntity))}>🍴 {r.name}</span>
-          ))}
-          {shops.filter((s) => !s.poiId).map((s) => (
-            <span key={s.id} draggable style={dragChipStyle}
-              onDragStart={(e) => e.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'shop', id: s.id, name: s.name, heroImage: s.heroImage } as DragEntity))}>🛍️ {s.name}</span>
-          ))}
-          <span style={{ width: 1, alignSelf: 'stretch', background: 'var(--line)', margin: '0 4px' }} />
-          {FACILITY_PALETTE.map(([type, label]) => (
-            <span key={type} draggable style={dragChipStyle}
-              onDragStart={(e) => e.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'facility', type, name: label } as DragEntity))}>{label}</span>
-          ))}
-        </div>
-      </div>
-
       <div className="mapedit">
-        <div style={{ position: 'relative' }}>
+        {/* Map on the left, place-on-map palette on the right. */}
+        <div style={{ display: 'flex', gap: 16, alignItems: 'stretch', flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative', flex: '1 1 440px', minWidth: 0 }}>
           <div ref={canvasRef} className="mapcanvas" style={{ overflow: 'hidden' }} onClick={onCanvasClick} onPointerDown={onCanvasPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp} onWheel={onWheelZoom} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
             <div style={{ position: 'absolute', inset: 0, transformOrigin: '0 0', transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}>
             {defaultMap?.imageUrl && <img src={defaultMap.imageUrl} alt="" onLoad={(e) => { const t = e.currentTarget; if (t.naturalWidth && t.naturalHeight) setMapAspect(t.naturalWidth / t.naturalHeight); }} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' }} />}
@@ -401,6 +373,37 @@ export default function MapEditor() {
           </div>
           <p className="maphint">🟦 The ringed marker previews the guest’s “you are here” marker. Hotspots are coloured by type unless overridden.</p>
         </div>
+
+        {/* Place-on-map palette — right column beside the map. Drag onto the map. */}
+        <div className="editcard" style={{ flex: '0 0 300px', maxWidth: '100%', display: 'flex', flexDirection: 'column', alignSelf: 'stretch' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+            <h3 style={{ margin: 0 }}>Place on map</h3>
+            <span style={{ fontSize: 12, color: 'var(--muted)' }}>{pois.length} hotspot{pois.length === 1 ? '' : 's'} · <button className="tbtn danger" style={{ padding: '3px 9px' }} onClick={clearAllHotspots} disabled={pois.length === 0}>Clear all</button></span>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignContent: 'flex-start', gap: 6, overflowY: 'auto' }}>
+            {attractions.filter((a) => !a.poiId).length === 0 && restaurants.filter((r) => !r.poiId).length === 0 && shops.filter((s) => !s.poiId).length === 0 && (
+              <span style={{ color: 'var(--muted)', fontSize: 13 }}>All attractions, restaurants &amp; shops are placed. ✓</span>
+            )}
+            {attractions.filter((a) => !a.poiId).map((a) => (
+              <span key={a.id} draggable style={dragChipStyle}
+                onDragStart={(e) => e.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'attraction', id: a.id, name: a.name, heroImage: a.heroImage } as DragEntity))}>🎭 {a.name}</span>
+            ))}
+            {restaurants.filter((r) => !r.poiId).map((r) => (
+              <span key={r.id} draggable style={dragChipStyle}
+                onDragStart={(e) => e.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'restaurant', id: r.id, name: r.name, heroImage: r.heroImage } as DragEntity))}>🍴 {r.name}</span>
+            ))}
+            {shops.filter((s) => !s.poiId).map((s) => (
+              <span key={s.id} draggable style={dragChipStyle}
+                onDragStart={(e) => e.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'shop', id: s.id, name: s.name, heroImage: s.heroImage } as DragEntity))}>🛍️ {s.name}</span>
+            ))}
+            <span style={{ flexBasis: '100%', height: 1, background: 'var(--line)', margin: '4px 0' }} />
+            {FACILITY_PALETTE.map(([type, label]) => (
+              <span key={type} draggable style={dragChipStyle}
+                onDragStart={(e) => e.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'facility', type, name: label } as DragEntity))}>{label}</span>
+            ))}
+          </div>
+        </div>
+        </div>{/* /map + palette row */}
 
         {/* Settings cards — a responsive row above the full-width map. */}
         <div style={{ order: -1, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16, alignItems: 'start' }}>
