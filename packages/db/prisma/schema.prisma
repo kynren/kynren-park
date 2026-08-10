@@ -296,6 +296,9 @@ model Branding {
   // (photo/gif) or a hosted URL (recommended for video).
   splashType     String  @default("none")
   splashMediaUrl String? @db.Text
+  // Season opening date (YYYY-MM-DD) shown in the app's "programme available
+  // from" message.
+  seasonOpens    String?
   updatedAt  DateTime @updatedAt
 }
 
@@ -315,6 +318,8 @@ model MapConfig {
   maxZoom     Float    @default(8)
   centerLat   Float?
   centerLng   Float?
+  // Entrance animation for the mobile marker popup: none | fade | scale | slide | bounce
+  popupAnimation String @default("scale")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

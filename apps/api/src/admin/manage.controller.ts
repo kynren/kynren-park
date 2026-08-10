@@ -513,6 +513,7 @@ export class ManageController {
     for (const k of ['minLat', 'maxLat', 'minLng', 'maxLng', 'initialZoom', 'maxZoom', 'centerLat', 'centerLng']) {
       if (b[k] !== undefined) data[k] = b[k] === null ? null : Number(b[k]);
     }
+    if (typeof b?.popupAnimation === 'string' && ['none', 'fade', 'scale', 'slide', 'bounce'].includes(b.popupAnimation)) data.popupAnimation = b.popupAnimation;
     if (existing) return this.prisma.mapConfig.update({ where: { id: existing.id }, data });
     return this.prisma.mapConfig.create({ data: { singleton: true, ...data } });
   }

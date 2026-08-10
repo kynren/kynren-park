@@ -152,7 +152,9 @@ export default function ProgramScreen() {
         {!bundle ? (
           <View style={{ padding: 16 }}><SkeletonRows count={6} height={54} /></View>
         ) : rows.length === 0 ? (
-          <Text style={[styles.emptyBig, { color: pal.text }]}>The programme will be available from {fmtDate(OPENING_DATE)}.</Text>
+          <View style={styles.emptyWrap}>
+            <Text style={[styles.emptyBig, { color: pal.text }]}>The programme will be available from {fmtDate(bundle?.branding?.seasonOpens || OPENING_DATE)}.</Text>
+          </View>
         ) : null}
         {bundle && rows.map((r, idx) => (
           <ProgramRow
@@ -275,7 +277,8 @@ const styles = StyleSheet.create({
   tickMark: { width: 1, height: 8, marginTop: 14 },
   tickTxt: { fontSize: 11, marginTop: 2 },
   empty: { textAlign: 'center', marginTop: 40, fontSize: 14 },
-  emptyBig: { textAlign: 'center', marginTop: 80, fontSize: 19, fontWeight: '800', paddingHorizontal: 40, lineHeight: 26 },
+  emptyWrap: { minHeight: 480, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40 },
+  emptyBig: { textAlign: 'center', fontSize: 19, fontWeight: '800', lineHeight: 26 },
   row: { paddingHorizontal: HPAD, paddingTop: 12, paddingBottom: 8 },
   rowHead: { flexDirection: 'row', gap: 12 },
   thumbWrap: { width: 52, height: 52 },

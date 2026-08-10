@@ -25,6 +25,7 @@ export interface MapConfig {
   maxZoom?: number | null;
   centerLat?: number | null;
   centerLng?: number | null;
+  popupAnimation?: 'none' | 'fade' | 'scale' | 'slide' | 'bounce' | null;
 }
 export interface ParkMap {
   id: string;
@@ -44,6 +45,7 @@ export interface Branding {
   faviconUrl?: string | null;
   splashType?: 'none' | 'photo' | 'gif' | 'video';
   splashMediaUrl?: string | null;
+  seasonOpens?: string | null;
 }
 export interface Attraction {
   id: string;

@@ -7,7 +7,7 @@ import { uploadToast } from '../../../../lib/toast';
 import { QrButton } from '../../../../components/QrButton';
 
 interface Poi { id: string; type: string; name: string; lat: number; lng: number; color: string | null; mapZone: string | null; image: string | null }
-interface MapConfig { markerColor: string; markerStyle: string; mapImageUrl: string | null; initialZoom?: number; maxZoom?: number; centerLat?: number | null; centerLng?: number | null }
+interface MapConfig { markerColor: string; markerStyle: string; mapImageUrl: string | null; initialZoom?: number; maxZoom?: number; centerLat?: number | null; centerLng?: number | null; popupAnimation?: string }
 interface ParkMap { id: string; name: string; imageUrl: string | null; bgColor: string | null; isDefault: boolean }
 interface EntityLite { id: string; name: string; poiId: string | null; heroImage?: string | null; category?: string }
 type DragEntity = { kind: 'attraction' | 'restaurant' | 'shop' | 'facility'; id?: string; type?: string; name: string; heroImage?: string | null };
@@ -32,7 +32,7 @@ const colorOf = (p: Poi) => p.color || TYPE_COLOR[p.type] || '#6b6460';
 
 export default function MapEditor() {
   const [pois, setPois] = useState<Poi[]>([]);
-  const [config, setConfig] = useState<MapConfig>({ markerColor: '#1a73e8', markerStyle: 'pulse', mapImageUrl: null, initialZoom: 2, maxZoom: 8, centerLat: null, centerLng: null });
+  const [config, setConfig] = useState<MapConfig>({ markerColor: '#1a73e8', markerStyle: 'pulse', mapImageUrl: null, initialZoom: 2, maxZoom: 8, centerLat: null, centerLng: null, popupAnimation: 'scale' });
   const [maps, setMaps] = useState<ParkMap[]>([]);
   const [newMapName, setNewMapName] = useState('');
   const [showLabels, setShowLabels] = useState(true);
@@ -60,7 +60,7 @@ export default function MapEditor() {
   }, []);
   const load = useCallback(() => {
     api<Poi[]>('/admin/pois').then(setPois).catch(() => undefined);
-    api<MapConfig>('/admin/map-config').then((c) => setConfig({ markerColor: c.markerColor, markerStyle: c.markerStyle, mapImageUrl: c.mapImageUrl, initialZoom: c.initialZoom ?? 2, maxZoom: c.maxZoom ?? 8, centerLat: c.centerLat ?? null, centerLng: c.centerLng ?? null })).catch(() => undefined);
+    api<MapConfig>('/admin/map-config').then((c) => setConfig({ markerColor: c.markerColor, markerStyle: c.markerStyle, mapImageUrl: c.mapImageUrl, initialZoom: c.initialZoom ?? 2, maxZoom: c.maxZoom ?? 8, centerLat: c.centerLat ?? null, centerLng: c.centerLng ?? null, popupAnimation: c.popupAnimation ?? 'scale' })).catch(() => undefined);
     api<ParkMap[]>('/admin/maps').then(setMaps).catch(() => undefined);
     loadEntities();
   }, [loadEntities]);
@@ -469,6 +469,15 @@ export default function MapEditor() {
               </div>
               <div className="form-row"><label>Maximum zoom ({(config.maxZoom ?? 8).toFixed(1)}×)</label>
                 <input type="range" min={2} max={12} step={0.5} value={config.maxZoom ?? 8} onChange={(e) => saveConfig({ maxZoom: Number(e.target.value) })} />
+              </div>
+              <div className="form-row"><label>Marker popup animation</label>
+                <select value={config.popupAnimation ?? 'scale'} onChange={(e) => saveConfig({ popupAnimation: e.target.value })}>
+                  <option value="none">None</option>
+                  <option value="fade">Fade</option>
+                  <option value="scale">Scale (pop)</option>
+                  <option value="slide">Slide up</option>
+                  <option value="bounce">Bounce</option>
+                </select>
               </div>
               <div>
                 <button className="tbtn" onClick={setCentreToView}>◎ Set centre to current view</button>

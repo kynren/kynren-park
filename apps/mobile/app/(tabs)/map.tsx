@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Animated, Image, TextInput, Keyboard, ScrollView, Dimensions, type LayoutChangeEvent } from 'react-native';
-import Reanimated, { useSharedValue, useAnimatedStyle, withTiming, useAnimatedReaction, runOnJS } from 'react-native-reanimated';
+import Reanimated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, useAnimatedReaction, runOnJS } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -333,6 +333,21 @@ export default function MapScreen() {
     sy = Math.max(176, Math.min(h - 24, sy));
     return { transform: [{ translateX: sx }, { translateY: sy }] };
   });
+  // Popup entrance animation (admin-tunable: none | fade | scale | slide | bounce).
+  const popupAnim = cfg?.popupAnimation ?? 'scale';
+  const popupIn = useSharedValue(0);
+  useEffect(() => {
+    if (selected) popupIn.value = popupAnim === 'bounce' ? withSpring(1, { damping: 9, stiffness: 190 }) : withTiming(1, { duration: 200 });
+    else popupIn.value = 0;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.id, popupAnim]);
+  const popupAnimStyle = useAnimatedStyle(() => {
+    const t = popupIn.value;
+    if (popupAnim === 'none') return {};
+    if (popupAnim === 'fade') return { opacity: t };
+    if (popupAnim === 'slide') return { opacity: Math.min(1, t * 1.5), transform: [{ translateY: (1 - t) * 20 }] };
+    return { opacity: Math.min(1, t * 1.6), transform: [{ scale: t }] }; // scale / bounce
+  }, [popupAnim]);
 
   // Mirror the live zoom into React state (in coarse 0.25 steps) so pins can be
   // clustered as the guest zooms — recomputes only a handful of times, not every
@@ -795,7 +810,7 @@ export default function MapScreen() {
         {/* Popup — anchored to the selected marker and moves with it (pan/zoom). */}
         {selected && (
           <Reanimated.View style={[styles.calloutAnchor, calloutStyle]} pointerEvents="box-none">
-            <View style={styles.calloutFloat} pointerEvents="box-none">
+            <Reanimated.View style={[styles.calloutFloat, popupAnimStyle]} pointerEvents="box-none">
               <Touchable style={[styles.calloutCard, { backgroundColor: cpal.card }]} onPress={openDetail}>
                 {selected.image ? (
                   <Image source={{ uri: selected.image }} style={styles.calloutThumb} />
@@ -822,7 +837,7 @@ export default function MapScreen() {
                 </Pressable>
               </Touchable>
               <View style={[styles.calloutArrow, { borderTopColor: cpal.card }]} />
-            </View>
+            </Reanimated.View>
           </Reanimated.View>
         )}
 
@@ -1074,7 +1089,7 @@ const styles = StyleSheet.create({
   // Zero-size point translated to the marker's screen position; the card floats
   // above it and a little arrow points down at the pin.
   calloutAnchor: { position: 'absolute', top: 0, left: 0, width: 0, height: 0, zIndex: 30 },
-  calloutFloat: { position: 'absolute', left: -128, bottom: 50, width: 256, alignItems: 'center' },
+  calloutFloat: { position: 'absolute', left: -128, bottom: 50, width: 256, alignItems: 'center', transformOrigin: '50% 100%' },
   calloutArrow: { width: 0, height: 0, borderLeftWidth: 9, borderRightWidth: 9, borderTopWidth: 11, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginTop: -1 },
   calloutCard: { flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 16, paddingVertical: 12, paddingLeft: 12, paddingRight: 26, width: 256, shadowColor: '#000', shadowOpacity: 0.24, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 12 },
   calloutThumb: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#e7e2da' },

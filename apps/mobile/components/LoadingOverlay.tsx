@@ -53,14 +53,17 @@ export function LoadingOverlay() {
     return () => { cancelled = true; };
   }, [cfg, fade, started]);
 
-  if (done || !cfg) return null;
+  if (done) return null;
 
-  const url = cfg.url || undefined;
-  const hasMedia = cfg.type !== 'none' && !!url;
+  const url = cfg?.url || undefined;
+  const hasMedia = !!cfg && cfg.type !== 'none' && !!url;
 
+  // Render the full-screen overlay from the very first frame (its dark
+  // background covers the home screen) so nothing flashes behind the splash
+  // while the cached config loads.
   return (
     <Animated.View style={[styles.fill, { opacity: fade }]} pointerEvents="none">
-      {hasMedia && cfg.type === 'video' ? (
+      {!cfg ? null : hasMedia && cfg.type === 'video' ? (
         <Video
           source={{ uri: url! }}
           style={StyleSheet.absoluteFill}

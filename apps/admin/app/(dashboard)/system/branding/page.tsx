@@ -44,7 +44,7 @@ export default function BrandingPage() {
     try {
       const next = await api<Branding>('/admin/branding', {
         method: 'PATCH',
-        body: JSON.stringify({ appName: b.appName, tagline: b.tagline, primary: b.primary, accent: b.accent, font: b.font ?? 'system', logoUrl: b.logoUrl ?? null, iconUrl: b.iconUrl ?? null, faviconUrl: b.faviconUrl ?? null, splashType: b.splashType ?? 'none', splashMediaUrl: b.splashMediaUrl ?? null }),
+        body: JSON.stringify({ appName: b.appName, tagline: b.tagline, primary: b.primary, accent: b.accent, font: b.font ?? 'system', logoUrl: b.logoUrl ?? null, iconUrl: b.iconUrl ?? null, faviconUrl: b.faviconUrl ?? null, splashType: b.splashType ?? 'none', splashMediaUrl: b.splashMediaUrl ?? null, seasonOpens: b.seasonOpens ?? null }),
       });
       setB({ ...DEFAULT_BRANDING, ...next });
       localStorage.setItem('kynren_branding', JSON.stringify(next));
@@ -65,6 +65,7 @@ export default function BrandingPage() {
           <div className="form-grid">
             <div className="form-row"><label>App name</label><input value={b.appName} onChange={(e) => set('appName', e.target.value)} /></div>
             <div className="form-row full"><label>Tagline</label><input value={b.tagline} onChange={(e) => set('tagline', e.target.value)} /></div>
+            <div className="form-row"><label>Programme opens (season start)</label><input type="date" value={b.seasonOpens ?? ''} onChange={(e) => set('seasonOpens', e.target.value || null)} /></div>
             <div className="form-row"><label>Primary colour</label><input type="color" value={b.primary} onChange={(e) => set('primary', e.target.value)} style={{ height: 42, padding: 4 }} /></div>
             <div className="form-row"><label>Accent colour</label><input type="color" value={b.accent} onChange={(e) => set('accent', e.target.value)} style={{ height: 42, padding: 4 }} /></div>
             <div className="form-row"><label>App font</label>
