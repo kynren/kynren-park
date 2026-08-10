@@ -27,7 +27,7 @@ export class SyncController {
     const start = new Date(`${day}T00:00:00.000Z`);
     const end = new Date(`${day}T23:59:59.999Z`);
 
-    const [attractions, pois, walkEdges, restaurants, shops, ticketTypes, content, announcements, weekly, mapConfig, defaultMap, branding, walkthrough] =
+    const [attractions, pois, walkEdges, restaurants, shops, ticketTypes, content, announcements, weekly, mapConfig, defaultMap, branding, walkthroughConfig, walkthroughSteps] =
       await Promise.all([
         this.prisma.attraction.findMany({ where: { active: true }, orderBy: { sortOrder: 'asc' } }),
         this.prisma.pointOfInterest.findMany(),
@@ -58,8 +58,12 @@ export class SyncController {
         this.prisma.mapConfig.findFirst(),
         this.prisma.parkMap.findFirst({ where: { isDefault: true } }),
         this.prisma.branding.findFirst(),
+        this.prisma.walkthroughConfig.findFirst(),
         this.prisma.walkthroughStep.findMany({ where: { active: true }, orderBy: [{ screen: 'asc' }, { order: 'asc' }] }),
       ]);
+    // The global on/off switch overrides every step's own `active` flag —
+    // disabled means the app sees no steps at all, no mobile-side change needed.
+    const walkthrough = (walkthroughConfig?.enabled ?? true) ? walkthroughSteps : [];
 
     // Materialise the weekly programme into concrete sessions for this date, so
     // the app keeps its existing (dated) session shape.

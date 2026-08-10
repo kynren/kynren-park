@@ -27,12 +27,24 @@ export default function WalkthroughPage() {
   const [rows, setRows] = useState<Step[]>([]);
   const [form, setForm] = useState<Form | null>(null);
   const [error, setError] = useState('');
+  const [enabled, setEnabled] = useState(true);
+  const [togglingEnabled, setTogglingEnabled] = useState(false);
   const { page, setPage, totalPages, pageRows, total, start, end } = usePaged(rows, 10);
 
   const load = useCallback(() => {
     api<Step[]>('/admin/walkthrough-steps').then(setRows).catch((e) => setError(friendlyError(e, 'Could not load the walkthrough.')));
+    api<{ enabled: boolean }>('/admin/walkthrough-config').then((c) => setEnabled(c.enabled)).catch(() => undefined);
   }, []);
   useEffect(load, [load]);
+
+  async function toggleEnabled() {
+    const next = !enabled;
+    setEnabled(next); // optimistic
+    setTogglingEnabled(true);
+    try { await api('/admin/walkthrough-config', { method: 'PATCH', body: JSON.stringify({ enabled: next }) }); }
+    catch (e) { setEnabled(!next); setError(friendlyError(e, 'Could not change the walkthrough switch.')); }
+    finally { setTogglingEnabled(false); }
+  }
 
   function openNew() {
     // Default the order to appear after whatever's already on this screen.
@@ -64,6 +76,15 @@ export default function WalkthroughPage() {
     await api(`/admin/walkthrough-steps/${s.id}`, { method: 'PATCH', body: JSON.stringify({ active: !s.active }) }).catch(() => undefined);
     load();
   }
+  async function duplicate(s: Step) {
+    try {
+      await api('/admin/walkthrough-steps', {
+        method: 'POST',
+        body: JSON.stringify({ screen: s.screen, position: s.position, order: s.order + 1, title: `${s.title} (copy)`, body: s.body, active: s.active }),
+      });
+      load();
+    } catch (e) { setError(friendlyError(e, 'Could not duplicate that step.')); }
+  }
 
   return (
     <div>
@@ -74,8 +95,18 @@ export default function WalkthroughPage() {
             Cards shown to a guest the first time they reach a given tab — write the text and pick where each one appears.
           </p>
         </div>
-        <button className="primary" onClick={openNew}>+ New step</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <label className="checkline" style={{ fontWeight: 700 }}>
+            <input type="checkbox" checked={enabled} disabled={togglingEnabled} onChange={toggleEnabled} /> Show walkthrough to new guests
+          </label>
+          <button className="primary" onClick={openNew}>+ New step</button>
+        </div>
       </div>
+      {!enabled && (
+        <div className="hint" style={{ background: 'var(--panel,#f0ece6)', borderRadius: 10, padding: '10px 14px', marginBottom: 12 }}>
+          The walkthrough is turned off — no guest will see any step below until you switch it back on, even active ones.
+        </div>
+      )}
       {error && !form && <div className="error">{error}</div>}
 
       <table className="dtable">
@@ -93,6 +124,7 @@ export default function WalkthroughPage() {
               </td>
               <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
                 <button className="tbtn" onClick={() => openEdit(s)}>Edit</button>{' '}
+                <button className="tbtn" onClick={() => duplicate(s)}>Duplicate</button>{' '}
                 <button className="tbtn danger" onClick={() => remove(s)}>Delete</button>
               </td>
             </tr>

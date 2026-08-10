@@ -709,6 +709,21 @@ export class ManageController {
   }
 
   // ---- First-time walkthrough -------------------------------------------------
+  @Get('walkthrough-config')
+  async getWalkthroughConfig() {
+    const existing = await this.prisma.walkthroughConfig.findFirst();
+    if (existing) return existing;
+    return this.prisma.walkthroughConfig.create({ data: { singleton: true } });
+  }
+
+  @Patch('walkthrough-config')
+  async updateWalkthroughConfig(@Body() b: any) {
+    const existing = await this.prisma.walkthroughConfig.findFirst();
+    const data = { enabled: b?.enabled !== undefined ? !!b.enabled : undefined };
+    if (existing) return this.prisma.walkthroughConfig.update({ where: { id: existing.id }, data });
+    return this.prisma.walkthroughConfig.create({ data: { singleton: true, ...data } });
+  }
+
   @Get('walkthrough-steps')
   listWalkthrough() {
     return this.prisma.walkthroughStep.findMany({ orderBy: [{ screen: 'asc' }, { order: 'asc' }] });

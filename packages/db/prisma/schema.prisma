@@ -587,6 +587,15 @@ model ContentPage {
   createdAt DateTime @default(now())
 }
 
+// Singleton on/off switch for the whole walkthrough feature, independent of
+// each step's own `active` flag — lets admin pause the entire tour instantly.
+model WalkthroughConfig {
+  id        String   @id @default(cuid())
+  singleton Boolean  @default(true) @unique
+  enabled   Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+}
+
 // A first-time-user walkthrough card — admin-authored, shown once (per device)
 // the first time a guest reaches the given tab. `screen` matches a mobile tab
 // route (index | map | tickets | shows | food); `position` is where on that
