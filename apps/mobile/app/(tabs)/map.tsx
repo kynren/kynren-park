@@ -250,10 +250,11 @@ export default function MapScreen() {
     selX.value = pin.x; selY.value = pin.y;
     const cur = scale.value;
     const s = Math.max(MIN_SCALE, Math.min(maxScale, Math.max(cur, target)));
+    // Keep the pin at its exact current screen position while zooming — no clamp,
+    // so it's never nudged toward the centre. The popup stays glued to it.
     const px = (vw / 2 + (pin.x - vw / 2) * cur + panX.value) - (vw / 2 + (pin.x - vw / 2) * s);
     const py = (vh / 2 + (pin.y - vh / 2) * cur + panY.value) - (vh / 2 + (pin.y - vh / 2) * s);
-    const c = clampPanJS(px, py, s);
-    animateTo(s, c.x, c.y);
+    animateTo(s, px, py);
   }
 
   useEffect(() => {
