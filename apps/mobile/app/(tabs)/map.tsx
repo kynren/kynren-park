@@ -341,24 +341,11 @@ export default function MapScreen() {
   // (each marker sets its transformOrigin to its own anchor point).
   const invScale = useAnimatedStyle(() => ({ transform: [{ scale: 1 / scale.value }] }));
   // The popup is rendered INSIDE the map canvas, anchored to the selected pin's
-  // own coordinates and counter-scaled like a marker (see popupWrapStyle below),
-  // so it's physically a sibling of the pin and can never drift away from it —
-  // it inherits the canvas's pan/zoom transform the same native way pins do.
-  // Combines the counter-scale with a small horizontal nudge (real screen
-  // pixels, applied AFTER the scale in the transform list) so the card doesn't
-  // run off a side edge near the screen border. The nudge nudges the whole
-  // wrapper (pin anchor included), which is an acceptable trade-off only in
-  // that rare near-edge case — the pin itself never moves, only the popup.
-  const popupWrapStyle = useAnimatedStyle(() => {
-    const w = vpw.value || 375;
-    const s = scale.value;
-    const sx = w / 2 + (selX.value - w / 2) * s + panX.value; // pin's live screen X
-    const half = 128, margin = 10;
-    let shift = 0;
-    if (sx - half < margin) shift = margin - (sx - half);
-    else if (sx + half > w - margin) shift = (w - margin) - (sx + half);
-    return { transform: [{ scale: 1 / s }, { translateX: shift }] };
-  });
+  // own coordinates and counter-scaled with the SAME `invScale` markers use — no
+  // separate math, no edge-shift — so it is a true sibling of the pin and is
+  // ALWAYS centred exactly on it (an earlier edge-clamp version nudged the whole
+  // popup — arrow included — away from the pin whenever it was near a screen
+  // edge, which is exactly what looked like the popup "leaving" the pin).
   // Popup entrance animation (admin-tunable: none | fade | scale | slide | bounce).
   const popupAnim = cfg?.popupAnimation ?? 'scale';
   const popupIn = useSharedValue(0);
@@ -832,7 +819,7 @@ export default function MapScreen() {
           {selected && (
             <Reanimated.View
               pointerEvents="box-none"
-              style={[{ position: 'absolute', left: selPin?.x ?? selected.x, top: selPin?.y ?? selected.y, width: 0, height: 0 }, styles.calloutWrap, popupWrapStyle]}
+              style={[{ position: 'absolute', left: selPin?.x ?? selected.x, top: selPin?.y ?? selected.y, width: 0, height: 0 }, styles.calloutWrap, invScale]}
             >
               <Reanimated.View style={[flipDown ? styles.calloutFloatDown : styles.calloutFloat, popupAnimStyle]} pointerEvents="box-none">
                 {flipDown && <View style={[styles.calloutArrowUp, { borderBottomColor: cpal.card }]} />}
