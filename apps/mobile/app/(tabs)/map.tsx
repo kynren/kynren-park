@@ -170,6 +170,7 @@ export default function MapScreen() {
   const [hintDismissed, setHintDismissed] = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const appliedFocus = useRef<string | null>(null);
+  const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null); // debounce the background-tap dismiss so a double-tap doesn't close the popup
   const [favs, setFavs] = useState<Set<string>>(new Set());
   // Location is acquired app-wide at boot (during the splash), so the beacon is
   // ready the moment the map opens — see LocationProvider.
@@ -241,6 +242,18 @@ export default function MapScreen() {
     scale.value = withTiming(s, { duration: ms });
     panX.value = withTiming(x, { duration: ms });
     panY.value = withTiming(y, { duration: ms });
+  }
+  // Zoom toward a pin WITHOUT recentring the map: keep the pin at its current
+  // on-screen position while zooming to `target`, and attach the popup right
+  // away (no frame lag) so the bubble stays glued to the pin.
+  function focusPin(pin: { x: number; y: number }, target: number) {
+    selX.value = pin.x; selY.value = pin.y;
+    const cur = scale.value;
+    const s = Math.max(MIN_SCALE, Math.min(maxScale, Math.max(cur, target)));
+    const px = (vw / 2 + (pin.x - vw / 2) * cur + panX.value) - (vw / 2 + (pin.x - vw / 2) * s);
+    const py = (vh / 2 + (pin.y - vh / 2) * cur + panY.value) - (vh / 2 + (pin.y - vh / 2) * s);
+    const c = clampPanJS(px, py, s);
+    animateTo(s, c.x, c.y);
   }
 
   useEffect(() => {
@@ -524,7 +537,7 @@ export default function MapScreen() {
     const glyph = pin.kind === 'evening' ? '🌙' : pin.kind === 'restaurant' ? '🍴' : pin.kind === 'facility' ? (pin.emoji ?? '•') : null;
     const wrap = [styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }, invScale];
     return (
-      <AnimatedPressable key={pin.id} style={wrap} onPress={() => { selection(); setSelected(pin); }}>
+      <AnimatedPressable key={pin.id} style={wrap} onPress={() => { selection(); selX.value = pin.x; selY.value = pin.y; setSelected(pin); }}>
         <View style={[styles.pinHead, { borderColor: tint }, isSel && styles.pinSel]}>
           {pin.image
             ? <Image source={{ uri: pin.image }} style={styles.pinImg} />
@@ -566,13 +579,10 @@ export default function MapScreen() {
     if (!pendingSelect || vw === 0) return;
     const pin = pins.find((p) => p.id === pendingSelect);
     if (!pin) return;
-    // Centre on the result (pin slightly low so its popup fits) and open the
-    // popup — the other pins stay visible.
-    const s = 2.4;
-    const c = clampPanJS((vw / 2 - pin.x) * s, (vh * 0.6 - pin.y) * s, s);
-    animateTo(s, c.x, c.y);
+    // Zoom to the pin in place (no recentring) and open its popup.
     selection();
     setSelected(pin);
+    focusPin(pin, 2.4);
     setPendingSelect(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingSelect, pins, vw, vh]);
@@ -597,9 +607,7 @@ export default function MapScreen() {
     if (!pin) return;
     selection();
     setSelected(pin);
-    const s = 2.6;
-    const c = clampPanJS((vw / 2 - pin.x) * s, (vh * 0.6 - pin.y) * s, s);
-    animateTo(s, c.x, c.y);
+    focusPin(pin, 2.6);
     setPendingSpot(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingSpot, pins, vw, vh]);
@@ -644,12 +652,10 @@ export default function MapScreen() {
     const pin = pins.find((p) => p.id === params.focus);
     if (!pin) return;
     appliedFocus.current = params.focus;
-    // Centre on the place and open its popup, keeping the other pins visible.
-    const s = 2.2;
-    const c = clampPanJS((vw / 2 - pin.x) * s, (vh * 0.6 - pin.y) * s, s);
-    animateTo(s, c.x, c.y);
+    // Zoom to the place in place (no recentring) and open its popup.
     selection();
     setSelected(pin);
+    focusPin(pin, 2.2);
   }, [params.focus, pins, vw, vh]);
 
   // Walkable POI graph (built once from the POIs).
@@ -730,8 +736,16 @@ export default function MapScreen() {
             />
           ) : null /* no placeholder map — the solid mapBg shows until the real map is ready */}
 
-          {/* Tapping the map background (not a pin) dismisses the popup / closes search. */}
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => { setSelected(null); setSearchOpen(false); Keyboard.dismiss(); }} />
+          {/* Tapping the map background (not a pin) dismisses the popup / closes
+              search — but a quick second tap (double-tap to zoom) cancels the
+              dismiss so an open popup is kept. */}
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => {
+              if (dismissTimer.current) { clearTimeout(dismissTimer.current); dismissTimer.current = null; return; } // 2nd tap → keep popup
+              dismissTimer.current = setTimeout(() => { dismissTimer.current = null; setSelected(null); setSearchOpen(false); Keyboard.dismiss(); }, 280);
+            }}
+          />
 
           {/* Walking route from the guest to the selected place — follows the path
               network through the park (map-style casing over a coloured line). */}
