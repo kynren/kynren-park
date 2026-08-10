@@ -1,16 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 
-export const PERMISSION_KEYS = ['schedule', 'food', 'content', 'announce', 'analytics', 'system'] as const;
+export const PERMISSION_KEYS = ['schedule', 'food', 'content', 'manage', 'announce', 'analytics', 'system'] as const;
 export const STAFF_ROLES = ['ADMIN', 'OPS', 'FNB', 'CONTENT'] as const;
 export type PermMatrix = Record<string, Record<string, boolean>>;
 
 // Sensible starting point; ADMIN is always full and cannot be edited.
 export const DEFAULT_MATRIX: PermMatrix = {
-  ADMIN: { schedule: true, food: true, content: true, announce: true, analytics: true, system: true },
-  OPS: { schedule: true, food: false, content: false, announce: true, analytics: true, system: false },
-  FNB: { schedule: false, food: true, content: false, announce: false, analytics: true, system: false },
-  CONTENT: { schedule: false, food: false, content: true, announce: true, analytics: true, system: false },
+  ADMIN: { schedule: true, food: true, content: true, manage: true, announce: true, analytics: true, system: true },
+  OPS: { schedule: true, food: false, content: false, manage: false, announce: true, analytics: true, system: false },
+  FNB: { schedule: false, food: true, content: false, manage: false, announce: false, analytics: true, system: false },
+  CONTENT: { schedule: false, food: false, content: true, manage: true, announce: true, analytics: true, system: false },
 };
 
 @Injectable()

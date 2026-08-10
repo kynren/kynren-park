@@ -7,6 +7,7 @@ export const PERMISSIONS = [
   { key: 'schedule', label: 'Manage schedule' },
   { key: 'food', label: 'Manage food orders' },
   { key: 'content', label: 'Manage content & app settings' },
+  { key: 'manage', label: 'Manage records (create/edit/delete)' },
   { key: 'announce', label: 'Send announcements' },
   { key: 'analytics', label: 'View analytics' },
   { key: 'system', label: 'System administration' },
@@ -18,10 +19,10 @@ export type PermMatrix = Record<string, Record<string, boolean>>;
 // Mirrors the API's DEFAULT_MATRIX — used for instant nav gating before the
 // live permissions load from /auth/staff/me.
 export const DEFAULT_MATRIX: PermMatrix = {
-  ADMIN: { schedule: true, food: true, content: true, announce: true, analytics: true, system: true },
-  OPS: { schedule: true, food: false, content: false, announce: true, analytics: true, system: false },
-  FNB: { schedule: false, food: true, content: false, announce: false, analytics: true, system: false },
-  CONTENT: { schedule: false, food: false, content: true, announce: true, analytics: true, system: false },
+  ADMIN: { schedule: true, food: true, content: true, manage: true, announce: true, analytics: true, system: true },
+  OPS: { schedule: true, food: false, content: false, manage: false, announce: true, analytics: true, system: false },
+  FNB: { schedule: false, food: true, content: false, manage: false, announce: false, analytics: true, system: false },
+  CONTENT: { schedule: false, food: false, content: true, manage: true, announce: true, analytics: true, system: false },
 };
 
 const PERMS_KEY = 'kynren_staff_perms';
