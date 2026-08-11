@@ -102,12 +102,12 @@ function MealIcon({ color, size = 24 }: IconProps) {
   );
 }
 
-const ITEMS: { name: string; label: string; Icon: (p: IconProps) => JSX.Element; center?: boolean }[] = [
+const ITEMS: { name: string; label?: string; Icon: (p: IconProps) => JSX.Element; center?: boolean }[] = [
   { name: 'index', label: 'Home', Icon: HomeIcon },
-  { name: 'map', label: 'Plan', Icon: PinIcon },
-  { name: 'tickets', label: 'Book', Icon: (p) => <TicketIcon {...p} />, center: true },
-  { name: 'shows', label: 'Program', Icon: CalendarIcon },
-  { name: 'food', label: 'Meal', Icon: MealIcon },
+  { name: 'map', label: 'Map', Icon: PinIcon },
+  { name: 'tickets', Icon: (p) => <TicketIcon {...p} />, center: true },
+  { name: 'shows', label: 'Shows', Icon: CalendarIcon },
+  { name: 'food', label: 'Food', Icon: MealIcon },
 ];
 
 // A tab button with no persistent active background — instead a brand-colour
@@ -125,7 +125,7 @@ function TabItem({ item, active, pal, onPress }: { item: (typeof ITEMS)[number];
         <Animated.View style={[styles.ripple, { backgroundColor: pal.activeIcon }, ripple]} pointerEvents="none" />
         <item.Icon color={active ? pal.activeIcon : pal.inactive} size={23} />
       </View>
-      <Text style={[styles.label, { color: active ? pal.activeLabel : pal.inactive }, active && styles.labelActive]}>{item.label}</Text>
+      {item.label && <Text style={[styles.label, { color: active ? pal.activeLabel : pal.inactive }, active && styles.labelActive]}>{item.label}</Text>}
     </Touchable>
   );
 }
@@ -153,7 +153,7 @@ function KynrenTabBar({ state, navigation }: { state: any; navigation: any }) {
               <View style={[styles.fab, { backgroundColor: pal.fabBg, borderColor: pal.fabBorder }]}>
                 <TicketIcon color={active ? pal.activeIcon : pal.fabInactive} size={30} bg={pal.fabBg} />
               </View>
-              <Text style={[styles.label, { color: active ? pal.activeLabel : pal.inactive }, active && styles.labelActive]}>{item.label}</Text>
+              {item.label && <Text style={[styles.label, { color: active ? pal.activeLabel : pal.inactive }, active && styles.labelActive]}>{item.label}</Text>}
             </Touchable>
           );
         }
