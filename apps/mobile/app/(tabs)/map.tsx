@@ -613,14 +613,18 @@ export default function MapScreen() {
   // area (its pins spread past ~AREA_OPEN_PX on screen) it "opens up" into the
   // individual pins. Zone-less pins fall back to proximity count-clusters.
   const clustered = useMemo(() => {
-    const base = soloId ? pins.filter((p) => p.id === soloId) : pins;
-    const src = displayPin ? base.filter((p) => p.id !== displayPin.id) : base;
+    const src = soloId ? pins.filter((p) => p.id === soloId) : pins;
 
-    // Bucket by area (mapZone); pins without a zone go loose.
+    // Bucket by area (mapZone); pins without a zone go loose. The selected/
+    // closing pin is FORCED loose and never merges with anything below — it
+    // must always render as its own single entry, since the popup anchors to
+    // wherever this same clustering pass puts it. Two separate render paths
+    // for the same pin (one here, one special-cased elsewhere) is exactly
+    // what let a pin and its own popup drift apart before.
     const zones = new Map<string, Pin[]>();
     const loose: Pin[] = [];
     for (const p of src) {
-      if (p.zone) { const a = zones.get(p.zone); if (a) a.push(p); else zones.set(p.zone, [p]); }
+      if (p.zone && p.id !== displayPin?.id) { const a = zones.get(p.zone); if (a) a.push(p); else zones.set(p.zone, [p]); }
       else loose.push(p);
     }
 
@@ -634,18 +638,23 @@ export default function MapScreen() {
       else loose.push(...zp); // opened → individual pins below
     }
 
-    // Proximity-cluster the loose pins so overlapping markers still merge.
+    // Proximity-cluster the loose pins so overlapping markers still merge —
+    // except the selected/closing pin, which always stays its own entry so
+    // it (and the popup anchored to it) can never merge into a count bubble.
     const thr = 44 / Math.max(zoom, 0.001), thr2 = thr * thr;
     for (const p of loose) {
+      const isDisplayPin = p.id === displayPin?.id;
       let placed = false;
-      for (const c of out) {
-        if (c.zone) continue; // never merge into a labelled area
-        const dx = c.x - p.x, dy = c.y - p.y;
-        if (dx * dx + dy * dy <= thr2) {
-          c.pins.push(p);
-          c.x += (p.x - c.x) / c.pins.length;
-          c.y += (p.y - c.y) / c.pins.length;
-          placed = true; break;
+      if (!isDisplayPin) {
+        for (const c of out) {
+          if (c.zone || (c.pins.length === 1 && c.pins[0].id === displayPin?.id)) continue; // never merge into a labelled area or the selected pin's own entry
+          const dx = c.x - p.x, dy = c.y - p.y;
+          if (dx * dx + dy * dy <= thr2) {
+            c.pins.push(p);
+            c.x += (p.x - c.x) / c.pins.length;
+            c.y += (p.y - c.y) / c.pins.length;
+            placed = true; break;
+          }
         }
       }
       if (!placed) out.push({ x: p.x, y: p.y, pins: [p] });
@@ -949,11 +958,11 @@ export default function MapScreen() {
               </AnimatedPressable>
             );
           })}
-          {/* Keep the selected pin drawn on top (it's excluded from clustering).
-              Uses selPin (the LIVE re-projected coordinate), not the stale
-              `selected` snapshot, so the marker can never drift from the popup
-              anchored to the same point below — both always read one source. */}
-          {displayPin && renderPin(selPin ?? displayPin)}
+          {/* The selected/closing pin renders exactly once, from inside the loop
+              above (it never merges into a cluster/area — see `clustered`) — its
+              own `isSel` check there already draws it on top with the highlight
+              style. No separate render call here: that duplicate path used to
+              let the pin and its popup end up at two different positions. */}
 
           {/* Popup — a SIBLING of the pin inside the transformed canvas, anchored
               at the pin's own canvas coordinate and counter-scaled exactly like a
