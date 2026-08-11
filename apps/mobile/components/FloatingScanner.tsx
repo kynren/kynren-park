@@ -15,7 +15,7 @@ export function FloatingScanner() {
 
   return (
     <Pressable
-      style={[styles.fab, { bottom: insets.bottom + 88, right: 16 }]}
+      style={[styles.fab, { bottom: insets.bottom + 136, right: 16 }]}
       onPress={() => { selection(); router.push('/scan'); }}
       accessibilityLabel="Scan a QR code"
     >
