@@ -3,7 +3,7 @@
     "name": "Kynren",
     "slug": "kynren-storied-lands",
     "scheme": "kynren",
-    "version": "0.3.0",
+    "version": "0.4.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "primaryColor": "#8f1d21",
@@ -70,7 +70,8 @@
             "buildToolsVersion": "35.0.0"
           }
         }
-      ]
+      ],
+      "@maplibre/maplibre-react-native"
     ],
     "experiments": {
       "typedRoutes": false
