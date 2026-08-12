@@ -1348,7 +1348,10 @@ const styles = StyleSheet.create({
   hintWrap: { position: 'absolute', left: 0, right: 0, bottom: 74, alignItems: 'center' },
   hintChip: { backgroundColor: 'rgba(17,17,17,0.9)', borderRadius: 8, paddingVertical: 9, paddingHorizontal: 16 },
   hintChipTxt: { color: '#fff', fontSize: 12, fontWeight: '800', letterSpacing: 0.6 },
-  walkPill: { position: 'absolute', right: 14, bottom: 74, backgroundColor: '#fff', borderRadius: 999, paddingVertical: 9, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 5 },
+  // Left-anchored, not right: the global FloatingScanner FAB (components/
+  // FloatingScanner.tsx) is also right-aligned near the bottom of every
+  // screen and was covering this pill.
+  walkPill: { position: 'absolute', left: 14, bottom: 74, backgroundColor: '#fff', borderRadius: 999, paddingVertical: 9, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 5 },
   walkPillTxt: { color: theme.ink, fontWeight: '800', fontSize: 13 },
   // The card floats above the (zero-size) pin anchor; a little arrow points
   // down at the pin. Drawn above every other marker/beacon in the canvas.
