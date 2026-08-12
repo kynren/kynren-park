@@ -8,7 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Rect, Circle, Ellipse, Path, G, Polygon, Polyline, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
 import { useLocation } from '../../lib/location';
 import { useSync } from '../../lib/sync';
-import { fmtTime } from '../../lib/format';
+import { fmtTime, ukNow, ukTodayStr } from '../../lib/format';
 import { theme } from '../../lib/theme';
 import { useThemePref } from '../../lib/theme-context';
 import { Touchable } from '../../components/Touchable';
@@ -559,8 +559,8 @@ export default function MapScreen() {
 
   const nextByAttraction = useMemo(() => {
     const m = new Map<string, string>();
-    const isRealToday = date === new Date().toISOString().slice(0, 10);
-    const ref = isRealToday ? Date.now() : new Date(`${date}T00:00:00.000Z`).getTime();
+    const isRealToday = date === ukTodayStr();
+    const ref = isRealToday ? ukNow().getTime() : new Date(`${date}T00:00:00.000Z`).getTime();
     for (const s of bundle?.sessions ?? []) {
       if (new Date(s.endTime).getTime() <= ref) continue;
       const t = s.revisedStart ?? s.startTime;

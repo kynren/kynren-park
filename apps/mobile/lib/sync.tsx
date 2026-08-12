@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { io, type Socket } from 'socket.io-client';
 import { REALTIME_EVENTS, type SessionUpdatedEvent } from './shared';
 import { API_URL } from './api';
+import { ukTodayStr } from './format';
 
 // --- Bundle shape (mirrors GET /api/sync/bundle) ---------------------------
 export interface Poi {
@@ -153,7 +154,10 @@ const etagKey = (date: string) => `kynren_etag_${date}`;
 // Default to the real current date so the home "Coming up" and live schedule
 // always reflect today — the app materialises the weekly programme per date, so
 // off-days simply return no sessions (and the programme "available from" hint).
-const DEFAULT_DATE = new Date().toISOString().slice(0, 10);
+// Uses UK local (not device-local/UTC) so the date rolls over at UK midnight —
+// during BST that's 11pm UTC, so a plain UTC-based "today" would still show
+// yesterday's (already-finished) programme for up to an hour every night.
+const DEFAULT_DATE = ukTodayStr();
 
 export function SyncProvider({ children }: { children: ReactNode }) {
   const [bundle, setBundle] = useState<Bundle | null>(null);

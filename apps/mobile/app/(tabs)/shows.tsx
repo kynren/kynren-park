@@ -5,13 +5,18 @@ import { Touchable } from '../../components/Touchable';
 import { useRouter } from 'expo-router';
 import Svg, { Circle, Polyline, Line } from 'react-native-svg';
 import { useSync, type Attraction, type Session } from '../../lib/sync';
-import { fmtTime } from '../../lib/format';
+import { fmtTime, ukNow, ukTodayStr } from '../../lib/format';
 import { theme, categoryColor } from '../../lib/theme';
 import { useThemePref } from '../../lib/theme-context';
 import { SkeletonRows } from '../../components/Shimmer';
 
 const HPAD = 14;
-const todayStr = () => new Date().toISOString().slice(0, 10);
+// Half the tick label's width (see styles.tick) — the leftmost/rightmost
+// ticks are centred on the very edge of the scrollable ruler, so without this
+// much lead-in/trail-out room their labels get clipped by the ScrollView's
+// own bounds (only their right/left half was ever visible — "10h" showing as
+// just "0h").
+const TICK_PAD = 20;
 
 function usePalette() {
   const dark = useThemePref().scheme === 'dark';
@@ -51,12 +56,26 @@ export default function ProgramScreen() {
   const dark = useThemePref().scheme === 'dark';
   const headerBg = dark ? pal.header : (bundle?.branding?.primary || pal.header);
   const [trackW, setTrackW] = useState(Dimensions.get('window').width - HPAD * 2);
-  const today = todayStr();
+  const today = ukTodayStr();
   // The programme always reflects the current day; the date is not selectable.
   useEffect(() => { setDate(today); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
+  // Re-check which sessions have finished once a minute, so a show drops off
+  // the timeline on its own while the screen stays open (not just on refresh).
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setTick((n) => n + 1), 60000);
+    return () => clearInterval(t);
+  }, []);
+
   const attractions = bundle?.attractions ?? [];
-  const sessions = bundle?.sessions ?? [];
+  // Once a session has ended for the day it comes off the timeline entirely —
+  // an attraction with no sessions left today drops out of the list below too.
+  const sessions = useMemo(() => {
+    const nowMs = ukNow().getTime();
+    return (bundle?.sessions ?? []).filter((s) => new Date(s.endTime).getTime() > nowMs);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bundle, tick]);
 
   const byAttraction = useMemo(() => {
     const m = new Map<string, Session[]>();
@@ -88,9 +107,11 @@ export default function ProgramScreen() {
   }, [sessions]);
 
   // Spread the day across a wide, horizontally-scrollable track so every show
-  // time is readable (min 2.4px/min); falls back to the on-screen width.
-  const contentW = ruler ? Math.max(trackW, Math.round((ruler.end - ruler.start) * 2.4)) : trackW;
-  const pos = (min: number) => (ruler ? ((min - ruler.start) / (ruler.end - ruler.start)) * contentW : 0);
+  // time is readable (min 2.4px/min); falls back to the on-screen width. Adds
+  // TICK_PAD of lead-in/trail-out room on each end (see its definition above)
+  // so the first/last hour labels aren't clipped by the ScrollView's edges.
+  const contentW = (ruler ? Math.max(trackW, Math.round((ruler.end - ruler.start) * 2.4)) : trackW) + TICK_PAD * 2;
+  const pos = (min: number) => (ruler ? TICK_PAD + ((min - ruler.start) / (ruler.end - ruler.start)) * (contentW - TICK_PAD * 2) : 0);
 
   // Order: day attractions by sortOrder (numbered like the map), then evening show.
   const rows = useMemo(() => {

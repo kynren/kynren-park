@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { useSync } from '../../lib/sync';
+import { ukTodayStr } from '../../lib/format';
 import { theme } from '../../lib/theme';
 import { useThemePref } from '../../lib/theme-context';
 
@@ -68,7 +69,7 @@ export default function MealScreen() {
   const headerBg = dark ? pal.header : (bundle?.branding?.primary || pal.header);
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(true);
-  const { wd, md } = fmtLong(new Date().toISOString().slice(0, 10)); // today's date
+  const { wd, md } = fmtLong(ukTodayStr()); // today's date, UK local
 
   return (
     <View style={[styles.screen, { backgroundColor: pal.screen }]}>

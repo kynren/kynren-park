@@ -6,7 +6,7 @@ import { useMemo, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Stop, Rect, Circle, Path, Polygon, G } from 'react-native-svg';
 import { useSync, type Session } from '../../lib/sync';
-import { fmtTime } from '../../lib/format';
+import { fmtTime, ukNow, ukTodayStr } from '../../lib/format';
 import { theme, categoryColor, statusColor } from '../../lib/theme';
 import { useThemePref } from '../../lib/theme-context';
 import { useBrand } from '../../lib/brand';
@@ -31,8 +31,8 @@ export default function HomeScreen() {
 
   const upcoming = useMemo(() => {
     const sessions = bundle?.sessions ?? [];
-    const isRealToday = date === new Date().toISOString().slice(0, 10);
-    const reference = isRealToday ? Date.now() : new Date(`${date}T00:00:00.000Z`).getTime();
+    const isRealToday = date === ukTodayStr();
+    const reference = isRealToday ? ukNow().getTime() : new Date(`${date}T00:00:00.000Z`).getTime();
     return sessions
       .filter((s) => new Date(s.endTime).getTime() > reference)
       .sort((a, b) => new Date(a.revisedStart ?? a.startTime).getTime() - new Date(b.revisedStart ?? b.startTime).getTime())
