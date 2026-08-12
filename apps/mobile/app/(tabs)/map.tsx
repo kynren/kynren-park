@@ -122,9 +122,16 @@ function dijkstra(adj: number[][], nodes: Geo[], start: number, goal: number): n
   return path[0] === start ? path : null;
 }
 
-// Two-finger map rotation is Android-only — see the note by the Rotation
-// gesture below for why it's disabled on iOS.
-const ROTATE_SUPPORTED = Platform.OS !== 'ios';
+// Two-finger map rotation was already disabled on iOS (see the note by the
+// Rotation gesture below) — and on Android a guest reported the pin visibly
+// swinging away from its true spot mid-rotate. The pin's counter-rotation and
+// the canvas's own rotation live in two separate useAnimatedStyle worklets
+// driven by the same shared value, and a fast two-finger twist can land their
+// UI-thread updates a frame apart. That's the same class of bug already fixed
+// for the popup by fading it out mid-gesture, but a pin can't be faded away
+// while the guest is actively looking at it — so instead of chasing frame-
+// perfect sync for a nice-to-have flourish, rotation is off everywhere.
+const ROTATE_SUPPORTED = false;
 const MIN_SCALE = 1;
 const MAX_SCALE = 12; // absolute ceiling; the effective max comes from the admin map config
 // Render the base map at this multiple of the viewport so it decodes sharper
