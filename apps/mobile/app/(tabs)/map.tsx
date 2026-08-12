@@ -30,8 +30,6 @@ const IMAGE_COORDS: [LngLat, LngLat, LngLat, LngLat] = [
 const PARK_CENTER: LngLat = [(PARK_BOUNDS.minLng + PARK_BOUNDS.maxLng) / 2, (PARK_BOUNDS.minLat + PARK_BOUNDS.maxLat) / 2];
 // [west, south, east, north] — the shape MapLibre's LngLatBounds expects.
 const MAP_BOUNDS: [number, number, number, number] = [PARK_BOUNDS.minLng, PARK_BOUNDS.minLat, PARK_BOUNDS.maxLng, PARK_BOUNDS.maxLat];
-// No basemap/tiles of our own — just our illustrated park image as a source.
-const EMPTY_STYLE = { version: 8 as const, sources: {}, layers: [] };
 const GRASS = '#a9c97f';
 const FAVS_KEY = 'kynren_favorites';
 const HALF_MILE_M = 804.672;
@@ -95,6 +93,12 @@ export default function MapScreen() {
   const params = useLocalSearchParams<{ focus?: string; spot?: string }>();
   const mapRef = useRef<MapRef>(null);
   const cameraRef = useRef<CameraRef>(null);
+  // Set right before a Marker's own onPress fires, so the map's background
+  // onPress (which clears the selection) can tell a marker tap from a real
+  // background tap and ignore it — without this, taps on a pin sometimes
+  // selected it and deselected it again in the same gesture, so the popup
+  // never appeared.
+  const lastMarkerPressAt = useRef(0);
 
   const [cats, setCats] = useState<Set<Cat>>(() => new Set<Cat>(['shows']));
   const [selected, setSelected] = useState<Pin | null>(null);
@@ -112,6 +116,13 @@ export default function MapScreen() {
   const initialZoom = cfg?.initialZoom ?? 15;
   const maxZoom = Math.min(19, cfg?.maxZoom ? cfg.maxZoom + 12 : 20); // admin's old 1–12 scale, rebased to MapLibre's zoom levels
   const initialCenter: LngLat = cfg?.centerLat != null && cfg?.centerLng != null ? [cfg.centerLng, cfg.centerLat] : PARK_CENTER;
+  // No basemap/tiles of our own — just our illustrated park image as a
+  // source, draped over a solid background so any letterboxing around the
+  // image (e.g. odd aspect ratios) shows the park's own colour, not black.
+  const mapStyle = useMemo(
+    () => ({ version: 8 as const, sources: {}, layers: [{ id: 'bg', type: 'background' as const, paint: { 'background-color': mapBg } }] }),
+    [mapBg],
+  );
 
   useEffect(() => {
     AsyncStorage.getItem(FAVS_KEY).then((raw) => raw && setFavs(new Set(JSON.parse(raw))));
@@ -190,7 +201,7 @@ export default function MapScreen() {
   function focusPin(pin: Pin, zoom = 18) {
     selection();
     setSelected(pin);
-    cameraRef.current?.easeTo({ center: [pin.lng, pin.lat], zoom, duration: 500 });
+    cameraRef.current?.easeTo({ center: [pin.lng, pin.lat], zoom, bearing: 0, pitch: 0, duration: 500 });
   }
 
   function goToResult(r: { id: string; kind: Cat }) {
@@ -276,14 +287,14 @@ export default function MapScreen() {
 
   function recenter() {
     if (!showMe || !gps) return;
-    cameraRef.current?.easeTo({ center: [gps.lng, gps.lat], zoom: 17, duration: 400 });
+    cameraRef.current?.easeTo({ center: [gps.lng, gps.lat], zoom: 17, bearing: 0, pitch: 0, duration: 400 });
   }
   function fitAll() {
-    cameraRef.current?.fitBounds(MAP_BOUNDS, { padding: { top: 40, right: 40, bottom: 40, left: 40 }, duration: 400 });
+    cameraRef.current?.fitBounds(MAP_BOUNDS, { padding: { top: 40, right: 40, bottom: 40, left: 40 }, bearing: 0, pitch: 0, duration: 400 });
   }
   function zoomBy(delta: number) {
     mapRef.current?.getZoom().then((z) => {
-      cameraRef.current?.zoomTo(Math.max(initialZoom - 4, Math.min(maxZoom, z + delta)), { duration: 160 });
+      cameraRef.current?.zoomTo(Math.max(initialZoom - 4, Math.min(maxZoom, z + delta)), { bearing: 0, pitch: 0, duration: 160 });
     });
   }
 
@@ -308,10 +319,18 @@ export default function MapScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: mapBg }]}>
-      <MapLibreMap ref={mapRef} style={{ flex: 1 }} mapStyle={EMPTY_STYLE} onPress={() => setSelected(null)} compassHiddenFacingNorth>
+      <MapLibreMap
+        ref={mapRef}
+        style={{ flex: 1 }}
+        mapStyle={mapStyle}
+        onPress={() => { if (Date.now() - lastMarkerPressAt.current < 300) return; setSelected(null); }}
+        touchRotate={false}
+        touchPitch={false}
+        compassHiddenFacingNorth
+      >
         <Camera
           ref={cameraRef}
-          initialViewState={{ center: initialCenter, zoom: initialZoom }}
+          initialViewState={{ center: initialCenter, zoom: initialZoom, bearing: 0, pitch: 0 }}
           minZoom={initialZoom - 4}
           maxZoom={maxZoom}
           maxBounds={MAP_BOUNDS}
@@ -326,7 +345,7 @@ export default function MapScreen() {
         {showMe && gps && <UserLocation animated heading accuracy />}
 
         {pins.map((pin) => (
-          <Marker key={pin.id} id={pin.id} lngLat={[pin.lng, pin.lat]} anchor="bottom" onPress={() => { selection(); setSelected(pin); }}>
+          <Marker key={pin.id} id={pin.id} lngLat={[pin.lng, pin.lat]} anchor="bottom" onPress={() => { lastMarkerPressAt.current = Date.now(); selection(); setSelected(pin); }}>
             {renderPinContent(pin)}
           </Marker>
         ))}
