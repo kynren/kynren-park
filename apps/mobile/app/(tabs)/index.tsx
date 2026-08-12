@@ -2,7 +2,7 @@ import { ScrollView, View, Text, StyleSheet, RefreshControl, Dimensions, Image }
 import { ResizeMode, Video } from 'expo-av';
 import { Touchable } from '../../components/Touchable';
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Stop, Rect, Circle, Path, Polygon, G } from 'react-native-svg';
 import { useSync, type Session } from '../../lib/sync';
@@ -29,6 +29,17 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
 
+  // Re-check which sessions have finished once a minute, so a show drops off
+  // "Coming up" on its own while the guest is sitting on this screen — the
+  // bundle itself only refetches on a real sync/socket patch, not just
+  // because time passed, so without this a finished show could sit here
+  // until the next unrelated refresh.
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setTick((n) => n + 1), 60000);
+    return () => clearInterval(t);
+  }, []);
+
   const upcoming = useMemo(() => {
     const sessions = bundle?.sessions ?? [];
     const isRealToday = date === ukTodayStr();
@@ -37,7 +48,8 @@ export default function HomeScreen() {
       .filter((s) => new Date(s.endTime).getTime() > reference)
       .sort((a, b) => new Date(a.revisedStart ?? a.startTime).getTime() - new Date(b.revisedStart ?? b.startTime).getTime())
       .slice(0, 6);
-  }, [bundle, date]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bundle, date, tick]);
   const alerts = (bundle?.sessions ?? []).filter((s) => s.status === 'DELAYED' || s.status === 'CANCELLED');
 
   const hours = useMemo(() => {

@@ -17,6 +17,13 @@ const HPAD = 14;
 // own bounds (only their right/left half was ever visible — "10h" showing as
 // just "0h").
 const TICK_PAD = 20;
+// The tick mark + its label stack up to ~14+8+2+15 = 39px tall (marginTop:14
+// tick mark, 8 tall, 2px gap, an 11pt label whose line-height alone can run
+// ~15-18px on Android's default system font) inside what used to be a fixed
+// 34px-tall row — a device with slightly taller line-height than assumed
+// clips the bottom of every label. Sized with real headroom instead of the
+// tightest math that happened to fit on one platform.
+const RULER_H = 46;
 
 function usePalette() {
   const dark = useThemePref().scheme === 'dark';
@@ -154,7 +161,7 @@ export default function ProgramScreen() {
           </View>
           <View style={styles.rulerTrack} onLayout={(e: LayoutChangeEvent) => setTrackW(e.nativeEvent.layout.width)}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} scrollEnabled={contentW > trackW}>
-              <View style={{ width: contentW, height: 34 }}>
+              <View style={{ width: contentW, height: RULER_H }}>
                 <View style={[styles.rulerBase, { backgroundColor: pal.rule }]} />
                 {ruler.hours.map((h) => (
                   <View key={h} style={[styles.tick, { left: pos(h) }]}>
@@ -295,7 +302,7 @@ const styles = StyleSheet.create({
   dateUnderline: { height: 3, width: 84, backgroundColor: theme.brand, borderRadius: 2, marginTop: 3 },
   rulerRow: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: HPAD, paddingBottom: 6 },
   clockCol: { width: 30, paddingTop: 2 },
-  rulerTrack: { flex: 1, height: 34, position: 'relative' },
+  rulerTrack: { flex: 1, height: RULER_H, position: 'relative' },
   rulerBase: { position: 'absolute', left: 0, right: 0, top: 22, height: 1 },
   tick: { position: 'absolute', alignItems: 'center', width: 40, marginLeft: -20 },
   tickMark: { width: 1, height: 8, marginTop: 14 },
