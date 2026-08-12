@@ -70,8 +70,7 @@
             "buildToolsVersion": "36.0.0"
           }
         }
-      ],
-      "@maplibre/maplibre-react-native"
+      ]
     ],
     "experiments": {
       "typedRoutes": false
