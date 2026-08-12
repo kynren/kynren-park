@@ -1,14 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Image, Animated } from 'react-native';
+import { View, Text, StyleSheet, StatusBar, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
-import { Touchable } from '../../components/Touchable';
+import { ImageCarousel } from '../../components/ImageCarousel';
+import { CloseButton, IconBadge, TagChip, ActionPill, SectionLabel, ICONS, dk } from '../../components/DetailKit';
 import { useSync } from '../../lib/sync';
 import { poundsFromCents } from '../../lib/format';
-import { theme } from '../../lib/theme';
 
-const HERO_HEIGHT = 260;
+const HERO_HEIGHT = 340;
 
 export default function RestaurantScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
@@ -17,69 +15,54 @@ export default function RestaurantScreen() {
   const insets = useSafeAreaInsets();
   const restaurant = bundle?.restaurants.find((r) => r.slug === slug);
 
-  // Collapsing header: the title slides into the top bar once the hero scrolls off.
-  const scrollY = useRef(new Animated.Value(0)).current;
-  const [barActive, setBarActive] = useState(false);
-  useEffect(() => {
-    const id = scrollY.addListener(({ value }) => setBarActive(value > HERO_HEIGHT - 60));
-    return () => scrollY.removeListener(id);
-  }, [scrollY]);
-
   if (!restaurant) {
     return (
       <View style={styles.center}>
         <Stack.Screen options={{ headerShown: false }} />
-        <Text style={{ color: theme.muted }}>Outlet not found.</Text>
+        <Text style={{ color: dk.sub }}>Outlet not found.</Text>
       </View>
     );
   }
 
-  const hero = restaurant.heroImage;
-  const barOpacity = scrollY.interpolate({ inputRange: [HERO_HEIGHT - 90, HERO_HEIGHT - 30], outputRange: [0, 1], extrapolate: 'clamp' });
+  const images = restaurant.images?.length ? restaurant.images : restaurant.heroImage ? [restaurant.heroImage] : [];
 
   return (
     <View style={styles.screen}>
       <Stack.Screen options={{ headerShown: false }} />
-      {/* Collapsing top bar — with a hero it fades in as you scroll; without, it's solid. */}
-      <Animated.View
-        style={[styles.collapseBar, { paddingTop: insets.top + 8, opacity: hero ? barOpacity : 1 }]}
-        pointerEvents={hero && !barActive ? 'none' : 'auto'}
-      >
-        <Touchable style={styles.headerBack} onPress={() => router.back()} hitSlop={8}>
-          <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><Path d="M15 5l-7 7 7 7" /></Svg>
-        </Touchable>
-        <Text style={styles.headerTitle} numberOfLines={2}>{restaurant.name}</Text>
-      </Animated.View>
-
-      <Animated.ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 40 }}
-        scrollEventThrottle={16}
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
-      >
-        {hero ? (
-          <View style={styles.hero}>
-            <Image source={{ uri: hero }} style={styles.heroImg} resizeMode="cover" />
-            <Touchable style={[styles.backBtn, { top: insets.top + 8 }]} onPress={() => router.back()}>
-              <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><Path d="M15 5l-7 7 7 7" /></Svg>
-            </Touchable>
-          </View>
+      <StatusBar barStyle="light-content" />
+      <View style={{ position: 'absolute', top: insets.top + 8, right: 14, zIndex: 10 }}><CloseButton onPress={() => router.back()} /></View>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+        {images.length > 0 ? (
+          <ImageCarousel images={images} height={HERO_HEIGHT} />
         ) : (
           <View style={{ height: insets.top + 52 }} />
         )}
 
-        <View style={{ padding: 16 }}>
-          <Text style={styles.h1}>{restaurant.name}</Text>
-          {restaurant.cuisine && <Text style={styles.cuisine}>{restaurant.cuisine}</Text>}
+        <View style={[styles.sheet, images.length > 0 && styles.sheetOverlap]}>
+          <View style={styles.titleRow}>
+            <IconBadge letter={restaurant.name[0]?.toUpperCase() ?? 'R'} />
+            <Text style={styles.title}>{restaurant.name}</Text>
+          </View>
+
+          {restaurant.description ? <Text style={styles.desc}>{restaurant.description}</Text> : null}
+
+          <View style={styles.tagRow}>
+            {restaurant.cuisine ? <TagChip icon="🍴" label={restaurant.cuisine} /> : null}
+          </View>
+
+          <View style={styles.actionRow}>
+            <ActionPill icon={ICONS.map} label="Go to" onPress={() => router.push(`/map?focus=${restaurant.id}`)} />
+            <ActionPill icon={ICONS.menu} label="Menu" onPress={() => {}} />
+          </View>
 
           {restaurant.openingHours ? (
-            <View style={styles.hoursChip}>
-              <Text style={styles.hoursIcon}>🕑</Text>
-              <Text style={styles.hoursTxt}>Available {restaurant.openingHours}</Text>
-            </View>
+            <>
+              <SectionLabel>Schedules</SectionLabel>
+              <View style={styles.hoursPill}><Text style={styles.hoursTxt}>From {restaurant.openingHours}</Text></View>
+            </>
           ) : null}
 
-          <Text style={styles.section}>Menu</Text>
+          <SectionLabel>Menu</SectionLabel>
           {restaurant.menuItems.length === 0 ? (
             <Text style={styles.muted}>Menu coming soon.</Text>
           ) : (
@@ -89,9 +72,9 @@ export default function RestaurantScreen() {
                   <Text style={styles.itemName}>{m.name}</Text>
                   {m.description && <Text style={styles.muted}>{m.description}</Text>}
                   {m.dietaryTags.length > 0 && (
-                    <View style={styles.tagRow}>
+                    <View style={styles.dietRow}>
                       {m.dietaryTags.map((t) => (
-                        <Text key={t} style={styles.tag}>{t}</Text>
+                        <Text key={t} style={styles.diet}>{t}</Text>
                       ))}
                     </View>
                   )}
@@ -103,31 +86,28 @@ export default function RestaurantScreen() {
 
           <Text style={styles.note}>Order ahead is coming soon — for now, pay at the outlet.</Text>
         </View>
-      </Animated.ScrollView>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#ffffff' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  hero: { width: '100%', height: HERO_HEIGHT, backgroundColor: '#0e1013' },
-  heroImg: { width: '100%', height: HERO_HEIGHT },
-  backBtn: { position: 'absolute', left: 14, width: 42, height: 42, borderRadius: 21, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
-  collapseBar: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingBottom: 12, backgroundColor: '#ffffff', borderBottomWidth: 1, borderBottomColor: theme.border, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 6 },
-  headerBack: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
-  headerTitle: { flex: 1, color: theme.ink, fontSize: 17, fontWeight: '800', lineHeight: 21 },
-  h1: { fontSize: 24, fontWeight: '800', color: theme.ink },
-  cuisine: { color: theme.brand, fontWeight: '600', marginTop: 2 },
-  hoursChip: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start', backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, marginTop: 12 },
-  hoursIcon: { fontSize: 14 },
-  hoursTxt: { color: theme.ink, fontWeight: '700', fontSize: 13 },
-  section: { fontSize: 16, fontWeight: '700', color: theme.ink, marginTop: 22, marginBottom: 10 },
-  item: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: theme.card, borderRadius: 10, padding: 14, borderWidth: 1, borderColor: theme.border, marginBottom: 8, gap: 12 },
-  itemName: { fontWeight: '700', color: theme.ink, fontSize: 15 },
-  muted: { color: theme.muted, fontSize: 13, marginTop: 2 },
-  tagRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' },
-  price: { color: theme.brand, fontWeight: '800', fontSize: 15 },
-  tag: { fontSize: 11, color: theme.ok, backgroundColor: '#e7f3ee', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, textTransform: 'uppercase' },
-  note: { color: theme.muted, fontSize: 12, textAlign: 'center', marginTop: 20 },
+  screen: { flex: 1, backgroundColor: dk.bg },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: dk.bg },
+  sheet: { backgroundColor: dk.sheet, paddingHorizontal: 18, paddingTop: 20, paddingBottom: 40 },
+  sheetOverlap: { marginTop: -22, borderTopLeftRadius: 22, borderTopRightRadius: 22 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  title: { flex: 1, color: dk.ink, fontSize: 24, fontWeight: '800' },
+  desc: { color: dk.sub, fontSize: 14.5, lineHeight: 21, marginTop: 16 },
+  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
+  actionRow: { flexDirection: 'row', gap: 10, marginTop: 18 },
+  hoursPill: { alignSelf: 'flex-start', backgroundColor: '#fff', borderRadius: 999, paddingVertical: 9, paddingHorizontal: 16, marginTop: 4 },
+  hoursTxt: { color: '#111', fontWeight: '700', fontSize: 13.5 },
+  item: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: dk.chip, borderRadius: 12, padding: 14, marginBottom: 8, gap: 12 },
+  itemName: { fontWeight: '700', color: dk.ink, fontSize: 15 },
+  muted: { color: dk.sub, fontSize: 13, marginTop: 2 },
+  dietRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' },
+  diet: { fontSize: 11, color: '#7fd6ad', backgroundColor: 'rgba(127,214,173,0.12)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, textTransform: 'uppercase' },
+  price: { color: dk.ink, fontWeight: '800', fontSize: 15 },
+  note: { color: dk.sub, fontSize: 12, textAlign: 'center', marginTop: 20 },
 });

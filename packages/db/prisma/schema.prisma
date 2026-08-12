@@ -185,6 +185,7 @@ model Attraction {
   durationMins   Int
   capacity       Int?
   heroImage      String?
+  images         String[] @default([]) // detail-page photo carousel (heroImage shown first if not already included)
   media          String[] // additional image / video URLs
   // Accessibility flags surfaced in the app.
   wheelchairAccessible Boolean @default(true)
@@ -256,6 +257,7 @@ model PointOfInterest {
   color      String? // hotspot marker colour (admin-editable)
   image      String? // optional image shown inside the marker
   heroImage    String? @db.Text // large image for the facility detail page
+  images       String[] @default([]) // detail-page photo carousel (heroImage shown first if not already included)
   openingHours String? // e.g. "10:00–18:00", shown on the detail page
   attraction Attraction?
   restaurant Restaurant?
@@ -349,6 +351,7 @@ model Restaurant {
   priceRange   PriceRange @default(MODERATE)
   openingHours String?
   heroImage    String?
+  images       String[]   @default([]) // detail-page photo carousel (heroImage shown first if not already included)
   clickCollect Boolean    @default(true)
   poi          PointOfInterest? @relation(fields: [poiId], references: [id])
   poiId        String?    @unique
@@ -385,6 +388,7 @@ model Shop {
   category     String? // e.g. "Gifts", "Sweets", "Clothing"
   description  String?
   heroImage    String? // featured image, populated throughout the app
+  images       String[]   @default([]) // detail-page photo carousel (heroImage shown first if not already included)
   openingHours String?
   poi          PointOfInterest? @relation(fields: [poiId], references: [id])
   poiId        String?    @unique

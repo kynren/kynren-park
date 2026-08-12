@@ -17,6 +17,7 @@ export interface Poi {
   icon?: string | null;
   image?: string | null;
   heroImage?: string | null;
+  images?: string[];
   openingHours?: string | null;
 }
 export interface MapConfig {
@@ -58,6 +59,7 @@ export interface Attraction {
   synopsis: string;
   durationMins: number;
   heroImage?: string | null;
+  images?: string[];
   poiId?: string | null;
   wheelchairAccessible: boolean;
   hasAudioDescription: boolean;
@@ -77,10 +79,10 @@ export interface Session {
   attraction: { id: string; slug: string; name: string; category: string };
 }
 export interface MenuItem { id: string; name: string; description?: string | null; priceCents: number; dietaryTags: string[]; }
-export interface Restaurant { id: string; slug: string; name: string; cuisine?: string | null; openingHours?: string | null; heroImage?: string | null; menuItems: MenuItem[]; poiId?: string | null; }
+export interface Restaurant { id: string; slug: string; name: string; cuisine?: string | null; description?: string | null; openingHours?: string | null; heroImage?: string | null; images?: string[]; menuItems: MenuItem[]; poiId?: string | null; }
 export interface ShopVariant { name: string; priceCents?: number; }
 export interface ShopItem { id: string; name: string; description?: string | null; image?: string | null; priceCents: number; variants?: ShopVariant[] | null; }
-export interface Shop { id: string; slug: string; name: string; category?: string | null; description?: string | null; openingHours?: string | null; heroImage?: string | null; items: ShopItem[]; poiId?: string | null; }
+export interface Shop { id: string; slug: string; name: string; category?: string | null; description?: string | null; openingHours?: string | null; heroImage?: string | null; images?: string[]; items: ShopItem[]; poiId?: string | null; }
 export interface TicketType { id: string; name: string; category: string; priceCents: number; description?: string | null; }
 export interface ContentPage { id: string; slug: string; title: string; body: string; category?: string | null; }
 export interface Announcement {

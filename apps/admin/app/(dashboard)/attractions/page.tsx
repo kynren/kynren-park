@@ -6,11 +6,12 @@ import { uploadToast } from '../../../lib/toast';
 import { usePaged, Pager } from '../../../components/Pager';
 import { confirmDelete } from '../../../lib/confirm';
 import { QrButton } from '../../../components/QrButton';
+import { GalleryEditor } from '../../../components/GalleryEditor';
 
 interface Poi { id: string; name: string; type: string }
 interface Attraction {
   id: string; name: string; slug: string; category: string; tagline: string | null; synopsis: string;
-  durationMins: number; heroImage: string | null; wheelchairAccessible: boolean; hasAudioDescription: boolean;
+  durationMins: number; heroImage: string | null; images: string[]; wheelchairAccessible: boolean; hasAudioDescription: boolean;
   hasCaptioning: boolean; hasBSL: boolean; sensoryNotes: string | null; sortOrder: number; active: boolean;
   poiId: string | null;
 }
@@ -22,7 +23,7 @@ const CATEGORIES: [string, string][] = [
 const catLabel = (c: string) => CATEGORIES.find(([k]) => k === c)?.[1] ?? c;
 
 const EMPTY = {
-  name: '', category: 'OTHER', tagline: '', synopsis: '', durationMins: 30, heroImage: '',
+  name: '', category: 'OTHER', tagline: '', synopsis: '', durationMins: 30, heroImage: '', images: [] as string[],
   wheelchairAccessible: true, hasAudioDescription: false, hasCaptioning: false, hasBSL: false,
   sensoryNotes: '', sortOrder: 0, active: true, poiId: '',
 };
@@ -67,7 +68,7 @@ export default function AttractionsAdmin() {
   function openEdit(a: Attraction) {
     setForm({
       id: a.id, name: a.name, category: a.category, tagline: a.tagline ?? '', synopsis: a.synopsis,
-      durationMins: a.durationMins, heroImage: a.heroImage ?? '', wheelchairAccessible: a.wheelchairAccessible,
+      durationMins: a.durationMins, heroImage: a.heroImage ?? '', images: a.images ?? [], wheelchairAccessible: a.wheelchairAccessible,
       hasAudioDescription: a.hasAudioDescription, hasCaptioning: a.hasCaptioning, hasBSL: a.hasBSL,
       sensoryNotes: a.sensoryNotes ?? '', sortOrder: a.sortOrder, active: a.active, poiId: a.poiId ?? '',
     });
@@ -166,6 +167,10 @@ export default function AttractionsAdmin() {
                   <span className="hint">Populates lists, the map pin and the attraction page. Large photos are resized automatically.</span>
                 </div>
               </div>
+            </div>
+
+            <div className="form-row full" style={{ marginTop: 12 }}>
+              <GalleryEditor images={form.images} onChange={(next) => setForm({ ...form, images: next })} />
             </div>
 
             <div className="form-grid" style={{ marginTop: 12 }}>

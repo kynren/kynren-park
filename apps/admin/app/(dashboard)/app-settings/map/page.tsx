@@ -5,8 +5,9 @@ import { api, apiUpload, friendlyError } from '../../../../lib/api';
 import { confirmDelete, promptText } from '../../../../lib/confirm';
 import { uploadToast } from '../../../../lib/toast';
 import { QrButton } from '../../../../components/QrButton';
+import { GalleryEditor } from '../../../../components/GalleryEditor';
 
-interface Poi { id: string; type: string; name: string; lat: number; lng: number; color: string | null; mapZone: string | null; image: string | null; description?: string | null; heroImage?: string | null; openingHours?: string | null }
+interface Poi { id: string; type: string; name: string; lat: number; lng: number; color: string | null; mapZone: string | null; image: string | null; description?: string | null; heroImage?: string | null; images?: string[]; openingHours?: string | null }
 interface MapConfig { markerColor: string; markerStyle: string; mapImageUrl: string | null; initialZoom?: number; maxZoom?: number; centerLat?: number | null; centerLng?: number | null; popupAnimation?: string }
 interface ParkMap { id: string; name: string; imageUrl: string | null; bgColor: string | null; isDefault: boolean }
 interface EntityLite { id: string; name: string; poiId: string | null; heroImage?: string | null; category?: string }
@@ -538,6 +539,9 @@ export default function MapEditor() {
                     <button className="tbtn" onClick={triggerHeroUpload}>Upload</button>
                     {selected.heroImage && <button className="tbtn" onClick={() => patchSel({ heroImage: null })}>Remove</button>}
                   </div>
+                </div>
+                <div className="form-row" style={{ marginTop: 10 }}>
+                  <GalleryEditor images={selected.images ?? []} onChange={(next) => patchSel({ images: next })} label="Gallery photos (optional)" />
                 </div>
               </div>
 

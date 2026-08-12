@@ -74,6 +74,7 @@ export class ManageController {
         priceRange: b.priceRange ?? 'MODERATE',
         openingHours: b.openingHours ?? null,
         heroImage: b.heroImage ?? null,
+        images: Array.isArray(b.images) ? b.images : [],
         clickCollect: b.clickCollect ?? true,
         active: b.active ?? true,
         poiId: b.poiId || undefined,
@@ -84,6 +85,7 @@ export class ManageController {
   @Patch('restaurants/:id')
   updateRestaurant(@Param('id') id: string, @Body() b: any) {
     const data = pick(b, ['name', 'cuisine', 'description', 'priceRange', 'openingHours', 'heroImage', 'clickCollect', 'active']);
+    if (Array.isArray(b.images)) data.images = b.images;
     if (b.poiId !== undefined) data.poiId = b.poiId || null;
     return this.prisma.restaurant.update({ where: { id }, data });
   }
@@ -177,6 +179,7 @@ export class ManageController {
         description: b.description ?? null,
         openingHours: b.openingHours ?? null,
         heroImage: b.heroImage ?? null,
+        images: Array.isArray(b.images) ? b.images : [],
         active: b.active ?? true,
         poiId: b.poiId || undefined,
       },
@@ -186,6 +189,7 @@ export class ManageController {
   @Patch('shops/:id')
   updateShop(@Param('id') id: string, @Body() b: any) {
     const data = pick(b, ['name', 'category', 'description', 'openingHours', 'heroImage', 'active']);
+    if (Array.isArray(b.images)) data.images = b.images;
     if (b.poiId !== undefined) data.poiId = b.poiId || null;
     return this.prisma.shop.update({ where: { id }, data });
   }
@@ -266,6 +270,7 @@ export class ManageController {
         synopsis: b.synopsis ?? '',
         durationMins: Number(b.durationMins ?? 30),
         heroImage: b.heroImage ?? null,
+        images: Array.isArray(b.images) ? b.images : [],
         wheelchairAccessible: b.wheelchairAccessible ?? true,
         hasAudioDescription: b.hasAudioDescription ?? false,
         hasCaptioning: b.hasCaptioning ?? false,
@@ -287,6 +292,7 @@ export class ManageController {
     if (b.durationMins !== undefined) data.durationMins = Number(b.durationMins);
     if (b.sortOrder !== undefined) data.sortOrder = Number(b.sortOrder);
     if (b.poiId !== undefined) data.poiId = b.poiId || null;
+    if (Array.isArray(b.images)) data.images = b.images;
     return this.prisma.attraction.update({ where: { id }, data });
   }
 
@@ -432,6 +438,7 @@ export class ManageController {
         color: b.color ?? null,
         image: b.image ?? null,
         heroImage: b.heroImage ?? null,
+        images: Array.isArray(b.images) ? b.images : [],
         openingHours: b.openingHours ?? null,
       },
     });
@@ -442,6 +449,7 @@ export class ManageController {
     const data = pick(b, ['type', 'name', 'description', 'mapZone', 'icon', 'color', 'image', 'heroImage', 'openingHours']);
     if (b.lat !== undefined) data.lat = Number(b.lat);
     if (b.lng !== undefined) data.lng = Number(b.lng);
+    if (Array.isArray(b.images)) data.images = b.images;
     return this.prisma.pointOfInterest.update({ where: { id }, data });
   }
 

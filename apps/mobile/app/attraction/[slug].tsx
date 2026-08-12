@@ -1,29 +1,23 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
-import { View, Text, StyleSheet, Image, Animated } from 'react-native';
-import { Touchable } from '../../components/Touchable';
+import { View, Text, StyleSheet, ScrollView, StatusBar } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
+import { ImageCarousel } from '../../components/ImageCarousel';
+import { CloseButton, IconBadge, TagChip, ActionPill, SectionLabel, ICONS, dk } from '../../components/DetailKit';
+import { Touchable } from '../../components/Touchable';
 import { useSync } from '../../lib/sync';
 import { useAuth } from '../../lib/auth';
 import { api } from '../../lib/api';
 import { fmtTime } from '../../lib/format';
-import { theme, categoryColor, statusColor } from '../../lib/theme';
-import { useThemePref } from '../../lib/theme-context';
+import { statusColor } from '../../lib/theme';
 
-function usePalette() {
-  const dark = useThemePref().scheme === 'dark';
-  return dark
-    ? { screen: '#0c0c0c', text: '#ffffff', sub: '#9a9a9a', card: '#181818', line: '#262626', link: '#5aa9e6', chip: '#1f1f1f' }
-    : { screen: '#ffffff', text: '#16324f', sub: '#6b6460', card: '#f6f3ef', line: '#e4ddd5', link: '#2b6cb0', chip: '#f1ece5' };
-}
+const HERO_HEIGHT = 340;
 
 export default function AttractionDetail() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const { bundle, date } = useSync();
   const { user } = useAuth();
   const router = useRouter();
-  const pal = usePalette();
   const insets = useSafeAreaInsets();
   const attraction = bundle?.attractions.find((a) => a.slug === slug);
   const sessions = useMemo(
@@ -34,15 +28,6 @@ export default function AttractionDetail() {
   const [favorite, setFavorite] = useState(false);
   const [seen, setSeen] = useState(false);
   const [showAccess, setShowAccess] = useState(false);
-
-  // Collapsing header: the title slides into the top bar once the hero image
-  // has scrolled off the screen.
-  const scrollY = useRef(new Animated.Value(0)).current;
-  const [barActive, setBarActive] = useState(false);
-  useEffect(() => {
-    const id = scrollY.addListener(({ value }) => setBarActive(value > HERO_HEIGHT - 60));
-    return () => scrollY.removeListener(id);
-  }, [scrollY]);
 
   useEffect(() => {
     if (!user || !attraction) return;
@@ -65,19 +50,14 @@ export default function AttractionDetail() {
 
   if (!attraction) {
     return (
-      <View style={[styles.center, { backgroundColor: pal.screen }]}>
+      <View style={styles.center}>
         <Stack.Screen options={{ headerShown: false }} />
-        <Text style={{ color: pal.sub }}>Show not found.</Text>
+        <Text style={{ color: dk.sub }}>Show not found.</Text>
       </View>
     );
   }
 
-  const isRealToday = date === new Date().toISOString().slice(0, 10);
-  const ref = isRealToday ? Date.now() : new Date(`${date}T00:00:00.000Z`).getTime();
-  const next = sessions.find((s) => new Date(s.endTime).getTime() > ref && s.status !== 'CANCELLED');
-  const statusLine = next ? `Next show at ${fmtTime(next.revisedStart ?? next.startTime)}` : 'No more shows today';
-
-  const barOpacity = scrollY.interpolate({ inputRange: [HERO_HEIGHT - 90, HERO_HEIGHT - 30], outputRange: [0, 1], extrapolate: 'clamp' });
+  const images = attraction.images?.length ? attraction.images : attraction.heroImage ? [attraction.heroImage] : [];
 
   const access: string[] = [];
   if (attraction.wheelchairAccessible) access.push('♿  Step-free access');
@@ -86,69 +66,50 @@ export default function AttractionDetail() {
   if (attraction.hasBSL) access.push('🤟  BSL interpreted');
 
   return (
-    <View style={[styles.screen, { backgroundColor: pal.screen }]}>
+    <View style={styles.screen}>
       <Stack.Screen options={{ headerShown: false }} />
-      {/* Fixed compact top bar when there's no hero image — stays put while content scrolls. */}
-      {!attraction.heroImage && (
-        <View style={[styles.headerBar, { backgroundColor: categoryColor[attraction.category] ?? theme.brand, paddingTop: insets.top + 8 }]}>
-          <Touchable style={styles.headerBack} onPress={() => router.back()} hitSlop={8}>
-            <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><Path d="M15 5l-7 7 7 7" /></Svg>
-          </Touchable>
-          <Text style={styles.headerTitle} numberOfLines={1}>{attraction.name}</Text>
-        </View>
-      )}
-      {/* Collapsing top bar — a white bar with the dark title fades in once the hero scrolls away. */}
-      {attraction.heroImage && (
-        <Animated.View style={[styles.collapseBar, { backgroundColor: pal.screen, borderBottomColor: pal.line, paddingTop: insets.top + 8, opacity: barOpacity }]} pointerEvents={barActive ? 'auto' : 'none'}>
-          <Touchable style={styles.headerBack} onPress={() => router.back()} hitSlop={8}>
-            <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><Path d="M15 5l-7 7 7 7" /></Svg>
-          </Touchable>
-          <Text style={[styles.collapseTitle, { color: pal.text }]} numberOfLines={2}>{attraction.name}</Text>
-        </Animated.View>
-      )}
-      <Animated.ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 40 }}
-        scrollEventThrottle={16}
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
-      >
-        {/* Full-bleed hero image scrolls with the content (back button floats over it). */}
-        {attraction.heroImage ? (
-          <View style={styles.hero}>
-            <Image source={{ uri: attraction.heroImage }} style={styles.heroImg} resizeMode="cover" />
-            <Touchable style={[styles.backBtn, { top: insets.top + 8 }]} onPress={() => router.back()}>
-              <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><Path d="M15 5l-7 7 7 7" /></Svg>
-            </Touchable>
-          </View>
-        ) : null}
+      <StatusBar barStyle="light-content" />
+      <View style={{ position: 'absolute', top: insets.top + 8, right: 14, zIndex: 10 }}><CloseButton onPress={() => router.back()} /></View>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+        {images.length > 0 ? (
+          <ImageCarousel images={images} height={HERO_HEIGHT} />
+        ) : (
+          <View style={{ height: insets.top + 52 }} />
+        )}
 
-        {/* Title block */}
-        <View style={styles.pad}>
+        <View style={[styles.sheet, images.length > 0 && styles.sheetOverlap]}>
           <View style={styles.titleRow}>
-            <Touchable onPress={toggleFavorite} hitSlop={8}>
-              <Star filled={favorite} color={favorite ? theme.brand : pal.sub} />
-            </Touchable>
-            <Text style={[styles.title, { color: pal.text }]}>{attraction.name}</Text>
+            <IconBadge letter={attraction.name[0]?.toUpperCase() ?? 'S'} />
+            <Text style={styles.title}>{attraction.name}</Text>
           </View>
-          <Text style={[styles.place, { color: pal.sub }]}>Kynren – The Storied Lands</Text>
-          <Text style={[styles.place, { color: pal.sub }]}>{attraction.category.replace('_', ' ').toLowerCase()}</Text>
-          <Text style={[styles.status, { color: pal.text }]}>{statusLine}</Text>
-        </View>
 
-        {/* Showtimes */}
-        <Divider color={pal.line} />
-        <View style={styles.pad}>
-          <Text style={[styles.centerH, { color: pal.text }]}>Today’s showtimes</Text>
-          <Text style={[styles.centerSub, { color: pal.sub }]}>{fmtDateLong(date)}</Text>
+          {(attraction.tagline || attraction.synopsis) && (
+            <Text style={styles.desc}>{attraction.tagline ? `${attraction.tagline}\n\n` : ''}{attraction.synopsis}</Text>
+          )}
+
+          <View style={styles.tagRow}>
+            <TagChip icon="🎭" label={attraction.category.replace('_', ' ').toLowerCase()} />
+            <TagChip icon="⏱️" label={`${attraction.durationMins} min`} />
+            {access.map((a) => <TagChip key={a} icon={a.split(' ')[0]} label={a.replace(/^\S+\s+/, '')} />)}
+          </View>
+
+          <View style={styles.actionRow}>
+            <ActionPill icon={ICONS.map} label="Go to" onPress={() => router.push(`/map?focus=${attraction.id}`)} />
+            <ActionPill icon={ICONS.heart} label={favorite ? 'Favourited' : 'Favourites'} onPress={toggleFavorite} />
+            <ActionPill icon={ICONS.check} label={seen ? 'Seen it' : 'I did it'} onPress={markSeen} />
+          </View>
+
+          <SectionLabel>Schedules</SectionLabel>
+          <Text style={styles.scheduleSub}>{fmtDateLong(date)}</Text>
           {sessions.length === 0 ? (
-            <Text style={[styles.centerSub, { color: pal.sub, marginTop: 10 }]}>No sessions listed for this day.</Text>
+            <Text style={styles.muted}>No sessions listed for this day.</Text>
           ) : (
             <View style={styles.times}>
               {sessions.map((s) => {
                 const cancelled = s.status === 'CANCELLED';
                 return (
-                  <View key={s.id} style={[styles.timeChip, { backgroundColor: pal.chip, borderColor: pal.line }]}>
-                    <Text style={[styles.timeChipTxt, { color: cancelled ? theme.danger : pal.text, textDecorationLine: cancelled ? 'line-through' : 'none' }]}>
+                  <View key={s.id} style={styles.timeChip}>
+                    <Text style={[styles.timeChipTxt, cancelled && { textDecorationLine: 'line-through', color: '#e37b7b' }]}>
                       {fmtTime(s.revisedStart ?? s.startTime)}
                     </Text>
                     {s.status !== 'SCHEDULED' && <View style={[styles.dot, { backgroundColor: statusColor[s.status] }]} />}
@@ -157,109 +118,47 @@ export default function AttractionDetail() {
               })}
             </View>
           )}
-        </View>
 
-        {/* Find on Map */}
-        <Divider color={pal.line} />
-        <Touchable style={styles.findMap} onPress={() => router.push(`/map?focus=${attraction.id}`)}>
-          <Svg width={30} height={30} viewBox="0 0 24 24" fill="none" stroke={pal.text} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
-            <Path d="M9 4 4 6v14l5-2 6 2 5-2V4l-5 2-6-2Z" /><Path d="M9 4v14M15 6v14" />
-          </Svg>
-          <Text style={[styles.findMapTxt, { color: pal.text }]}>Find on Map</Text>
-        </Touchable>
-
-        {/* Duration / suitability */}
-        <Divider color={pal.line} />
-        <View style={styles.pad}>
-          <Text style={[styles.centerLabel, { color: pal.sub }]}>Duration</Text>
-          <Text style={[styles.centerBig, { color: pal.text }]}>{attraction.durationMins} minutes</Text>
-        </View>
-        <Divider color={pal.line} />
-        <View style={styles.pad}>
-          <Text style={[styles.centerLabel, { color: pal.sub }]}>Suitable for</Text>
-          <Text style={[styles.centerBig, { color: pal.text }]}>All ages</Text>
-        </View>
-
-        {/* Accessibility (expandable) */}
-        <Divider color={pal.line} />
-        <Touchable style={[styles.pad, styles.accessHead]} onPress={() => setShowAccess((v) => !v)}>
-          <Text style={[styles.accessTitle, { color: pal.link }]}>Accessibility &amp; Other Information</Text>
-          <Text style={{ color: pal.link, fontSize: 14 }}>{showAccess ? '▲' : '▼'}</Text>
-        </Touchable>
-        {showAccess && (
-          <View style={styles.pad}>
-            {access.length > 0 ? access.map((a) => <Text key={a} style={[styles.accessItem, { color: pal.text }]}>{a}</Text>) : <Text style={{ color: pal.sub }}>No specific accessibility features listed.</Text>}
-            {attraction.sensoryNotes && <Text style={[styles.sensory, { color: pal.sub }]}>Sensory: {attraction.sensoryNotes}</Text>}
-          </View>
-        )}
-
-        {/* Description */}
-        <Divider color={pal.line} />
-        <View style={styles.pad}>
-          {attraction.tagline && <Text style={[styles.descLead, { color: pal.text }]}>{attraction.tagline}</Text>}
-          <Text style={[styles.desc, { color: pal.text }]}>{attraction.synopsis}</Text>
-        </View>
-
-        {/* Mark as seen */}
-        <View style={[styles.pad, { marginTop: 18 }]}>
-          <Touchable style={[styles.seenBtn, { borderColor: seen ? theme.ok : pal.line }]} onPress={markSeen}>
-            <Text style={[styles.seenTxt, { color: seen ? theme.ok : pal.text }]}>{seen ? '✓ Seen it' : 'Mark as seen'}</Text>
+          {/* Accessibility (expandable) */}
+          <Touchable style={styles.accessHead} onPress={() => setShowAccess((v) => !v)}>
+            <Text style={styles.accessTitle}>Accessibility &amp; Other Information</Text>
+            <Text style={styles.accessChevron}>{showAccess ? '▲' : '▼'}</Text>
           </Touchable>
+          {showAccess && (
+            <View style={{ marginTop: 10 }}>
+              {access.length > 0 ? access.map((a) => <Text key={a} style={styles.accessItem}>{a}</Text>) : <Text style={styles.muted}>No specific accessibility features listed.</Text>}
+              {attraction.sensoryNotes && <Text style={styles.sensory}>Sensory: {attraction.sensoryNotes}</Text>}
+            </View>
+          )}
         </View>
-      </Animated.ScrollView>
+      </ScrollView>
     </View>
   );
 }
 
-const HERO_HEIGHT = 300;
-
-function Divider({ color }: { color: string }) {
-  return <View style={{ height: 1, backgroundColor: color, marginVertical: 16 }} />;
-}
-function Star({ filled, color }: { filled: boolean; color: string }) {
-  return (
-    <Svg width={26} height={26} viewBox="0 0 24 24" fill={filled ? color : 'none'} stroke={color} strokeWidth={1.8} strokeLinejoin="round">
-      <Path d="M12 3l2.7 5.9 6.3.7-4.7 4.3 1.3 6.2L12 17.8 6.1 20.4l1.3-6.2L2.7 9.6l6.3-.7Z" />
-    </Svg>
-  );
-}
 function fmtDateLong(ymd: string) {
   return new Date(`${ymd}T00:00:00.000Z`).toLocaleDateString('en-GB', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' });
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  hero: { width: '100%', height: 300, backgroundColor: '#0e1013' },
-  heroImg: { width: '100%', height: 300 },
-  heroFallback: { color: '#fff', fontSize: 24, fontWeight: '800', textAlign: 'center', paddingHorizontal: 20 },
-  backBtn: { position: 'absolute', left: 14, width: 42, height: 42, borderRadius: 21, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
-  headerBar: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingBottom: 14 },
-  collapseBar: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingBottom: 12, borderBottomWidth: 1, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 6 },
-  collapseTitle: { flex: 1, fontSize: 17, fontWeight: '800', lineHeight: 21 },
-  headerBack: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
-  headerTitle: { flex: 1, color: '#fff', fontSize: 19, fontWeight: '800' },
-  pad: { paddingHorizontal: 18 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 16 },
-  title: { flex: 1, fontSize: 26, fontWeight: '800' },
-  place: { fontSize: 15, marginTop: 3 },
-  status: { fontSize: 20, fontWeight: '800', marginTop: 10 },
-  centerH: { textAlign: 'center', fontSize: 19, fontWeight: '800' },
-  centerSub: { textAlign: 'center', fontSize: 13, marginTop: 3 },
-  times: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center', marginTop: 14 },
-  timeChip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 16 },
-  timeChipTxt: { fontSize: 15, fontWeight: '800' },
+  screen: { flex: 1, backgroundColor: dk.bg },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: dk.bg },
+  sheet: { backgroundColor: dk.sheet, paddingHorizontal: 18, paddingTop: 20, paddingBottom: 40 },
+  sheetOverlap: { marginTop: -22, borderTopLeftRadius: 22, borderTopRightRadius: 22 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  title: { flex: 1, color: dk.ink, fontSize: 24, fontWeight: '800' },
+  desc: { color: dk.sub, fontSize: 14.5, lineHeight: 21, marginTop: 16 },
+  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
+  actionRow: { flexDirection: 'row', gap: 10, marginTop: 18 },
+  scheduleSub: { color: dk.sub, fontSize: 12.5, marginTop: -4, marginBottom: 10 },
+  muted: { color: dk.sub, fontSize: 13, marginTop: 2 },
+  times: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  timeChip: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#fff', borderRadius: 999, paddingVertical: 8, paddingHorizontal: 16 },
+  timeChipTxt: { fontSize: 14.5, fontWeight: '800', color: '#111' },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  findMap: { alignItems: 'center', gap: 8, paddingVertical: 4 },
-  findMapTxt: { fontSize: 15, fontWeight: '700' },
-  centerLabel: { textAlign: 'center', fontSize: 13 },
-  centerBig: { textAlign: 'center', fontSize: 21, fontWeight: '800', marginTop: 4 },
-  accessHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  accessTitle: { fontSize: 17, fontWeight: '700' },
-  accessItem: { fontSize: 15, marginBottom: 8 },
-  sensory: { fontSize: 14, marginTop: 6, lineHeight: 20 },
-  descLead: { fontSize: 16, fontWeight: '700', marginBottom: 8 },
-  desc: { fontSize: 15, lineHeight: 23 },
-  seenBtn: { borderWidth: 1.5, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-  seenTxt: { fontWeight: '800', fontSize: 15 },
+  accessHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 24, paddingTop: 18, borderTopWidth: 1, borderTopColor: dk.line },
+  accessTitle: { fontSize: 15.5, fontWeight: '700', color: '#7fb3e6' },
+  accessChevron: { color: '#7fb3e6', fontSize: 13 },
+  accessItem: { fontSize: 14.5, color: dk.ink, marginBottom: 8 },
+  sensory: { fontSize: 13.5, color: dk.sub, marginTop: 4, lineHeight: 19 },
 });

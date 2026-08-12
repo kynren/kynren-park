@@ -1,17 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Image, Animated } from 'react-native';
+import { View, Text, StyleSheet, Image, StatusBar, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
-import { Touchable } from '../../components/Touchable';
+import { ImageCarousel } from '../../components/ImageCarousel';
+import { CloseButton, IconBadge, TagChip, ActionPill, SectionLabel, ICONS, dk } from '../../components/DetailKit';
 import { useSync } from '../../lib/sync';
 import { poundsFromCents } from '../../lib/format';
-import { theme } from '../../lib/theme';
 
-const HERO_HEIGHT = 240;
-function Back({ stroke = '#111' }: { stroke?: string }) {
-  return <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><Path d="M15 5l-7 7 7 7" /></Svg>;
-}
+const HERO_HEIGHT = 320;
 
 export default function ShopScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
@@ -20,109 +15,91 @@ export default function ShopScreen() {
   const insets = useSafeAreaInsets();
   const shop = bundle?.shops?.find((s) => s.slug === slug);
 
-  const scrollY = useRef(new Animated.Value(0)).current;
-  const [barActive, setBarActive] = useState(false);
-  useEffect(() => { const s = scrollY.addListener(({ value }) => setBarActive(value > HERO_HEIGHT - 60)); return () => scrollY.removeListener(s); }, [scrollY]);
-
   if (!shop) {
-    return <View style={styles.center}><Stack.Screen options={{ headerShown: false }} /><Text style={{ color: theme.muted }}>Shop not found.</Text></View>;
+    return <View style={styles.center}><Stack.Screen options={{ headerShown: false }} /><Text style={{ color: dk.sub }}>Shop not found.</Text></View>;
   }
 
-  const hero = shop.heroImage;
-  const barOpacity = scrollY.interpolate({ inputRange: [HERO_HEIGHT - 90, HERO_HEIGHT - 30], outputRange: [0, 1], extrapolate: 'clamp' });
+  const images = shop.images?.length ? shop.images : shop.heroImage ? [shop.heroImage] : [];
 
   return (
     <View style={styles.screen}>
       <Stack.Screen options={{ headerShown: false }} />
-      <Animated.View style={[styles.collapseBar, { paddingTop: insets.top + 8, opacity: hero ? barOpacity : 1 }]} pointerEvents={hero && !barActive ? 'none' : 'auto'}>
-        <Touchable style={styles.headerBack} onPress={() => router.back()} hitSlop={8}><Back /></Touchable>
-        <Text style={styles.headerTitle} numberOfLines={2}>{shop.name}</Text>
-      </Animated.View>
-
-      <Animated.ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 40 }}
-        scrollEventThrottle={16}
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
-      >
-        {hero ? (
-          <View style={styles.hero}>
-            <Image source={{ uri: hero }} style={styles.heroImg} resizeMode="cover" />
-            <Touchable style={[styles.backBtn, { top: insets.top + 8 }]} onPress={() => router.back()}><Back /></Touchable>
-          </View>
+      <StatusBar barStyle="light-content" />
+      <View style={{ position: 'absolute', top: insets.top + 8, right: 14, zIndex: 10 }}><CloseButton onPress={() => router.back()} /></View>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+        {images.length > 0 ? (
+          <ImageCarousel images={images} height={HERO_HEIGHT} />
         ) : (
-          <View style={[styles.heroFallback, { height: HERO_HEIGHT }]}>
-            <Touchable style={[styles.backBtn, { top: insets.top + 8 }]} onPress={() => router.back()}><Back /></Touchable>
-            <Text style={{ fontSize: 72 }}>🛍️</Text>
-          </View>
+          <View style={{ height: insets.top + 52 }} />
         )}
 
-        <View style={{ padding: 16 }}>
-          <Text style={styles.h1}>{shop.name}</Text>
-          {shop.category ? <Text style={styles.kind}>{shop.category}</Text> : null}
-          {shop.openingHours ? (
-            <View style={styles.hoursChip}>
-              <Text style={styles.hoursIcon}>🕑</Text>
-              <Text style={styles.hoursTxt}>Open {shop.openingHours}</Text>
-            </View>
-          ) : null}
-          {shop.description ? <Text style={styles.desc}>{shop.description}</Text> : null}
-
-          <Text style={styles.section}>What’s in store</Text>
-          {(!shop.items || shop.items.length === 0) ? (
-            <Text style={styles.muted}>Product list coming soon.</Text>
-          ) : (
-            shop.items.map((it) => (
-              <View key={it.id} style={styles.item}>
-                <View style={styles.thumbWrap}>
-                  {it.image ? <Image source={{ uri: it.image }} style={styles.thumb} /> : <Text style={{ fontSize: 22 }}>🛍️</Text>}
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.itemName}>{it.name}</Text>
-                  {it.description ? <Text style={styles.muted}>{it.description}</Text> : null}
-                  {it.variants && it.variants.length > 0 ? (
-                    <Text style={styles.variants}>{it.variants.map((v) => v.name).join(' · ')}</Text>
-                  ) : null}
-                </View>
-                <Text style={styles.price}>{poundsFromCents(it.priceCents)}</Text>
-              </View>
-            ))
-          )}
-
-          <Touchable style={styles.findMap} onPress={() => router.push(`/map?focus=${shop.poiId ?? shop.id}`)}>
-            <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={theme.ink} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><Path d="M9 4 4 6v14l5-2 6 2 5-2V4l-5 2-6-2Z" /><Path d="M9 4v14M15 6v14" /></Svg>
-            <Text style={styles.findMapTxt}>Find on Map</Text>
-          </Touchable>
+        <View style={[styles.sheet, images.length > 0 && styles.sheetOverlap]}>
+        <View style={styles.titleRow}>
+          <IconBadge letter={shop.name[0]?.toUpperCase() ?? 'S'} />
+          <Text style={styles.title}>{shop.name}</Text>
         </View>
-      </Animated.ScrollView>
+
+        {shop.description ? <Text style={styles.desc}>{shop.description}</Text> : null}
+
+        <View style={styles.tagRow}>
+          {shop.category ? <TagChip icon="🛍️" label={shop.category} /> : null}
+        </View>
+
+        <View style={styles.actionRow}>
+          <ActionPill icon={ICONS.map} label="Go to" onPress={() => router.push(`/map?focus=${shop.poiId ?? shop.id}`)} />
+          <ActionPill icon={ICONS.menu} label="Products" onPress={() => {}} />
+        </View>
+
+        {shop.openingHours ? (
+          <>
+            <SectionLabel>Schedules</SectionLabel>
+            <View style={styles.hoursPill}><Text style={styles.hoursTxt}>From {shop.openingHours}</Text></View>
+          </>
+        ) : null}
+
+        <SectionLabel>What’s in store</SectionLabel>
+        {(!shop.items || shop.items.length === 0) ? (
+          <Text style={styles.muted}>Product list coming soon.</Text>
+        ) : (
+          shop.items.map((it) => (
+            <View key={it.id} style={styles.item}>
+              <View style={styles.thumbWrap}>
+                {it.image ? <Image source={{ uri: it.image }} style={styles.thumb} /> : <Text style={{ fontSize: 20 }}>🛍️</Text>}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.itemName}>{it.name}</Text>
+                {it.description ? <Text style={styles.muted}>{it.description}</Text> : null}
+                {it.variants && it.variants.length > 0 ? (
+                  <Text style={styles.variants}>{it.variants.map((v) => v.name).join(' · ')}</Text>
+                ) : null}
+              </View>
+              <Text style={styles.price}>{poundsFromCents(it.priceCents)}</Text>
+            </View>
+          ))
+        )}
+        </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#ffffff' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  hero: { width: '100%', height: HERO_HEIGHT, backgroundColor: '#0e1013' },
-  heroImg: { width: '100%', height: HERO_HEIGHT },
-  heroFallback: { width: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: '#8b6ff0' },
-  backBtn: { position: 'absolute', left: 14, width: 42, height: 42, borderRadius: 21, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
-  collapseBar: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingBottom: 12, backgroundColor: '#ffffff', borderBottomWidth: 1, borderBottomColor: theme.border, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 6 },
-  headerBack: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
-  headerTitle: { flex: 1, color: theme.ink, fontSize: 17, fontWeight: '800', lineHeight: 21 },
-  h1: { fontSize: 24, fontWeight: '800', color: theme.ink },
-  kind: { color: theme.brand, fontWeight: '600', marginTop: 2 },
-  hoursChip: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start', backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, marginTop: 12 },
-  hoursIcon: { fontSize: 14 },
-  hoursTxt: { color: theme.ink, fontWeight: '700', fontSize: 13 },
-  desc: { color: theme.ink, fontSize: 15, lineHeight: 23, marginTop: 14 },
-  section: { fontSize: 16, fontWeight: '700', color: theme.ink, marginTop: 22, marginBottom: 10 },
-  item: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.card, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: theme.border, marginBottom: 8, gap: 12 },
-  thumbWrap: { width: 52, height: 52, borderRadius: 8, backgroundColor: '#e7e2da', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  screen: { flex: 1, backgroundColor: dk.bg },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: dk.bg },
+  sheet: { backgroundColor: dk.sheet, paddingHorizontal: 18, paddingTop: 20, paddingBottom: 40 },
+  sheetOverlap: { marginTop: -22, borderTopLeftRadius: 22, borderTopRightRadius: 22 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  title: { flex: 1, color: dk.ink, fontSize: 24, fontWeight: '800' },
+  desc: { color: dk.sub, fontSize: 14.5, lineHeight: 21, marginTop: 16 },
+  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
+  actionRow: { flexDirection: 'row', gap: 10, marginTop: 18 },
+  hoursPill: { alignSelf: 'flex-start', backgroundColor: '#fff', borderRadius: 999, paddingVertical: 9, paddingHorizontal: 16, marginTop: 4 },
+  hoursTxt: { color: '#111', fontWeight: '700', fontSize: 13.5 },
+  item: { flexDirection: 'row', alignItems: 'center', backgroundColor: dk.chip, borderRadius: 12, padding: 12, marginBottom: 8, gap: 12 },
+  thumbWrap: { width: 52, height: 52, borderRadius: 8, backgroundColor: dk.pill, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   thumb: { width: '100%', height: '100%' },
-  itemName: { fontWeight: '700', color: theme.ink, fontSize: 15 },
-  muted: { color: theme.muted, fontSize: 13, marginTop: 2 },
-  variants: { color: theme.muted, fontSize: 12, marginTop: 4 },
-  price: { color: theme.brand, fontWeight: '800', fontSize: 15 },
-  findMap: { alignItems: 'center', gap: 8, paddingVertical: 20, marginTop: 4 },
-  findMapTxt: { fontSize: 15, fontWeight: '700', color: theme.ink },
+  itemName: { fontWeight: '700', color: dk.ink, fontSize: 15 },
+  muted: { color: dk.sub, fontSize: 13, marginTop: 2 },
+  variants: { color: dk.sub, fontSize: 12, marginTop: 4 },
+  price: { color: dk.ink, fontWeight: '800', fontSize: 15 },
 });

@@ -6,12 +6,13 @@ import { api, apiUpload, friendlyError } from '../../../../../lib/api';
 import { confirmDelete } from '../../../../../lib/confirm';
 import { uploadToast } from '../../../../../lib/toast';
 import { QrButton } from '../../../../../components/QrButton';
+import { GalleryEditor } from '../../../../../components/GalleryEditor';
 
 interface Poi { id: string; name: string; type: string }
 interface MenuItem { id: string; name: string; description: string | null; priceCents: number; image: string | null; dietaryTags: string[]; available: boolean }
 interface Restaurant {
   id: string; name: string; slug: string; cuisine: string | null; description: string | null;
-  priceRange: string; openingHours: string | null; heroImage: string | null; clickCollect: boolean;
+  priceRange: string; openingHours: string | null; heroImage: string | null; images: string[]; clickCollect: boolean;
   active: boolean; poiId: string | null; menuItems: MenuItem[];
 }
 
@@ -66,7 +67,7 @@ export default function RestaurantDetail() {
     try {
       await apiUpload(`/admin/restaurants/${r.id}`, {
         name: r.name, cuisine: r.cuisine, description: r.description, priceRange: r.priceRange,
-        openingHours: r.openingHours, heroImage: r.heroImage, clickCollect: r.clickCollect,
+        openingHours: r.openingHours, heroImage: r.heroImage, images: r.images, clickCollect: r.clickCollect,
         active: r.active, poiId: r.poiId || null,
       }, { method: 'PATCH', onProgress: (p) => t.progress(p) });
       t.success('Restaurant saved');
@@ -132,6 +133,9 @@ export default function RestaurantDetail() {
                 <span className="hint">Shows on the map pin, food list and detail screen.</span>
               </div>
             </div>
+          </div>
+          <div className="form-row full">
+            <GalleryEditor images={r.images ?? []} onChange={(next) => set('images', next)} />
           </div>
           <div className="form-row"><label>Name *</label><input value={r.name} onChange={(e) => set('name', e.target.value)} /></div>
           <div className="form-row"><label>Cuisine</label><input value={r.cuisine ?? ''} onChange={(e) => set('cuisine', e.target.value)} /></div>

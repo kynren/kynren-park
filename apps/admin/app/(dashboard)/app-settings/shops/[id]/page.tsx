@@ -6,13 +6,14 @@ import { api, apiUpload, friendlyError } from '../../../../../lib/api';
 import { confirmDelete } from '../../../../../lib/confirm';
 import { uploadToast } from '../../../../../lib/toast';
 import { QrButton } from '../../../../../components/QrButton';
+import { GalleryEditor } from '../../../../../components/GalleryEditor';
 
 interface Poi { id: string; name: string; type: string }
 interface Variant { name: string; priceCents?: number }
 interface ShopItem { id: string; name: string; description: string | null; priceCents: number; image: string | null; variants: Variant[] | null; available: boolean; sortOrder: number }
 interface Shop {
   id: string; name: string; slug: string; category: string | null; description: string | null;
-  openingHours: string | null; heroImage: string | null; active: boolean; poiId: string | null; items: ShopItem[];
+  openingHours: string | null; heroImage: string | null; images: string[]; active: boolean; poiId: string | null; items: ShopItem[];
 }
 
 function resizeToDataUrl(file: File, maxDim: number): Promise<string> {
@@ -68,7 +69,7 @@ export default function ShopDetail() {
     try {
       await apiUpload(`/admin/shops/${s.id}`, {
         name: s.name, category: s.category, description: s.description,
-        openingHours: s.openingHours, heroImage: s.heroImage, active: s.active, poiId: s.poiId || null,
+        openingHours: s.openingHours, heroImage: s.heroImage, images: s.images, active: s.active, poiId: s.poiId || null,
       }, { method: 'PATCH', onProgress: (p) => t.progress(p) });
       t.success('Shop saved');
       setSaved(true); setTimeout(() => setSaved(false), 2500);
@@ -140,6 +141,9 @@ export default function ShopDetail() {
                 <span className="hint">Shows on the map pin and the shop’s detail screen.</span>
               </div>
             </div>
+          </div>
+          <div className="form-row full">
+            <GalleryEditor images={s.images ?? []} onChange={(next) => set('images', next)} />
           </div>
           <div className="form-row"><label>Name *</label><input value={s.name} onChange={(e) => set('name', e.target.value)} /></div>
           <div className="form-row"><label>Category</label><input placeholder="Gifts, sweets, clothing…" value={s.category ?? ''} onChange={(e) => set('category', e.target.value)} /></div>
