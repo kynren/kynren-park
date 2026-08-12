@@ -1,10 +1,24 @@
-import { Controller, Get, Query, Req, Res } from '@nestjs/common';
+import { Controller, Get, NotFoundException, Param, Query, Req, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { createHash } from 'node:crypto';
 import type { Request, Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { Public } from '../common/decorators.js';
 import { resolveHomeScreen } from '../admin/home-screen.util.js';
+
+// The base map image is stored as an inline base64 data: URI (like every
+// other admin-uploaded image in this app). That's fine for React Native's own
+// <Image>, but the mobile map's native GL engine (MapLibre) needs a real,
+// fetchable URL for its image source — Android's implementation hands the
+// string straight to java.net.URL, which has no handler for the "data" scheme
+// and throws, silently falling through to an invalid native image load that
+// crashes the app. This endpoint decodes the stored data URI back into raw
+// bytes and serves it as a normal HTTP image response instead.
+function dataUriToBuffer(dataUri: string): { mime: string; buf: Buffer } | null {
+  const m = /^data:([^;]+);base64,(.+)$/.exec(dataUri);
+  if (!m) return null;
+  return { mime: m[1], buf: Buffer.from(m[2], 'base64') };
+}
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -14,6 +28,23 @@ function todayStr() {
 @Controller('sync')
 export class SyncController {
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Serves a ParkMap's stored base64 image as a real HTTP image response —
+   * see the note above dataUriToBuffer for why the map screen needs this
+   * instead of the raw data: URI.
+   */
+  @Public()
+  @Get('park-map-image/:id')
+  async parkMapImage(@Param('id') id: string, @Res() res: Response) {
+    const map = await this.prisma.parkMap.findUnique({ where: { id } });
+    if (!map?.imageUrl) throw new NotFoundException();
+    const decoded = dataUriToBuffer(map.imageUrl);
+    if (!decoded) { res.redirect(map.imageUrl); return; } // already a real URL (legacy data)
+    res.setHeader('Content-Type', decoded.mime);
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable'); // URL is versioned by ?v=updatedAt below
+    res.send(decoded.buf);
+  }
 
   /**
    * Everything the mobile app needs to work fully offline for a given date.
@@ -108,6 +139,15 @@ export class SyncController {
       ]),
     );
 
+    // Point the map's imageUrl at the real-HTTP-URL endpoint above instead of
+    // the raw base64 it's stored as — see dataUriToBuffer's comment. Versioned
+    // by updatedAt so it can be cached aggressively but still bust when the
+    // admin re-uploads the map.
+    const origin = `${req.protocol}://${req.get('host')}`;
+    const defaultMapForApp = defaultMap && dataUriToBuffer(defaultMap.imageUrl ?? '')
+      ? { ...defaultMap, imageUrl: `${origin}/api/sync/park-map-image/${defaultMap.id}?v=${defaultMap.updatedAt.getTime()}` }
+      : defaultMap;
+
     const payload = {
       date: day,
       generatedAt: new Date().toISOString(),
@@ -123,7 +163,7 @@ export class SyncController {
       nextProgramDate,
       walkthrough,
       mapConfig,
-      defaultMap,
+      defaultMap: defaultMapForApp,
       branding,
       home,
       images,
