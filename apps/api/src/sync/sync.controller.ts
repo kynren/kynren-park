@@ -143,7 +143,11 @@ export class SyncController {
     // the raw base64 it's stored as — see dataUriToBuffer's comment. Versioned
     // by updatedAt so it can be cached aggressively but still bust when the
     // admin re-uploads the map.
-    const origin = `${req.protocol}://${req.get('host')}`;
+    // Caddy terminates TLS and forwards over plain HTTP, so req.protocol alone
+    // would build an http:// URL — trust the X-Forwarded-Proto header Caddy
+    // sets instead, so the image URL is https:// directly with no redirect.
+    const proto = (req.headers['x-forwarded-proto'] as string)?.split(',')[0]?.trim() || req.protocol;
+    const origin = `${proto}://${req.get('host')}`;
     const defaultMapForApp = defaultMap && dataUriToBuffer(defaultMap.imageUrl ?? '')
       ? { ...defaultMap, imageUrl: `${origin}/api/sync/park-map-image/${defaultMap.id}?v=${defaultMap.updatedAt.getTime()}` }
       : defaultMap;
