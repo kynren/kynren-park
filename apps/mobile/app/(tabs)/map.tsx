@@ -4,10 +4,11 @@ import Reanimated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, u
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Rect, Circle, Ellipse, Path, G, Polygon, Polyline, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
 import { useLocation } from '../../lib/location';
 import { useSync } from '../../lib/sync';
+import { useAuth } from '../../lib/auth';
+import { api } from '../../lib/api';
 import { fmtTime, ukNow, ukTodayStr } from '../../lib/format';
 import { theme } from '../../lib/theme';
 import { useThemePref } from '../../lib/theme-context';
@@ -24,7 +25,6 @@ const VBH = 680;
 // here (both map these bounds onto the base-map image rectangle).
 const PARK_BOUNDS = { minLat: 54.668, maxLat: 54.675, minLng: -1.684, maxLng: -1.674 };
 const GRASS = '#a9c97f';
-const FAVS_KEY = 'kynren_favorites';
 
 type Cat = 'favorites' | 'shows' | 'restaurants' | 'facilities';
 const PILLS: { key: Cat; label: string; emoji: string }[] = [
@@ -132,6 +132,13 @@ function dijkstra(adj: number[][], nodes: Geo[], start: number, goal: number): n
 // while the guest is actively looking at it — so instead of chasing frame-
 // perfect sync for a nice-to-have flourish, rotation is off everywhere.
 const ROTATE_SUPPORTED = false;
+// The background-tap popup-dismiss debounce (below) must outlast the
+// double-tap gesture's own window, or a second tap landing between the two
+// (e.g. at 300ms) fires the dismiss before the gesture recognizer confirms
+// the double-tap — closing the popup even though the guest was double-
+// tapping to zoom, not dismissing. Keep DISMISS_DEBOUNCE_MS > this.
+const DOUBLE_TAP_MAX_MS = 320;
+const DISMISS_DEBOUNCE_MS = DOUBLE_TAP_MAX_MS + 40;
 const MIN_SCALE = 1;
 const MAX_SCALE = 12; // absolute ceiling; the effective max comes from the admin map config
 // Render the base map at this multiple of the viewport so it decodes sharper
@@ -198,6 +205,7 @@ export default function MapScreen() {
   const appliedFocus = useRef<string | null>(null);
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null); // debounce the background-tap dismiss so a double-tap doesn't close the popup
   const [favs, setFavs] = useState<Set<string>>(new Set());
+  const { user } = useAuth();
   // Location is acquired app-wide at boot (during the splash), so the beacon is
   // ready the moment the map opens — see LocationProvider.
   const { gps } = useLocation();
@@ -215,7 +223,6 @@ export default function MapScreen() {
   const startScale = useSharedValue(1);
   const startX = useSharedValue(0);
   const startY = useSharedValue(0);
-  const startRotation = useSharedValue(0);
   const vpw = useSharedValue(375);
   const vph = useSharedValue(680);
   // The map rectangle (cover fit) mirrored onto the UI thread for pan clamping.
@@ -308,18 +315,27 @@ export default function MapScreen() {
     return () => loop.stop();
   }, [pulse]);
 
-  useEffect(() => {
-    AsyncStorage.getItem(FAVS_KEY).then((raw) => raw && setFavs(new Set(JSON.parse(raw))));
+  // Both dismissTimer (background-tap debounce) and zoomTrailingTimer (throttled
+  // zoom-state trailing update) are bare setTimeouts with no cleanup of their
+  // own — clear them on unmount so a pending one can't fire setState after the
+  // guest has already navigated away from the map.
+  useEffect(() => () => {
+    if (dismissTimer.current) clearTimeout(dismissTimer.current);
+    if (zoomTrailingTimer.current) clearTimeout(zoomTrailingTimer.current);
   }, []);
 
-  function toggleFav(attractionId: string) {
-    setFavs((prev) => {
-      const next = new Set(prev);
-      next.has(attractionId) ? next.delete(attractionId) : next.add(attractionId);
-      AsyncStorage.setItem(FAVS_KEY, JSON.stringify([...next])).catch(() => undefined);
-      return next;
-    });
-  }
+  // Favourites are set from an attraction's own detail page (which POSTs to
+  // /me/favorites) — the map only reads them, to drive the "Favourites"
+  // category filter. This used to read/write a local AsyncStorage key that
+  // nothing else in the app ever wrote to, so the filter always showed zero
+  // pins; it now mirrors the same server-backed source as Profile → My
+  // favourites.
+  useEffect(() => {
+    if (!user) { setFavs(new Set()); return; }
+    api<{ attractionId: string }[]>('/me/favorites')
+      .then((f) => setFavs(new Set(f.map((x) => x.attractionId))))
+      .catch(() => setFavs(new Set()));
+  }, [user]);
 
   // Native pinch + pan (UI thread). One finger pans; two fingers pinch-zoom
   // with the focal point anchored, which also gives natural two-finger panning.
@@ -356,7 +372,7 @@ export default function MapScreen() {
     // Double-tap to zoom in, centred on the tapped point.
     const doubleTap = Gesture.Tap()
       .numberOfTaps(2)
-      .maxDuration(320)
+      .maxDuration(DOUBLE_TAP_MAX_MS)
       .onEnd((e) => {
         'worklet';
         const cur = scale.value;
@@ -371,18 +387,14 @@ export default function MapScreen() {
         panX.value = withTiming(c.x, { duration: 180 });
         panY.value = withTiming(c.y, { duration: 180 });
       });
-    // Two-finger rotate — spin the illustrated map around, like the Puy du Fou
-    // and Disneyland park map apps. Pins/labels/popup counter-rotate (below) so
-    // they always stay upright and legible while the artwork turns beneath them.
-    // iOS-disabled: combined with pan+pinch+double-tap it left the whole map
-    // gesture-dead on first load, and any `rotate` transform on iOS (even at
-    // 0rad) forces text onto a blurrier compositing path — Android is unaffected.
-    if (!ROTATE_SUPPORTED) return Gesture.Simultaneous(pan, pinch, doubleTap);
-    const rotate = Gesture.Rotation()
-      .onStart(() => { startRotation.value = rotation.value; popupFade.value = withTiming(0, { duration: 80 }); })
-      .onUpdate((e) => { rotation.value = startRotation.value + e.rotation; })
-      .onFinalize(() => { popupFade.value = withTiming(1, { duration: 150 }); });
-    return Gesture.Simultaneous(pan, pinch, doubleTap, rotate);
+    // Two-finger rotate is fully disabled (see ROTATE_SUPPORTED's own comment
+    // above for why) — no rotate gesture is attached at all, rather than
+    // leaving a ready-to-reattach one sitting here: an inert-but-present
+    // `Gesture.Rotation()` block is exactly the kind of thing a future
+    // change could plausibly re-enable "for just one platform" without
+    // realizing it reintroduces the pin-desync bug ROTATE_SUPPORTED exists
+    // to avoid.
+    return Gesture.Simultaneous(pan, pinch, doubleTap);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -854,8 +866,8 @@ export default function MapScreen() {
   // A path-following route from the guest to the selected place: user → nearest
   // spot → … → destination, drawn as a polyline (not a straight line).
   const route = useMemo(() => {
-    if (!selected || selected.lat == null || !project || !locationReal || !gps || routeNodes.length < 2) return null;
-    const target: Geo = { lat: selected.lat, lng: selected.lng! };
+    if (!selected || selected.lat == null || selected.lng == null || !project || !locationReal || !gps || routeNodes.length < 2) return null;
+    const target: Geo = { lat: selected.lat, lng: selected.lng };
     const s = nearestNode(routeNodes, gps), g = nearestNode(routeNodes, target);
     if (s < 0 || g < 0) return null;
     const nodePath = s === g ? [g] : dijkstra(poiAdj, routeNodes, s, g);
@@ -936,7 +948,7 @@ export default function MapScreen() {
             style={StyleSheet.absoluteFill}
             onPress={() => {
               if (dismissTimer.current) { clearTimeout(dismissTimer.current); dismissTimer.current = null; return; } // 2nd tap → keep popup
-              dismissTimer.current = setTimeout(() => { dismissTimer.current = null; dismissPopup(); setSearchOpen(false); Keyboard.dismiss(); }, 280);
+              dismissTimer.current = setTimeout(() => { dismissTimer.current = null; dismissPopup(); setSearchOpen(false); Keyboard.dismiss(); }, DISMISS_DEBOUNCE_MS);
             }}
           />
 

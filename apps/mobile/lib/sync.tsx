@@ -211,12 +211,20 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   }, [date]);
 
   // 3) Realtime patches: apply live schedule changes to the cached bundle.
+  // Connects once (not keyed on `date`) — a full disconnect/reconnect
+  // briefly flips `online` false and can drop an in-flight event, and with
+  // the UK-midnight resync above `date` now genuinely changes at runtime, so
+  // that cost would otherwise land for real every night. dateRef always
+  // holds the latest value for the handlers below (defined once at connect
+  // time) to read without needing to reconnect.
+  const dateRef = useRef(date);
+  useEffect(() => { dateRef.current = date; }, [date]);
   useEffect(() => {
     const socket = io(API_URL, { transports: ['websocket'] });
     socketRef.current = socket;
     socket.on('connect', () => {
       setOnline(true);
-      socket.emit('join', { date });
+      socket.emit('join', { date: dateRef.current });
     });
     socket.on('disconnect', () => setOnline(false));
     socket.on(REALTIME_EVENTS.sessionUpdated, (e: SessionUpdatedEvent) => {
@@ -228,14 +236,33 @@ export function SyncProvider({ children }: { children: ReactNode }) {
             s.id === e.id ? { ...s, status: e.status, revisedStart: e.revisedStart, note: e.note } : s,
           ),
         };
-        AsyncStorage.setItem(bundleKey(date), JSON.stringify(next)).catch(() => undefined);
+        AsyncStorage.setItem(bundleKey(dateRef.current), JSON.stringify(next)).catch(() => undefined);
         return next;
       });
     });
     return () => {
       socket.disconnect();
     };
+  }, []);
+  // Keep the server-side "room" in sync with the current date without
+  // tearing down the socket — just re-join when the date changes.
+  useEffect(() => {
+    if (socketRef.current?.connected) socketRef.current.emit('join', { date });
   }, [date]);
+
+  // `date` otherwise only gets set once, at provider mount — Expo Router keeps
+  // tab screens mounted, so nothing ever notices the real calendar date has
+  // moved on (e.g. a guest who opens the app before midnight and leaves it
+  // running). Re-checking once a minute rolls the bundle/schedule over to
+  // today automatically instead of getting stuck showing yesterday's
+  // (already-finished) programme indefinitely.
+  useEffect(() => {
+    const t = setInterval(() => {
+      const today = ukTodayStr();
+      setDate((d) => (d === today ? d : today));
+    }, 60000);
+    return () => clearInterval(t);
+  }, []);
 
   return (
     <SyncContext.Provider value={{ bundle, lastSynced, online, loading, date, setDate, refresh }}>

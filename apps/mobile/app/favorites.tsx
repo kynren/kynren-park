@@ -2,15 +2,14 @@ import { useEffect, useState } from 'react';
 import { ScrollView, View, Text, StyleSheet, Image } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Path } from 'react-native-svg';
 import { Touchable } from '../components/Touchable';
 import { ManagedImage } from '../components/ManagedImage';
 import { useSync, type Attraction } from '../lib/sync';
+import { useAuth } from '../lib/auth';
+import { api } from '../lib/api';
 import { theme } from '../lib/theme';
 import { useThemePref } from '../lib/theme-context';
-
-const FAVS_KEY = 'kynren_favorites';
 
 function usePalette() {
   const dark = useThemePref().scheme === 'dark';
@@ -69,8 +68,18 @@ export function AttractionListScreen({ title, label, emptyHeading, emptyBody, sl
 }
 
 export default function FavoritesScreen() {
+  const { user } = useAuth();
   const [ids, setIds] = useState<Set<string> | null>(null);
-  useEffect(() => { AsyncStorage.getItem(FAVS_KEY).then((raw) => setIds(new Set(raw ? JSON.parse(raw) : []))); }, []);
+  // Mirrors seen.tsx: favourites live server-side per account (see
+  // attraction/[slug].tsx's toggleFavorite, which POSTs to /me/favorites) —
+  // this used to read a local AsyncStorage key that nothing ever wrote to,
+  // so "My favourites" was permanently empty no matter what a guest starred.
+  useEffect(() => {
+    if (!user) { setIds(new Set()); return; }
+    api<{ attractionId: string }[]>('/me/favorites')
+      .then((f) => setIds(new Set(f.map((x) => x.attractionId))))
+      .catch(() => setIds(new Set()));
+  }, [user]);
   return (
     <AttractionListScreen
       title="My favourites" label="MY FAVOURITES" slot="favorites.empty"

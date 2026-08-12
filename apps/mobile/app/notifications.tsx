@@ -32,7 +32,7 @@ export default function NotificationsScreen() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [date]);
 
   // Stop any speech when leaving the screen.
   useEffect(() => () => { Speech.stop(); }, []);

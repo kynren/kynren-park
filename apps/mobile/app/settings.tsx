@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ScrollView, View, Text, StyleSheet, TextInput, Switch, Image, Alert } from 'react-native';
 import { Touchable } from '../components/Touchable';
 import { useRouter, Stack } from 'expo-router';
@@ -39,17 +39,20 @@ export default function SettingsScreen() {
   const { pref, setPref } = useThemePref();
   const [p, setP] = useState<Profile>(EMPTY);
   const [saved, setSaved] = useState(false);
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     AsyncStorage.getItem(PROFILE_KEY).then((raw) => raw && setP({ ...EMPTY, ...JSON.parse(raw) }));
   }, []);
+  useEffect(() => () => { if (savedTimer.current) clearTimeout(savedTimer.current); }, []);
 
   const set = <K extends keyof Profile>(k: K, v: Profile[K]) => setP((prev) => ({ ...prev, [k]: v }));
 
   async function save() {
     await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(p));
     setSaved(true);
-    setTimeout(() => setSaved(false), 1800);
+    if (savedTimer.current) clearTimeout(savedTimer.current);
+    savedTimer.current = setTimeout(() => setSaved(false), 1800);
   }
 
   async function pickPhoto() {
