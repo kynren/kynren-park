@@ -392,24 +392,20 @@ export default function MapScreen() {
       : [{ translateX: panX.value }, { translateY: panY.value }, { scale: scale.value }],
   }));
   // Counter-scale AND counter-rotate for markers so they stay upright and the
-  // same screen size regardless of zoom/rotation, pivoting around each
-  // marker's own anchor point (pinOx/pinOy etc. below) rather than its box's
-  // centre. This is done by hand — translate to the anchor, scale/rotate,
-  // translate back — instead of the CSS `transformOrigin` property: combined
-  // with a Reanimated-driven transform, transformOrigin has proven unreliable
-  // on iOS (markers drifting off their true spot, popups rendering blurry),
-  // and this composition works identically on every platform regardless.
-  function pivotStyle(s: number, rot: number, ox: number, oy: number) {
-    'worklet';
-    return { transform: [{ translateX: ox }, { translateY: oy }, { scale: s }, { rotate: `${rot}rad` }, { translateX: -ox }, { translateY: -oy }] };
-  }
-  // Anchor points (local box coords) matching pinWrap/clusterWrap/areaWrap below.
-  const PIN_OX = 30, PIN_OY = 44;
-  const CLUSTER_OX = 20, CLUSTER_OY = 20;
-  const AREA_OX = 65, AREA_OY = 23;
-  const invScalePin = useAnimatedStyle(() => pivotStyle(1 / scale.value, ROTATE_SUPPORTED ? -rotation.value : 0, PIN_OX, PIN_OY));
-  const invScaleCluster = useAnimatedStyle(() => pivotStyle(1 / scale.value, ROTATE_SUPPORTED ? -rotation.value : 0, CLUSTER_OX, CLUSTER_OY));
-  const invScaleArea = useAnimatedStyle(() => pivotStyle(1 / scale.value, ROTATE_SUPPORTED ? -rotation.value : 0, AREA_OX, AREA_OY));
+  // same screen size regardless of zoom/rotation. This used to pivot by hand
+  // (translate to the marker's own anchor point, scale/rotate, translate
+  // back) instead of the CSS `transformOrigin` property — but a live device
+  // showed that hand-rolled pivot itself landing off-target (a marker's
+  // scaled/rotated box rendering shifted tens of pixels from its real anchor,
+  // worse the more zoomed in you were), while the popup — which scales a
+  // truly zero-size box instead of pivoting a real one — always tracked
+  // correctly. So every marker now uses that same zero-size-anchor approach:
+  // the scale/rotate below applies to a 0×0 box (see markerAnchor), with the
+  // marker's actual visible content as an absolutely-positioned CHILD of it
+  // (pinWrap/clusterWrap/areaWrap below) — no pivot math needed at all.
+  const invScaleMarker = useAnimatedStyle(() => ({
+    transform: [{ scale: 1 / scale.value }, { rotate: `${ROTATE_SUPPORTED ? -rotation.value : 0}rad` }],
+  }));
   // meWrap is a 60×60 box centred on its own anchor (30,30 = its natural
   // centre), so a plain scale — no explicit pivot needed — is already correct.
   const invScale = useAnimatedStyle(() => ({
@@ -702,21 +698,22 @@ export default function MapScreen() {
         : pin.kind === 'facility' ? (pin.color ?? '#6b6460')
           : theme.brand;
     const glyph = pin.kind === 'evening' ? '🌙' : pin.kind === 'restaurant' ? '🍴' : pin.kind === 'facility' ? (pin.emoji ?? '•') : null;
-    const wrap = [styles.pinWrap, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }, invScalePin];
     return (
-      <AnimatedPressable key={pin.id} style={wrap} onPress={() => { selection(); selX.value = pin.x; selY.value = pin.y; setSelected(pin); }}>
-        <View style={[styles.pinHead, { borderColor: tint }, isSel && styles.pinSel]}>
-          {pin.image
-            ? <Image source={{ uri: pin.image }} style={styles.pinImg} />
-            : glyph
-              ? <Text style={styles.pinEmoji}>{glyph}</Text>
-              : <Text style={[styles.pinNum, { color: tint }]}>{pin.number}</Text>}
-        </View>
-        <View style={[styles.pinTail, { borderTopColor: tint }]} />
-        {pin.nextTime && (pin.kind === 'show' || pin.kind === 'evening') && (
-          <View style={styles.pinTime}><Text style={styles.pinTimeTxt} numberOfLines={1}>{fmtTime(pin.nextTime)}</Text></View>
-        )}
-      </AnimatedPressable>
+      <Reanimated.View key={pin.id} style={[styles.markerAnchor, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }, invScaleMarker]} pointerEvents="box-none">
+        <AnimatedPressable style={styles.pinWrap} onPress={() => { selection(); selX.value = pin.x; selY.value = pin.y; setSelected(pin); }}>
+          <View style={[styles.pinHead, { borderColor: tint }, isSel && styles.pinSel]}>
+            {pin.image
+              ? <Image source={{ uri: pin.image }} style={styles.pinImg} />
+              : glyph
+                ? <Text style={styles.pinEmoji}>{glyph}</Text>
+                : <Text style={[styles.pinNum, { color: tint }]}>{pin.number}</Text>}
+          </View>
+          <View style={[styles.pinTail, { borderTopColor: tint }]} />
+          {pin.nextTime && (pin.kind === 'show' || pin.kind === 'evening') && (
+            <View style={styles.pinTime}><Text style={styles.pinTimeTxt} numberOfLines={1}>{fmtTime(pin.nextTime)}</Text></View>
+          )}
+        </AnimatedPressable>
+      </Reanimated.View>
     );
   }
 
@@ -963,17 +960,21 @@ export default function MapScreen() {
             if (c.zone) {
               // A whole area, grouped — a labelled bubble that opens on zoom.
               return (
-                <AnimatedPressable key={'z:' + c.zone} style={[styles.areaWrap, { left: c.x, top: c.y }, invScaleArea]} onPress={() => zoomToCluster(c)}>
-                  <View style={styles.areaBubble}><Text style={styles.areaCount}>{c.pins.length}</Text></View>
-                  <View style={styles.areaLabel}><Text style={styles.areaLabelTxt} numberOfLines={1}>{c.zone}</Text></View>
-                </AnimatedPressable>
+                <Reanimated.View key={'z:' + c.zone} style={[styles.markerAnchor, { left: c.x, top: c.y }, invScaleMarker]} pointerEvents="box-none">
+                  <AnimatedPressable style={styles.areaWrap} onPress={() => zoomToCluster(c)}>
+                    <View style={styles.areaBubble}><Text style={styles.areaCount}>{c.pins.length}</Text></View>
+                    <View style={styles.areaLabel}><Text style={styles.areaLabelTxt} numberOfLines={1}>{c.zone}</Text></View>
+                  </AnimatedPressable>
+                </Reanimated.View>
               );
             }
             if (c.pins.length === 1) return renderPin(c.pins[0]);
             return (
-              <AnimatedPressable key={'c:' + c.pins.map((p) => p.id).join(',')} style={[styles.clusterWrap, { left: c.x, top: c.y }, invScaleCluster]} onPress={() => zoomToCluster(c)}>
-                <View style={styles.cluster}><Text style={styles.clusterTxt}>{c.pins.length}</Text></View>
-              </AnimatedPressable>
+              <Reanimated.View key={'c:' + c.pins.map((p) => p.id).join(',')} style={[styles.markerAnchor, { left: c.x, top: c.y }, invScaleMarker]} pointerEvents="box-none">
+                <AnimatedPressable style={styles.clusterWrap} onPress={() => zoomToCluster(c)}>
+                  <View style={styles.cluster}><Text style={styles.clusterTxt}>{c.pins.length}</Text></View>
+                </AnimatedPressable>
+              </Reanimated.View>
             );
           })}
           {/* The selected/closing pin renders exactly once, from inside the loop
@@ -1304,7 +1305,11 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: GRASS },
   viewport: { flex: 1, overflow: 'hidden', backgroundColor: GRASS },
   canvas: { position: 'absolute', left: 0, top: 0 },
-  pinWrap: { position: 'absolute', alignItems: 'center', width: 60, marginLeft: -30, marginTop: -46 },
+  // A zero-size box at a marker's exact map coordinate — see the note by
+  // invScaleMarker above for why every marker (pin/cluster/area) anchors its
+  // counter-scale/rotate here instead of pivoting a real-sized box by hand.
+  markerAnchor: { position: 'absolute', width: 0, height: 0 },
+  pinWrap: { position: 'absolute', left: -30, top: -46, alignItems: 'center', width: 60 },
   pinHead: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#fff', overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3, shadowOffset: { width: 0, height: 2 }, elevation: 5, ...noLiveShadow },
   pinImg: { width: '100%', height: '100%' },
   pinSel: { transform: [{ scale: 1.2 }] },
@@ -1313,10 +1318,10 @@ const styles = StyleSheet.create({
   pinTail: { width: 0, height: 0, borderLeftWidth: 7, borderRightWidth: 7, borderTopWidth: 11, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: theme.brand, marginTop: -3 },
   pinTime: { marginTop: 1, backgroundColor: '#fff', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 2, shadowOffset: { width: 0, height: 1 }, elevation: 3, ...noLiveShadow },
   pinTimeTxt: { color: theme.ink, fontWeight: '800', fontSize: 11 },
-  clusterWrap: { position: 'absolute', width: 40, height: 40, marginLeft: -20, marginTop: -20, alignItems: 'center', justifyContent: 'center' },
+  clusterWrap: { position: 'absolute', left: -20, top: -20, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   cluster: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.brand, alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3, shadowOffset: { width: 0, height: 2 }, elevation: 6, ...noLiveShadow },
   clusterTxt: { color: '#fff', fontWeight: '800', fontSize: 15 },
-  areaWrap: { position: 'absolute', width: 130, marginLeft: -65, marginTop: -23, alignItems: 'center' },
+  areaWrap: { position: 'absolute', left: -65, top: -23, width: 130, alignItems: 'center' },
   areaBubble: { width: 46, height: 46, borderRadius: 23, backgroundColor: theme.brand, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 7, ...noLiveShadow },
   areaCount: { color: '#fff', fontWeight: '800', fontSize: 17 },
   areaLabel: { marginTop: 4, maxWidth: 130, backgroundColor: 'rgba(20,20,20,0.82)', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 },
