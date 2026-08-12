@@ -220,6 +220,15 @@ export default function MapScreen() {
   // popup sticks to the marker and moves with it as the guest pans/zooms.
   const selX = useSharedValue(0);
   const selY = useSharedValue(0);
+  // The popup's own scale/rotate counter-transform (below) lives on a separate
+  // native view from the canvas's transform, so a fast-changing pinch/rotate
+  // can land the two views' updates a frame apart — visible as the popup
+  // momentarily drifting from its pin. Rather than chase perfect frame-sync,
+  // fade the popup out for the duration of an active pinch/rotate and back in
+  // once it settles, so the guest only ever sees it in an exactly-glued state
+  // (plain single-finger panning never desyncs it — that's a pure translate
+  // shared identically by the pin and the popup — so it stays visible then).
+  const popupFade = useSharedValue(1);
 
   const win = Dimensions.get('window');
   const vw = vp.w || win.width;
@@ -325,7 +334,7 @@ export default function MapScreen() {
         panX.value = c.x; panY.value = c.y;
       });
     const pinch = Gesture.Pinch()
-      .onStart(() => { startScale.value = scale.value; })
+      .onStart(() => { startScale.value = scale.value; popupFade.value = withTiming(0, { duration: 80 }); })
       .onUpdate((e) => {
         const target = Math.max(MIN_SCALE, Math.min(maxScaleSV.value, startScale.value * e.scale));
         const r = target / scale.value;
@@ -335,7 +344,8 @@ export default function MapScreen() {
         scale.value = target;
         const c = clamp(nx, ny, target);
         panX.value = c.x; panY.value = c.y;
-      });
+      })
+      .onFinalize(() => { popupFade.value = withTiming(1, { duration: 150 }); });
     // Double-tap to zoom in, centred on the tapped point.
     const doubleTap = Gesture.Tap()
       .numberOfTaps(2)
@@ -362,8 +372,9 @@ export default function MapScreen() {
     // 0rad) forces text onto a blurrier compositing path — Android is unaffected.
     if (!ROTATE_SUPPORTED) return Gesture.Simultaneous(pan, pinch, doubleTap);
     const rotate = Gesture.Rotation()
-      .onStart(() => { startRotation.value = rotation.value; })
-      .onUpdate((e) => { rotation.value = startRotation.value + e.rotation; });
+      .onStart(() => { startRotation.value = rotation.value; popupFade.value = withTiming(0, { duration: 80 }); })
+      .onUpdate((e) => { rotation.value = startRotation.value + e.rotation; })
+      .onFinalize(() => { popupFade.value = withTiming(1, { duration: 150 }); });
     return Gesture.Simultaneous(pan, pinch, doubleTap, rotate);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -434,7 +445,7 @@ export default function MapScreen() {
     const popScale = selected ? (isScaleEntrance ? popupIn.value : 1) : popupIn.value; // exit always active
     const s = Math.max(0.001, popScale) / scale.value;
     const rot = ROTATE_SUPPORTED ? -rotation.value : 0;
-    return { transform: [{ scale: s }, { rotate: `${rot}rad` }] };
+    return { opacity: popupFade.value, transform: [{ scale: s }, { rotate: `${rot}rad` }] };
   });
   // The inner card only ever animates opacity/position — never scale (that
   // lives on the wrapper above), so it never needs a transformOrigin either.
