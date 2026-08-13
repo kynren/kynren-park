@@ -148,6 +148,25 @@ export class ManageController {
     }
   }
 
+  /** Bulk-import menu items from an admin-parsed CSV — see the shared bulk-import note above deleteMenuItem's siblings for the pattern. */
+  @Post('restaurants/:id/menu-items/bulk')
+  async bulkCreateMenuItems(@Param('id') restaurantId: string, @Body() b: { items?: any[] }) {
+    const rows = Array.isArray(b?.items) ? b.items : [];
+    const valid = rows
+      .map((r) => ({
+        restaurantId,
+        name: String(r?.name ?? '').trim(),
+        description: r?.description ? String(r.description).trim() : null,
+        priceCents: Math.max(0, Math.round(Number(r?.priceCents ?? 0)) || 0),
+        image: r?.image ? String(r.image).trim() : null,
+        dietaryTags: Array.isArray(r?.dietaryTags) ? r.dietaryTags.filter(Boolean).map(String) : [],
+        available: r?.available === undefined ? true : Boolean(r.available),
+      }))
+      .filter((r) => r.name);
+    if (valid.length > 0) await this.prisma.menuItem.createMany({ data: valid });
+    return { created: valid.length, skipped: rows.length - valid.length };
+  }
+
   // ---- Shops -----------------------------------------------------------------
   @Get('shops')
   listShops() {
@@ -236,6 +255,26 @@ export class ManageController {
   async deleteShopItem(@Param('id') id: string) {
     await this.prisma.shopItem.delete({ where: { id } });
     return { deleted: true };
+  }
+
+  /** Bulk-import stock items from an admin-parsed CSV. */
+  @Post('shops/:id/items/bulk')
+  async bulkCreateShopItems(@Param('id') shopId: string, @Body() b: { items?: any[] }) {
+    const rows = Array.isArray(b?.items) ? b.items : [];
+    const valid = rows
+      .map((r, i) => ({
+        shopId,
+        name: String(r?.name ?? '').trim(),
+        description: r?.description ? String(r.description).trim() : null,
+        image: r?.image ? String(r.image).trim() : null,
+        priceCents: Math.max(0, Math.round(Number(r?.priceCents ?? 0)) || 0),
+        variants: this.cleanVariants(r?.variants),
+        available: r?.available === undefined ? true : Boolean(r.available),
+        sortOrder: Number(r?.sortOrder ?? i),
+      }))
+      .filter((r) => r.name);
+    if (valid.length > 0) await this.prisma.shopItem.createMany({ data: valid });
+    return { created: valid.length, skipped: rows.length - valid.length };
   }
 
   /** Normalise the product varieties array to [{ name, priceCents? }]. */
@@ -462,6 +501,26 @@ export class ManageController {
     await this.prisma.shop.updateMany({ where: { poiId: id }, data: { poiId: null } });
     await this.prisma.pointOfInterest.delete({ where: { id } });
     return { deleted: true };
+  }
+
+  /** Bulk-import facilities (POI hotspots) from an admin-parsed CSV. */
+  @Post('pois/bulk')
+  async bulkCreatePois(@Body() b: { items?: any[] }) {
+    const rows = Array.isArray(b?.items) ? b.items : [];
+    const valid = rows
+      .map((r) => ({
+        type: r?.type || 'INFO',
+        name: String(r?.name ?? '').trim(),
+        description: r?.description ? String(r.description).trim() : null,
+        lat: Number(r?.lat),
+        lng: Number(r?.lng),
+        mapZone: r?.mapZone ? String(r.mapZone).trim() : null,
+        color: r?.color ? String(r.color).trim() : null,
+        openingHours: r?.openingHours ? String(r.openingHours).trim() : null,
+      }))
+      .filter((r) => r.name && Number.isFinite(r.lat) && Number.isFinite(r.lng));
+    if (valid.length > 0) await this.prisma.pointOfInterest.createMany({ data: valid });
+    return { created: valid.length, skipped: rows.length - valid.length };
   }
 
   // ---- Park maps (multiple; one default drives the mobile base map) ---------

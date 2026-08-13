@@ -25,7 +25,7 @@ const LABELS: Record<string, string> = {
   '/app-settings': 'App Settings',
   '/app-settings/restaurants': 'Restaurants',
   '/app-settings/shops': 'Shops',
-  '/app-settings/categories': 'Categories & Services',
+  '/app-settings/facilities': 'Facilities',
   '/app-settings/map': 'Map & Hotspots',
   '/app-settings/push': 'Push Templates',
   '/app-settings/schedule': 'Program Schedule',

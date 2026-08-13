@@ -7,6 +7,15 @@ import { confirmDelete } from '../../../../../lib/confirm';
 import { uploadToast } from '../../../../../lib/toast';
 import { QrButton } from '../../../../../components/QrButton';
 import { GalleryEditor } from '../../../../../components/GalleryEditor';
+import { ImportCsvModal } from '../../../../../components/ImportCsvModal';
+
+const MENU_IMPORT_COLUMNS = [
+  { key: 'name', label: 'Name', required: true },
+  { key: 'description', label: 'Description' },
+  { key: 'price', label: 'Price (£)' },
+  { key: 'dietaryTags', label: 'Dietary tags' },
+  { key: 'available', label: 'Available' },
+];
 
 interface Poi { id: string; name: string; type: string }
 interface MenuItem { id: string; name: string; description: string | null; priceCents: number; image: string | null; dietaryTags: string[]; available: boolean }
@@ -46,6 +55,7 @@ export default function RestaurantDetail() {
   const heroRef = useRef<HTMLInputElement>(null);
   const [item, setItem] = useState<(Partial<MenuItem> & { id?: string }) | null>(null);
   const itemFileRef = useRef<HTMLInputElement>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   const load = useCallback(() => {
     api<Restaurant>(`/admin/restaurants/${id}`).then(setR).catch(() => setError('Could not load this restaurant.'));
@@ -100,6 +110,21 @@ export default function RestaurantDetail() {
     if (!(await confirmDelete(`Remove “${mi.name}” from the menu?`))) return;
     await api(`/admin/menu-items/${mi.id}`, { method: 'DELETE' }).catch(() => undefined);
     load();
+  }
+
+  async function importMenu(rows: Record<string, string>[]) {
+    const items = rows.map((row) => ({
+      name: row.name,
+      description: row.description || null,
+      priceCents: Math.round(parseFloat(row.price || '0') * 100) || 0,
+      dietaryTags: row.dietaryTags ? row.dietaryTags.split(';').map((t) => t.trim()).filter(Boolean) : [],
+      available: row.available ? !/^(false|no|0)$/i.test(row.available.trim()) : true,
+    }));
+    const res = await api<{ created: number; skipped: number }>(`/admin/restaurants/${id}/menu-items/bulk`, {
+      method: 'POST', body: JSON.stringify({ items }),
+    });
+    load();
+    return res;
   }
 
   if (!r) return <div>{error ? <div className="error">{error}</div> : <p style={{ color: 'var(--muted)' }}>Loading…</p>}</div>;
@@ -159,7 +184,10 @@ export default function RestaurantDetail() {
 
       <div className="page-actions">
         <div><h2 style={{ margin: 0 }}>Menu</h2><p className="subtitle" style={{ margin: 0 }}>Each item can have an image and a price.</p></div>
-        <button className="primary" onClick={() => { setItem({ available: true, priceCents: 0, dietaryTags: [] }); setError(''); }}>+ Add item</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="tbtn" onClick={() => setImportOpen(true)}>Import menu (CSV)</button>
+          <button className="primary" onClick={() => { setItem({ available: true, priceCents: 0, dietaryTags: [] }); setError(''); }}>+ Add item</button>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))' }}>
@@ -211,6 +239,16 @@ export default function RestaurantDetail() {
             </div>
           </div>
         </div>
+      )}
+
+      {importOpen && (
+        <ImportCsvModal
+          title="Import menu"
+          columns={MENU_IMPORT_COLUMNS}
+          note="dietaryTags is optional and semicolon-separated, e.g. vegan;gf. available defaults to yes unless set to false/no/0."
+          onImport={importMenu}
+          onClose={() => setImportOpen(false)}
+        />
       )}
     </div>
   );
