@@ -2,23 +2,23 @@ import { Injectable } from '@nestjs/common';
 import { optimizeItinerary, DEFAULT_WALK_SECONDS } from '@kynren/shared';
 import type { OptimizeItineraryInput, CandidateSession } from '@kynren/shared';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { ScheduleService } from '../schedule/schedule.service.js';
 
 @Injectable()
 export class ItineraryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly schedule: ScheduleService,
+  ) {}
 
   async optimize(input: OptimizeItineraryInput) {
-    const start = new Date(`${input.date}T00:00:00.000Z`);
-    const end = new Date(`${input.date}T23:59:59.999Z`);
-
+    // Sourced from ScheduleService.byDate(), not a direct ShowSession query:
+    // most of a day's programme only exists as a weekly-template
+    // materialisation with a synthetic id until staff touch it (see
+    // schedule.service.ts's resolveOrCreateSession) — a raw showSession
+    // query here would make every untouched slot invisible to the planner.
     const [sessions, walkEdges] = await Promise.all([
-      this.prisma.showSession.findMany({
-        where: {
-          startTime: { gte: start, lte: end },
-          status: { in: ['SCHEDULED', 'DELAYED', 'FULL'] },
-        },
-        include: { attraction: { include: { poi: true } } },
-      }),
+      this.schedule.byDate(input.date),
       this.prisma.walkEdge.findMany(),
     ]);
 
@@ -28,6 +28,7 @@ export class ItineraryService {
       from && to ? walkMap.get(`${from}->${to}`) ?? DEFAULT_WALK_SECONDS : DEFAULT_WALK_SECONDS;
 
     const candidates: CandidateSession[] = sessions
+      .filter((s) => ['SCHEDULED', 'DELAYED', 'FULL'].includes(s.status))
       .filter((s) => (input.includeEveningShow ? true : s.attraction.category !== 'EVENING_SHOW'))
       .map((s) => ({
         showSessionId: s.id,
@@ -48,6 +49,11 @@ export class ItineraryService {
   }
 
   async save(userId: string, date: string, showSessionIds: string[]) {
+    // optimize()'s candidates can now carry a synthetic `${weeklySessionId}:${date}`
+    // id for a slot nobody's touched yet — resolve each to a real, persisted
+    // row before writing ItineraryItem, which has a hard FK to ShowSession.
+    const resolved = await Promise.all(showSessionIds.map((id) => this.schedule.resolveOrCreateSession(id)));
+
     const itinerary = await this.prisma.itinerary.upsert({
       where: { userId_date: { userId, date: new Date(`${date}T00:00:00.000Z`) } },
       create: { userId, date: new Date(`${date}T00:00:00.000Z`) },
@@ -55,9 +61,9 @@ export class ItineraryService {
     });
     await this.prisma.itineraryItem.deleteMany({ where: { itineraryId: itinerary.id } });
     await this.prisma.itineraryItem.createMany({
-      data: showSessionIds.map((showSessionId, i) => ({
+      data: resolved.map((session, i) => ({
         itineraryId: itinerary.id,
-        showSessionId,
+        showSessionId: session.id,
         order: i,
       })),
       skipDuplicates: true,

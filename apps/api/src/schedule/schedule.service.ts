@@ -48,11 +48,11 @@ export class ScheduleService {
       this.prisma.weeklySession.findMany({
         where: { dayOfWeek },
         orderBy: { start: 'asc' },
-        include: { attraction: { select: { id: true, slug: true, name: true, category: true } } },
+        include: { attraction: { select: { id: true, slug: true, name: true, category: true, poiId: true } } },
       }),
       this.prisma.showSession.findMany({
         where: { date: start },
-        include: { attraction: { select: { id: true, slug: true, name: true, category: true } } },
+        include: { attraction: { select: { id: true, slug: true, name: true, category: true, poiId: true } } },
       }),
     ]);
     const overrideByKey = new Map(overrides.map((o) => [`${o.attractionId}:${o.startTime.toISOString()}`, o]));
