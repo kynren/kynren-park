@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ScrollView, View, Text, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { Touchable } from '../components/Touchable';
 import { useRouter } from 'expo-router';
@@ -23,11 +23,6 @@ export default function BookScreen() {
   const [qty, setQty] = useState<Record<string, number>>({});
   const [submitting, setSubmitting] = useState(false);
 
-  // Booking requires an account — bounce to auth if signed out.
-  useEffect(() => {
-    if (!user) router.replace('/auth');
-  }, [user]);
-
   const total = useMemo(
     () => ticketTypes.reduce((sum, t) => sum + (qty[t.id] ?? 0) * t.priceCents, 0),
     [qty, ticketTypes],
@@ -43,6 +38,11 @@ export default function BookScreen() {
       .filter(([, q]) => q > 0)
       .map(([ticketTypeId, quantity]) => ({ ticketTypeId, quantity }));
     if (items.length === 0) return;
+    // Ticket selection is open to everyone; an account is only actually
+    // needed at the API to attach the booking to (POST /bookings requires
+    // auth) — so only ask for it here, at confirm, not before a guest has
+    // even seen what's on offer.
+    if (!user) { router.push('/auth'); return; }
 
     setSubmitting(true);
     try {
@@ -103,7 +103,7 @@ export default function BookScreen() {
       </View>
 
       <Touchable style={[styles.cta, count === 0 && { opacity: 0.5 }]} onPress={book} disabled={submitting || count === 0}>
-        {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.ctaText}>Confirm booking ({count})</Text>}
+        {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.ctaText}>{user ? `Confirm booking (${count})` : `Sign in to book (${count})`}</Text>}
       </Touchable>
       <Text style={styles.note}>Demo checkout — no payment is taken. Tickets are issued instantly with offline QR codes.</Text>
     </ScrollView>
