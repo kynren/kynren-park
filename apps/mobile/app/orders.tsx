@@ -5,7 +5,7 @@ import { io, type Socket } from 'socket.io-client';
 import { REALTIME_EVENTS } from '../lib/shared';
 import { api, API_URL } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { fmtTime, poundsFromCents } from '../lib/format';
+import { fmtTimeUK, poundsFromCents } from '../lib/format';
 import { theme } from '../lib/theme';
 
 interface Order {
@@ -88,7 +88,7 @@ export default function OrdersScreen() {
                   <Text style={styles.badgeText}>{meta.label}</Text>
                 </View>
               </View>
-              <Text style={styles.muted}>Pickup at {fmtTime(o.pickupSlot)}</Text>
+              <Text style={styles.muted}>Pickup at {fmtTimeUK(new Date(o.pickupSlot))}</Text>
               {o.items.map((it) => (
                 <Text key={it.id} style={styles.line}>
                   {it.quantity}× {it.menuItem.name}

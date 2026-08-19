@@ -32,6 +32,19 @@ export function ukTodayStr(): string {
   return ukNow().toISOString().slice(0, 10);
 }
 
+// For a GENUINE UTC instant (e.g. Date.now() + an offset, unlike the show
+// times fmtTime handles, which are stored as UK-local digits wearing a UTC
+// label) — a real Intl timezone conversion, not a digit-passthrough. Needed
+// wherever "now" itself, not admin-entered data, drives a displayed time —
+// mixing the two up is exactly the fmtTime/Date.now() bug documented above.
+export function fmtTimeUK(date: Date): string {
+  return date.toLocaleTimeString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/London',
+  });
+}
+
 export function fmtRelative(date: Date | null): string {
   if (!date) return 'never';
   const secs = Math.round((Date.now() - date.getTime()) / 1000);

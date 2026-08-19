@@ -24,8 +24,13 @@ const NEXT: Record<string, string | null> = {
   READY: 'COLLECTED',
   COLLECTED: null,
 };
+// pickupSlot is a genuine UTC instant (unlike show/session times elsewhere in
+// this app, which are stored as the admin's UK wall-clock digits wearing a
+// UTC label) — a real Europe/London conversion, not the timeZone:'UTC'
+// digit-passthrough those use. Getting this wrong would show kitchen staff a
+// pickup time an hour early for the entire BST show season.
 const fmt = (iso: string) =>
-  new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+  new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' });
 const pounds = (c: number) => `£${(c / 100).toFixed(2)}`;
 
 export default function KitchenPage() {
