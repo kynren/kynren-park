@@ -9,6 +9,7 @@ export const DEFAULT_HOME_SECTIONS = [
   { key: 'announcement', visible: true },
   { key: 'alerts', visible: true },
   { key: 'comingUp', visible: true },
+  { key: 'favourites', visible: true },
 ];
 
 export interface HomeConfig {

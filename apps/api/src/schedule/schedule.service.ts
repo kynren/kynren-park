@@ -11,6 +11,21 @@ function dayRange(dateStr: string) {
   return { start, end };
 }
 
+// The UK's current calendar date. Session/show times are stored as the
+// admin's UK wall-clock digits with a UTC label (not real UTC — see the
+// mobile app's lib/format.ts for the full rationale), so "today" has to be
+// derived the same way: a plain `new Date().toISOString()` is true UTC and
+// runs an hour behind the UK for the entire show season (BST, opens 18
+// July), which would silently misfire the "is this today's session" check
+// below right when it matters most.
+function ukTodayStr(): string {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date());
+  const get = (t: string) => parts.find((p) => p.type === t)!.value;
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
 @Injectable()
 export class ScheduleService {
   constructor(
@@ -142,17 +157,29 @@ export class ScheduleService {
     // 1) Realtime fan-out to everyone in the park that day.
     this.realtime.emit(REALTIME_EVENTS.sessionUpdated, event, dateStr);
 
-    // 2) Push to guests who have this session in their itinerary.
+    // 2) Push to guests who have this session in their itinerary, plus
+    // anyone who's favourited the attraction and hasn't itineraried it —
+    // but only for a change happening today: a favourite has no date
+    // attached (unlike an itinerary item), so without this a delay to a
+    // showing three weeks out would page every guest who ever starred the
+    // attraction, regardless of whether they're even visiting that day.
     if (input.status === 'DELAYED' || input.status === 'CANCELLED') {
       const items = await this.prisma.itineraryItem.findMany({
         where: { showSessionId: session.id },
         include: { itinerary: { select: { userId: true } } },
       });
-      const userIds = [...new Set(items.map((i) => i.itinerary.userId))];
+      const userIds = new Set(items.map((i) => i.itinerary.userId));
+      if (dateStr === ukTodayStr()) {
+        const favourites = await this.prisma.favorite.findMany({
+          where: { attractionId: session.attractionId },
+          select: { userId: true },
+        });
+        for (const f of favourites) userIds.add(f.userId);
+      }
       const verb = input.status === 'CANCELLED' ? 'has been cancelled' : 'is delayed';
       const time = updated.revisedStart ? updated.revisedStart.toISOString().slice(11, 16) : '';
       await this.push.sendTemplatedToUsers(
-        userIds,
+        [...userIds],
         'DELAY_ALERT',
         { title: `${session.attraction.name} ${verb}`, body: input.note || `Tap to see your updated plan for the day.` },
         { show: session.attraction.name, status: input.status, time, note: input.note ?? '' },

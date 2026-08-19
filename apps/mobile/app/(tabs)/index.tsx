@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Stop, Rect, Circle, Path, Polygon, G } from 'react-native-svg';
 import { useSync, type Session } from '../../lib/sync';
+import { useFavoriteIds } from '../../lib/favorites';
 import { fmtTime, ukNow, ukTodayStr } from '../../lib/format';
 import { theme, categoryColor, statusColor } from '../../lib/theme';
 import { useThemePref } from '../../lib/theme-context';
@@ -13,7 +14,7 @@ import { useBrand } from '../../lib/brand';
 import { SkeletonRows } from '../../components/Shimmer';
 
 const HERO_H = Math.min(520, Math.max(420, Dimensions.get('window').height * 0.56));
-const DEFAULT_SECTIONS = ['actions', 'welcome', 'visit', 'announcement', 'alerts', 'comingUp'];
+const DEFAULT_SECTIONS = ['actions', 'welcome', 'visit', 'announcement', 'alerts', 'comingUp', 'favourites'];
 
 function usePalette() {
   const dark = useThemePref().scheme === 'dark';
@@ -51,6 +52,29 @@ export default function HomeScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bundle, date, tick]);
   const alerts = (bundle?.sessions ?? []).filter((s) => s.status === 'DELAYED' || s.status === 'CANCELLED');
+
+  // "Your favourites" — the soonest still-to-come session for each show the
+  // guest has starred, one row per attraction (not per session). Reuses the
+  // same server-backed favourites source as the map's Favourites filter and
+  // Profile → My favourites.
+  const { ids: favIds } = useFavoriteIds();
+  const favouriteUpcoming = useMemo(() => {
+    if (favIds.size === 0) return [];
+    const isRealToday = date === ukTodayStr();
+    const reference = isRealToday ? ukNow().getTime() : new Date(`${date}T00:00:00.000Z`).getTime();
+    const soonestByAttraction = new Map<string, Session>();
+    for (const s of bundle?.sessions ?? []) {
+      if (!favIds.has(s.attraction.id)) continue;
+      if (new Date(s.endTime).getTime() <= reference) continue;
+      const cur = soonestByAttraction.get(s.attraction.id);
+      const t = (x: Session) => new Date(x.revisedStart ?? x.startTime).getTime();
+      if (!cur || t(s) < t(cur)) soonestByAttraction.set(s.attraction.id, s);
+    }
+    return [...soonestByAttraction.values()].sort(
+      (a, b) => new Date(a.revisedStart ?? a.startTime).getTime() - new Date(b.revisedStart ?? b.startTime).getTime(),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bundle, date, tick, favIds]);
 
   const hours = useMemo(() => {
     const ss = bundle?.sessions ?? [];
@@ -160,6 +184,19 @@ export default function HomeScreen() {
             )}
           </View>
         );
+      case 'favourites':
+        // Signed-out guests have no favourites to show, and there's nothing
+        // useful to say to them here (the section isn't a sign-in prompt) —
+        // hide it entirely rather than show an empty state, matching how
+        // 'announcement'/'alerts' behave when they have nothing to show.
+        return favouriteUpcoming.length > 0 ? (
+          <View style={styles.section} key={key}>
+            <Text style={[styles.sectionH, { color: pal.text }]}>Your favourites</Text>
+            {favouriteUpcoming.map((s) => (
+              <SessionRow key={s.id} session={s} pal={pal} onPress={() => router.push(`/attraction/${s.attraction.slug}`)} />
+            ))}
+          </View>
+        ) : null;
       default:
         return null;
     }

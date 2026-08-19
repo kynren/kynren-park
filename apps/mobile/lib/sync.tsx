@@ -159,6 +159,14 @@ const etagKey = (date: string) => `kynren_etag_${date}`;
 // yesterday's (already-finished) programme for up to an hour every night.
 const DEFAULT_DATE = ukTodayStr();
 
+// Deliberately no AppState listener here forcing a full bundle refetch (with
+// a blocking spinner) every time the app returns to the foreground. That's
+// the single most-complained-about thing in Disneyland Paris's own app
+// reviews — reviewers cite 30+ second reloads just to get back to where they
+// were. The cache-first pattern below (show what's stored instantly, then
+// quietly reconcile via ETag/304 or a realtime socket patch) already covers
+// "is this stale" without ever blocking the UI on it — don't reintroduce a
+// foreground-triggered reload without a strong reason.
 export function SyncProvider({ children }: { children: ReactNode }) {
   const [bundle, setBundle] = useState<Bundle | null>(null);
   const [lastSynced, setLastSynced] = useState<Date | null>(null);

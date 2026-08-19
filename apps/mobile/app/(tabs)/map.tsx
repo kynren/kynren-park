@@ -7,8 +7,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import Svg, { Rect, Circle, Ellipse, Path, G, Polygon, Polyline, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
 import { useLocation } from '../../lib/location';
 import { useSync } from '../../lib/sync';
-import { useAuth } from '../../lib/auth';
-import { api } from '../../lib/api';
+import { useFavoriteIds } from '../../lib/favorites';
 import { fmtTime, ukNow, ukTodayStr } from '../../lib/format';
 import { theme } from '../../lib/theme';
 import { useThemePref } from '../../lib/theme-context';
@@ -204,8 +203,7 @@ export default function MapScreen() {
   function setBannerDismissed(v: boolean) { outsideBannerDismissed = v; setBannerDismissedState(v); }
   const appliedFocus = useRef<string | null>(null);
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null); // debounce the background-tap dismiss so a double-tap doesn't close the popup
-  const [favs, setFavs] = useState<Set<string>>(new Set());
-  const { user } = useAuth();
+  const { ids: favs } = useFavoriteIds();
   // Location is acquired app-wide at boot (during the splash), so the beacon is
   // ready the moment the map opens — see LocationProvider.
   const { gps } = useLocation();
@@ -323,19 +321,6 @@ export default function MapScreen() {
     if (dismissTimer.current) clearTimeout(dismissTimer.current);
     if (zoomTrailingTimer.current) clearTimeout(zoomTrailingTimer.current);
   }, []);
-
-  // Favourites are set from an attraction's own detail page (which POSTs to
-  // /me/favorites) — the map only reads them, to drive the "Favourites"
-  // category filter. This used to read/write a local AsyncStorage key that
-  // nothing else in the app ever wrote to, so the filter always showed zero
-  // pins; it now mirrors the same server-backed source as Profile → My
-  // favourites.
-  useEffect(() => {
-    if (!user) { setFavs(new Set()); return; }
-    api<{ attractionId: string }[]>('/me/favorites')
-      .then((f) => setFavs(new Set(f.map((x) => x.attractionId))))
-      .catch(() => setFavs(new Set()));
-  }, [user]);
 
   // Native pinch + pan (UI thread). One finger pans; two fingers pinch-zoom
   // with the focal point anchored, which also gives natural two-finger panning.

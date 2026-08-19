@@ -19,10 +19,12 @@ const SECTION_LABELS: Record<string, string> = {
   announcement: 'Latest announcement',
   alerts: 'Today’s changes',
   comingUp: 'Coming up (next shows)',
+  favourites: 'Your favourites (next show per favourited attraction)',
 };
 const DEFAULT_SECTIONS: Section[] = [
   { key: 'actions', visible: true }, { key: 'welcome', visible: true }, { key: 'visit', visible: true },
   { key: 'announcement', visible: true }, { key: 'alerts', visible: true }, { key: 'comingUp', visible: true },
+  { key: 'favourites', visible: true },
 ];
 const MAX_MB = 8; // source cap; still images are resized down before upload
 
