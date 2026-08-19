@@ -21,35 +21,107 @@ export class ScheduleService {
 
   async byDate(dateStr: string) {
     const { start } = dayRange(dateStr);
+    const dayOfWeek = new Date(`${dateStr}T00:00:00.000Z`).getUTCDay();
     // The programme is defined weekly (by day of the week); materialise it into
-    // concrete sessions for this date so consumers keep the dated session shape.
-    const weekly = await this.prisma.weeklySession.findMany({
-      where: { dayOfWeek: new Date(`${dateStr}T00:00:00.000Z`).getUTCDay() },
-      orderBy: { start: 'asc' },
-      include: { attraction: { select: { id: true, slug: true, name: true, category: true } } },
+    // concrete sessions for this date. A real ShowSession row only exists once
+    // staff have actually changed something for this specific date (a delay,
+    // cancellation, retime, or a genuine one-off extra show) — see
+    // resolveOrCreateSession below — so merge any such overrides in, matched
+    // to their weekly slot by (attractionId, startTime), and fall back to the
+    // synthetic `${weeklySessionId}:${date}` id for slots nobody has touched.
+    const [weekly, overrides] = await Promise.all([
+      this.prisma.weeklySession.findMany({
+        where: { dayOfWeek },
+        orderBy: { start: 'asc' },
+        include: { attraction: { select: { id: true, slug: true, name: true, category: true } } },
+      }),
+      this.prisma.showSession.findMany({
+        where: { date: start },
+        include: { attraction: { select: { id: true, slug: true, name: true, category: true } } },
+      }),
+    ]);
+    const overrideByKey = new Map(overrides.map((o) => [`${o.attractionId}:${o.startTime.toISOString()}`, o]));
+    const usedOverrideIds = new Set<string>();
+    const merged = weekly.map((w) => {
+      const startTime = new Date(`${dateStr}T${w.start}:00.000Z`);
+      const o = overrideByKey.get(`${w.attractionId}:${startTime.toISOString()}`);
+      if (o) { usedOverrideIds.add(o.id); return o; }
+      return {
+        id: `${w.id}:${dateStr}`,
+        attractionId: w.attractionId,
+        date: start,
+        startTime,
+        endTime: new Date(`${dateStr}T${w.end}:00.000Z`),
+        status: w.status,
+        revisedStart: null as Date | null,
+        note: null as string | null,
+        attraction: w.attraction,
+      };
     });
-    return weekly.map((w) => ({
-      id: `${w.id}:${dateStr}`,
-      attractionId: w.attractionId,
-      date: start,
-      startTime: new Date(`${dateStr}T${w.start}:00.000Z`),
-      endTime: new Date(`${dateStr}T${w.end}:00.000Z`),
-      status: w.status,
-      revisedStart: null,
-      note: null,
-      attraction: w.attraction,
-    }));
+    // A one-off show added for just this date won't match any weekly slot —
+    // it still needs to appear.
+    for (const o of overrides) if (!usedOverrideIds.has(o.id)) merged.push(o);
+    return merged;
+  }
+
+  /**
+   * Every consumer that changes a session's live state (delay/cancel/retime)
+   * is handed either a real ShowSession id, or — for a slot nobody has ever
+   * overridden yet — the synthetic `${weeklySessionId}:${date}` id byDate()
+   * returns for it. Resolve to a real, persisted row either way, creating one
+   * from the weekly template on first touch.
+   *
+   * Idempotent by design, not just by convenience: a client that already
+   * holds the synthetic id (e.g. the Live Schedule Board's in-memory session
+   * list, which keeps its original id after an optimistic update rather than
+   * swapping in the real one the PATCH response returns) can call this again
+   * with the same stale synthetic id for a second action on the same show —
+   * re-deriving and re-checking the slot by (attractionId, startTime) instead
+   * of blindly creating means that lands on the same row instead of a
+   * duplicate.
+   */
+  async resolveOrCreateSession(id: string) {
+    const existing = await this.prisma.showSession.findUnique({ where: { id }, include: { attraction: true } });
+    if (existing) return existing;
+    const sep = id.lastIndexOf(':');
+    if (sep === -1) throw new NotFoundException('Session not found');
+    const weeklyId = id.slice(0, sep);
+    const dateStr = id.slice(sep + 1);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) throw new NotFoundException('Session not found');
+    const weekly = await this.prisma.weeklySession.findUnique({ where: { id: weeklyId } });
+    if (!weekly) throw new NotFoundException('Session not found');
+    const startTime = new Date(`${dateStr}T${weekly.start}:00.000Z`);
+    const already = await this.prisma.showSession.findFirst({
+      where: { attractionId: weekly.attractionId, startTime },
+      include: { attraction: true },
+    });
+    if (already) return already;
+    return this.prisma.showSession.create({
+      data: {
+        attractionId: weekly.attractionId,
+        date: new Date(`${dateStr}T00:00:00.000Z`),
+        startTime,
+        endTime: new Date(`${dateStr}T${weekly.end}:00.000Z`),
+        status: weekly.status,
+      },
+      include: { attraction: true },
+    });
+  }
+
+  /** Same resolution as resolveOrCreateSession, but for delete: never create
+   *  a row just to immediately remove it — a slot nobody has overridden yet
+   *  has nothing to delete. */
+  async findRealSessionIfAny(id: string) {
+    const existing = await this.prisma.showSession.findUnique({ where: { id } });
+    if (existing) return existing;
+    return null;
   }
 
   async updateStatus(id: string, input: UpdateSessionStatusInput) {
-    const session = await this.prisma.showSession.findUnique({
-      where: { id },
-      include: { attraction: true },
-    });
-    if (!session) throw new NotFoundException('Session not found');
+    const session = await this.resolveOrCreateSession(id);
 
     const updated = await this.prisma.showSession.update({
-      where: { id },
+      where: { id: session.id },
       data: {
         status: input.status,
         revisedStart: input.revisedStart ? new Date(input.revisedStart) : input.status === 'DELAYED' ? session.revisedStart : null,
@@ -73,7 +145,7 @@ export class ScheduleService {
     // 2) Push to guests who have this session in their itinerary.
     if (input.status === 'DELAYED' || input.status === 'CANCELLED') {
       const items = await this.prisma.itineraryItem.findMany({
-        where: { showSessionId: id },
+        where: { showSessionId: session.id },
         include: { itinerary: { select: { userId: true } } },
       });
       const userIds = [...new Set(items.map((i) => i.itinerary.userId))];
@@ -84,7 +156,7 @@ export class ScheduleService {
         'DELAY_ALERT',
         { title: `${session.attraction.name} ${verb}`, body: input.note || `Tap to see your updated plan for the day.` },
         { show: session.attraction.name, status: input.status, time, note: input.note ?? '' },
-        { type: 'session', sessionId: id },
+        { type: 'session', sessionId: session.id },
       );
     }
 

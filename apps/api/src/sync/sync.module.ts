@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { SyncController } from './sync.controller.js';
+import { ScheduleModule } from '../schedule/schedule.module.js';
 
-@Module({ controllers: [SyncController] })
+@Module({ imports: [ScheduleModule], controllers: [SyncController] })
 export class SyncModule {}

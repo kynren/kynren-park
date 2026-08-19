@@ -5,6 +5,7 @@ import type { Request, Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { Public } from '../common/decorators.js';
 import { resolveHomeScreen } from '../admin/home-screen.util.js';
+import { ScheduleService } from '../schedule/schedule.service.js';
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -13,7 +14,10 @@ function todayStr() {
 @ApiTags('sync')
 @Controller('sync')
 export class SyncController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly schedule: ScheduleService,
+  ) {}
 
   /**
    * Everything the mobile app needs to work fully offline for a given date.
@@ -27,7 +31,7 @@ export class SyncController {
     const start = new Date(`${day}T00:00:00.000Z`);
     const end = new Date(`${day}T23:59:59.999Z`);
 
-    const [attractions, pois, walkEdges, restaurants, shops, ticketTypes, content, announcements, weekly, mapConfig, defaultMap, branding, walkthroughConfig, walkthroughSteps] =
+    const [attractions, pois, walkEdges, restaurants, shops, ticketTypes, content, announcements, sessions, mapConfig, defaultMap, branding, walkthroughConfig, walkthroughSteps] =
       await Promise.all([
         this.prisma.attraction.findMany({ where: { active: true }, orderBy: { sortOrder: 'asc' } }),
         this.prisma.pointOfInterest.findMany(),
@@ -48,13 +52,11 @@ export class SyncController {
           orderBy: { createdAt: 'desc' },
           take: 20,
         }),
-        // The programme is defined weekly (by day of the week); materialise the
-        // sessions for the requested date's weekday below.
-        this.prisma.weeklySession.findMany({
-          where: { dayOfWeek: new Date(`${day}T00:00:00.000Z`).getUTCDay() },
-          orderBy: { start: 'asc' },
-          include: { attraction: { select: { id: true, slug: true, name: true, category: true } } },
-        }),
+        // The programme is defined weekly (by day of the week), materialised for
+        // this date and merged with any live overrides (delays/cancellations) —
+        // the same logic the admin's Live Schedule Board and Shows page use, so
+        // a staff change actually reaches guests instead of only the dashboard.
+        this.schedule.byDate(day),
         this.prisma.mapConfig.findFirst(),
         this.prisma.parkMap.findFirst({ where: { isDefault: true } }),
         this.prisma.branding.findFirst(),
@@ -64,20 +66,6 @@ export class SyncController {
     // The global on/off switch overrides every step's own `active` flag —
     // disabled means the app sees no steps at all, no mobile-side change needed.
     const walkthrough = (walkthroughConfig?.enabled ?? true) ? walkthroughSteps : [];
-
-    // Materialise the weekly programme into concrete sessions for this date, so
-    // the app keeps its existing (dated) session shape.
-    const sessions = weekly.map((w) => ({
-      id: `${w.id}:${day}`,
-      attractionId: w.attractionId,
-      date: start,
-      startTime: new Date(`${day}T${w.start}:00.000Z`),
-      endTime: new Date(`${day}T${w.end}:00.000Z`),
-      status: w.status,
-      revisedStart: null as Date | null,
-      note: null as string | null,
-      attraction: w.attraction,
-    }));
 
     // The next date (from today) that actually has shows in the weekly
     // programme — used by the app's "programme available from" message instead

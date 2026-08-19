@@ -5,6 +5,7 @@ import { RequirePermission } from '../common/decorators.js';
 import { PermissionsGuard } from '../common/guards.js';
 import { DEFAULT_HOME_SECTIONS, resolveHomeScreen } from './home-screen.util.js';
 import { IMAGE_SLOTS, DEFAULT_IMAGE } from './image-slots.js';
+import { ScheduleService } from '../schedule/schedule.service.js';
 
 function slugify(s: string): string {
   return (s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'item';
@@ -34,7 +35,10 @@ function timeOn(d: string, hhmm: string) {
 @UseGuards(PermissionsGuard)
 @Controller('admin')
 export class ManageController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly schedule: ScheduleService,
+  ) {}
 
   private async uniqueSlug(model: 'restaurant' | 'attraction' | 'shop', base: string, ignoreId?: string): Promise<string> {
     const root = slugify(base);
@@ -398,23 +402,32 @@ export class ManageController {
     return { created: rows.length };
   }
 
+  // `id` here is whatever the Shows page last loaded from GET /schedule —
+  // for a session nobody has ever edited before, that's the synthetic
+  // `${weeklySessionId}:${date}` id ScheduleService.byDate() hands out for a
+  // still-untouched weekly slot (no real ShowSession row exists yet for that
+  // specific date). resolveOrCreateSession creates one from the weekly
+  // template on first edit; every edit after that hits the real row directly.
   @Patch('sessions/:id')
   async updateSession(@Param('id') id: string, @Body() b: any) {
+    const existing = await this.schedule.resolveOrCreateSession(id);
     const data: Record<string, unknown> = {};
-    const existing = await this.prisma.showSession.findUnique({ where: { id } });
-    if (!existing) throw new BadRequestException('session not found');
     const d = b.date ?? existing.date.toISOString().slice(0, 10);
     if (b.date) data.date = dayDate(b.date);
     if (b.start) data.startTime = timeOn(d, b.start);
     if (b.end) data.endTime = timeOn(d, b.end);
     if (b.status) data.status = b.status;
     if (b.capacity !== undefined) data.capacity = b.capacity != null ? Number(b.capacity) : null;
-    return this.prisma.showSession.update({ where: { id }, data });
+    return this.prisma.showSession.update({ where: { id: existing.id }, data });
   }
 
   @Delete('sessions/:id')
   async deleteSession(@Param('id') id: string) {
-    await this.prisma.showSession.delete({ where: { id } });
+    // A session that was never edited only exists as a synthetic weekly
+    // materialisation, not a real row — nothing to delete (see updateSession).
+    const existing = await this.schedule.findRealSessionIfAny(id);
+    if (!existing) return { deleted: false };
+    await this.prisma.showSession.delete({ where: { id: existing.id } });
     return { deleted: true };
   }
 
