@@ -181,7 +181,11 @@ export class ScheduleService {
       await this.push.sendTemplatedToUsers(
         [...userIds],
         'DELAY_ALERT',
-        { title: `${session.attraction.name} ${verb}`, body: input.note || `Tap to see your updated plan for the day.` },
+        {
+          title: `${session.attraction.name} ${verb}`,
+          body: input.note || `Tap to see your updated plan for the day.`,
+          deepLink: `/attraction/${session.attraction.slug}`,
+        },
         { show: session.attraction.name, status: input.status, time, note: input.note ?? '' },
         { type: 'session', sessionId: session.id },
       );

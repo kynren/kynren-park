@@ -36,22 +36,31 @@ export class PushService {
   /**
    * Resolve the active admin template for an action and interpolate {vars};
    * falls back to the provided default copy when no template is assigned.
+   * Also surfaces the template's own configured deepLink (interpolated the
+   * same way) — the admin UI collects one per template, but nothing read it
+   * back until now, so a tap on one of these pushes went nowhere.
    */
-  async resolveTemplate(action: string, vars: Record<string, string>, fallback: { title: string; body: string }) {
+  async resolveTemplate(
+    action: string, vars: Record<string, string>, fallback: { title: string; body: string; deepLink?: string },
+  ) {
     const t = await this.prisma.notificationTemplate.findFirst({
       where: { action, active: true },
       orderBy: { updatedAt: 'desc' },
     });
     if (!t) return fallback;
-    return { title: this.interp(t.title, vars), body: this.interp(t.body, vars) };
+    return {
+      title: this.interp(t.title, vars),
+      body: this.interp(t.body, vars),
+      deepLink: t.deepLink ? this.interp(t.deepLink, vars) : fallback.deepLink,
+    };
   }
 
   async sendTemplatedToUsers(
     userIds: string[], action: string,
-    fallback: { title: string; body: string }, vars: Record<string, string>, data?: Record<string, unknown>,
+    fallback: { title: string; body: string; deepLink?: string }, vars: Record<string, string>, data?: Record<string, unknown>,
   ) {
-    const { title, body } = await this.resolveTemplate(action, vars, fallback);
-    await this.sendToUsers(userIds, title, body, data);
+    const { title, body, deepLink } = await this.resolveTemplate(action, vars, fallback);
+    await this.sendToUsers(userIds, title, body, deepLink ? { ...data, deepLink } : data);
   }
 
   async sendToAll(title: string, body: string, data?: Record<string, unknown>) {

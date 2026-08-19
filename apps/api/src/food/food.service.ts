@@ -76,7 +76,7 @@ export class FoodService {
       await this.push.sendTemplatedToUsers(
         [order.userId],
         'ORDER_READY',
-        { title: 'Your order is ready 🍽️', body: `Collect from ${order.restaurant.name} when you're ready.` },
+        { title: 'Your order is ready 🍽️', body: `Collect from ${order.restaurant.name} when you're ready.`, deepLink: '/orders' },
         { restaurant: order.restaurant.name },
         { type: 'order', orderId },
       );

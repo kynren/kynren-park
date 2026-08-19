@@ -93,10 +93,10 @@ export default function PushTemplates() {
                   {form.action === 'ORDER_READY' && <code>{'{restaurant}'}</code>}
                   {form.action === 'SHOW_REMINDER' && <code>{'{show} {time}'}</code>}
                   {(form.action === 'ANNOUNCEMENT' || form.action === 'WELCOME' || form.action === 'CUSTOM') && '— none for this action yet'}
-                  . Active templates are used automatically when that action fires (delay/cancel alerts and order-ready are live now).
+                  . Active templates are used automatically when that action fires (delay/cancel alerts, order-ready and show reminders are all live now).
                 </p>
               </div>
-              <div className="form-row full"><label>Deep link (optional)</label><input value={form.deepLink} onChange={(e) => setForm({ ...form, deepLink: e.target.value })} placeholder="kynren://attraction/land-of-the-vikings" /></div>
+              <div className="form-row full"><label>Deep link (optional)</label><input value={form.deepLink} onChange={(e) => setForm({ ...form, deepLink: e.target.value })} placeholder="/attraction/land-of-the-vikings" /></div>
               <div className="form-row"><label className="checkline"><input type="checkbox" checked={form.sound} onChange={(e) => setForm({ ...form, sound: e.target.checked })} /> Play sound</label></div>
               <div className="form-row"><label className="checkline"><input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Active</label></div>
             </div>

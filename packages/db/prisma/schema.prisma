@@ -508,13 +508,17 @@ model Itinerary {
 }
 
 model ItineraryItem {
-  id            String      @id @default(cuid())
-  itinerary     Itinerary   @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
-  itineraryId   String
-  showSession   ShowSession @relation(fields: [showSessionId], references: [id], onDelete: Cascade)
-  showSessionId String
-  order         Int
-  reminderMins  Int         @default(20)
+  id             String      @id @default(cuid())
+  itinerary      Itinerary   @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
+  itineraryId    String
+  showSession    ShowSession @relation(fields: [showSessionId], references: [id], onDelete: Cascade)
+  showSessionId  String
+  order          Int
+  reminderMins   Int         @default(20)
+  // Set once the "starts soon" push has actually been sent, so the reminder
+  // scheduler (apps/api/src/itinerary/itinerary-reminders.service.ts) never
+  // double-sends across its periodic runs.
+  reminderSentAt DateTime?
 
   @@unique([itineraryId, showSessionId])
   @@index([itineraryId])

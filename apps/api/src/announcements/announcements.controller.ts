@@ -60,15 +60,20 @@ export class AnnouncementsController {
       await this.push.sendToAll(announcement.title, announcement.body, {
         type: 'announcement',
         id: announcement.id,
+        ...(announcement.deepLink ? { deepLink: announcement.deepLink } : {}),
       });
     }
     return announcement;
   }
 
   // ---- Admin management (schedule / edit / delete / resend) ------------------
-  private async dispatch(a: { id: string; title: string; body: string; targetDate: Date | null }) {
+  private async dispatch(a: { id: string; title: string; body: string; targetDate: Date | null; deepLink?: string | null }) {
     this.realtime.emit(REALTIME_EVENTS.announcement, a, a.targetDate?.toISOString().slice(0, 10));
-    await this.push.sendToAll(a.title, a.body, { type: 'announcement', id: a.id });
+    await this.push.sendToAll(a.title, a.body, {
+      type: 'announcement',
+      id: a.id,
+      ...(a.deepLink ? { deepLink: a.deepLink } : {}),
+    });
   }
 
   @ApiBearerAuth()

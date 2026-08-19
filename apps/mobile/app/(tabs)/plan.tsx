@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { ScrollView, View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Touchable } from '../../components/Touchable';
 import { useSync } from '../../lib/sync';
+import { useAuth } from '../../lib/auth';
 import { api } from '../../lib/api';
 import { fmtTime } from '../../lib/format';
 import { useI18n } from '../../lib/i18n';
@@ -11,6 +13,8 @@ import type { OptimizedItinerary } from '../../lib/shared';
 
 export default function PlanScreen() {
   const { bundle, date } = useSync();
+  const { user } = useAuth();
+  const router = useRouter();
   const { t } = useI18n();
   const attractions = (bundle?.attractions ?? []).filter((a) => a.category !== 'EVENING_SHOW');
   const durationById = useMemo(
@@ -24,6 +28,8 @@ export default function PlanScreen() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [plan, setPlan] = useState<OptimizedItinerary | null>(null);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   const allOn = attractions.length > 0 && selected.size === attractions.length;
 
@@ -41,6 +47,7 @@ export default function PlanScreen() {
   async function optimize() {
     setLoading(true);
     setPlan(null);
+    setSaved(false);
     try {
       const result = await api<OptimizedItinerary>('/itinerary/optimize', {
         method: 'POST',
@@ -51,6 +58,23 @@ export default function PlanScreen() {
       setPlan({ date, stops: [], unschedulable: [] });
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function saveDay() {
+    if (!plan || plan.stops.length === 0) return;
+    if (!user) { router.push('/auth'); return; }
+    setSaving(true);
+    try {
+      await api('/itinerary', {
+        method: 'POST',
+        body: JSON.stringify({ date, showSessionIds: plan.stops.map((s) => s.showSessionId) }),
+      });
+      setSaved(true);
+    } catch {
+      // offline or request failed — leave the plan on screen, let them retry
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -171,6 +195,22 @@ export default function PlanScreen() {
               <Text style={styles.muted}>{plan.unschedulable.map((id) => nameById.get(id) ?? id).join(', ')} — they clash with your other picks.</Text>
             </View>
           )}
+
+          {plan.stops.length > 0 && (
+            saved ? (
+              <View style={styles.savedBox}>
+                <Text style={styles.savedText}>✓ Saved — we’ll remind you before each show starts.</Text>
+              </View>
+            ) : (
+              <Touchable style={[styles.cta, styles.saveCta]} onPress={saveDay} disabled={saving}>
+                {saving ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.ctaText}>{user ? 'Save my day & remind me' : 'Sign in to save & get reminders'}</Text>
+                )}
+              </Touchable>
+            )
+          )}
         </View>
       )}
     </ScrollView>
@@ -226,4 +266,7 @@ const styles = StyleSheet.create({
   walk: { color: theme.muted, fontSize: 12 },
   clashBox: { backgroundColor: '#fff7e6', borderRadius: 12, borderWidth: 1, borderColor: '#f0e2bf', padding: 14, marginTop: 12 },
   clashTitle: { fontWeight: '700', color: theme.ink, fontSize: 14 },
+  saveCta: { marginTop: 20 },
+  savedBox: { backgroundColor: '#eaf7ef', borderRadius: 12, borderWidth: 1, borderColor: '#bfe6cc', padding: 14, marginTop: 20, alignItems: 'center' },
+  savedText: { color: '#1d7a42', fontWeight: '700', fontSize: 13.5 },
 });
