@@ -5,6 +5,7 @@ import { Touchable } from '../../components/Touchable';
 import { useRouter } from 'expo-router';
 import Svg, { Circle, Polyline, Line } from 'react-native-svg';
 import { useSync, type Attraction, type Session } from '../../lib/sync';
+import { useUnreadNotifications } from '../../lib/notifications';
 import { fmtTime, ukNow, ukTodayStr } from '../../lib/format';
 import { theme, categoryColor } from '../../lib/theme';
 import { useThemePref } from '../../lib/theme-context';
@@ -57,6 +58,7 @@ function ClockIcon({ color, size = 20 }: { color: string; size?: number }) {
 
 export default function ProgramScreen() {
   const { bundle, date, setDate } = useSync();
+  const { count: unread } = useUnreadNotifications();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const pal = usePalette();
@@ -138,6 +140,11 @@ export default function ProgramScreen() {
         <View style={{ flexDirection: 'row', gap: 6 }}>
           <Touchable onPress={() => router.push('/notifications')} hitSlop={8} style={styles.avatar}>
             <Text style={{ fontSize: 16 }}>🔔</Text>
+            {unread > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeTxt}>{unread > 9 ? '9+' : unread}</Text>
+              </View>
+            )}
           </Touchable>
           <Touchable onPress={() => router.push('/profile')} hitSlop={8} style={styles.avatar}>
             <Text style={{ fontSize: 16 }}>👤</Text>
@@ -295,6 +302,8 @@ const styles = StyleSheet.create({
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: HPAD, paddingTop: 8, paddingBottom: 12 },
   brand: { color: '#fff', fontSize: 20, fontWeight: '800', letterSpacing: 2 },
   avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  badge: { position: 'absolute', top: -2, right: -2, minWidth: 16, height: 16, borderRadius: 8, backgroundColor: '#d9453d', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3, borderWidth: 1.5, borderColor: '#fff' },
+  badgeTxt: { color: '#fff', fontSize: 9, fontWeight: '800' },
   dateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 26, paddingVertical: 10 },
   dateArrow: { paddingHorizontal: 8 },
   dateArrowTxt: { fontSize: 26, fontWeight: '700' },

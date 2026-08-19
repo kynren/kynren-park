@@ -76,4 +76,30 @@ export class UsersController {
   seen(@CurrentUser() user: AuthPrincipal) {
     return this.prisma.attractionSeen.findMany({ where: { userId: user.sub } });
   }
+
+  // --- Personal notification history ---------------------------------------
+  // Delay/cancel alerts, order-ready and show reminders, logged by
+  // PushService.sendToUsers regardless of whether the push itself was ever
+  // delivered. Broadcast announcements aren't in here — /announcements is
+  // their own list.
+  @Get('notifications')
+  notifications(@CurrentUser() user: AuthPrincipal) {
+    return this.prisma.notification.findMany({
+      where: { userId: user.sub },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+  }
+
+  @Get('notifications/unread-count')
+  async unreadCount(@CurrentUser() user: AuthPrincipal) {
+    const count = await this.prisma.notification.count({ where: { userId: user.sub, readAt: null } });
+    return { count };
+  }
+
+  @Post('notifications/read')
+  async markNotificationsRead(@CurrentUser() user: AuthPrincipal) {
+    await this.prisma.notification.updateMany({ where: { userId: user.sub, readAt: null }, data: { readAt: new Date() } });
+    return { ok: true };
+  }
 }

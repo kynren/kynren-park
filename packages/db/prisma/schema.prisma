@@ -114,6 +114,7 @@ model User {
   favorites          Favorite[]
   seen               AttractionSeen[]
   orders             Order[]
+  notifications      Notification[]
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 }
@@ -570,6 +571,26 @@ model Announcement {
 }
 
 // Reusable push-notification templates, assignable to app actions.
+// A per-user in-app record of every targeted push (delay/cancel, order
+// ready, show reminder, ...) — independent of whether the push itself was
+// ever delivered (no token registered, permission denied, device offline),
+// so "Notifications" in the app has real history to show either way.
+// Broadcast announcements aren't duplicated in here: the Announcement model
+// (+ /announcements) already serves as their own in-app record.
+model Notification {
+  id        String    @id @default(cuid())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  type      String // session | order | reminder | custom
+  title     String
+  body      String
+  deepLink  String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
+}
+
 model NotificationTemplate {
   id        String   @id @default(cuid())
   name      String

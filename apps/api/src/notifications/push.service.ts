@@ -27,6 +27,16 @@ export class PushService {
       select: { token: true },
     });
     await this.sendToTokens(tokens.map((t) => t.token), title, body, data);
+
+    // In-app record for each targeted user, independent of whether the push
+    // itself was actually delivered (no token registered, permission denied,
+    // device offline) — so a missed/dismissed banner still shows up in the
+    // app's own Notifications screen afterwards.
+    const deepLink = typeof data?.deepLink === 'string' ? data.deepLink : null;
+    const type = typeof data?.type === 'string' ? data.type : 'custom';
+    await this.prisma.notification
+      .createMany({ data: userIds.map((userId) => ({ userId, type, title, body, deepLink })) })
+      .catch((e) => this.logger.error(`Notification log write failed: ${(e as Error).message}`));
   }
 
   private interp(s: string, vars: Record<string, string>) {
