@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { View, Text, StyleSheet, Image, StatusBar, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,6 +15,13 @@ export default function ShopScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const shop = bundle?.shops?.find((s) => s.slug === slug);
+  const scrollRef = useRef<ScrollView>(null);
+  // See restaurant/[slug].tsx's identical pair for why two refs: onLayout
+  // only reports a view's position relative to its own immediate parent, so
+  // the sheet's own position plus the marker's position within the sheet
+  // together give the real absolute scroll offset.
+  const sheetY = useRef(0);
+  const productsLocalY = useRef(0);
 
   if (!shop) {
     return <View style={styles.center}><Stack.Screen options={{ headerShown: false }} /><Text style={{ color: dk.sub }}>Shop not found.</Text></View>;
@@ -26,14 +34,14 @@ export default function ShopScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <StatusBar barStyle="light-content" />
       <View style={{ position: 'absolute', top: insets.top + 8, right: 14, zIndex: 10 }}><CloseButton onPress={() => router.back()} /></View>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
         {images.length > 0 ? (
           <ImageCarousel images={images} height={HERO_HEIGHT} />
         ) : (
           <View style={{ height: insets.top + 52 }} />
         )}
 
-        <View style={[styles.sheet, images.length > 0 && styles.sheetOverlap]}>
+        <View style={[styles.sheet, images.length > 0 && styles.sheetOverlap]} onLayout={(e) => { sheetY.current = e.nativeEvent.layout.y; }}>
         <View style={styles.titleRow}>
           <IconBadge letter={shop.name[0]?.toUpperCase() ?? 'S'} />
           <Text style={styles.title}>{shop.name}</Text>
@@ -47,7 +55,7 @@ export default function ShopScreen() {
 
         <View style={styles.actionRow}>
           <ActionPill icon={ICONS.map} label="Go to" onPress={() => router.push(`/map?focus=${shop.poiId ?? shop.id}`)} />
-          <ActionPill icon={ICONS.menu} label="Products" onPress={() => {}} />
+          <ActionPill icon={ICONS.menu} label="Products" onPress={() => scrollRef.current?.scrollTo({ y: sheetY.current + productsLocalY.current - 12, animated: true })} />
         </View>
 
         {shop.openingHours ? (
@@ -57,7 +65,9 @@ export default function ShopScreen() {
           </>
         ) : null}
 
-        <SectionLabel>What’s in store</SectionLabel>
+        <View onLayout={(e) => { productsLocalY.current = e.nativeEvent.layout.y; }}>
+          <SectionLabel>What’s in store</SectionLabel>
+        </View>
         {(!shop.items || shop.items.length === 0) ? (
           <Text style={styles.muted}>Product list coming soon.</Text>
         ) : (
