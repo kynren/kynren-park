@@ -24,6 +24,11 @@ WORKDIR /app/apps/admin
 ENV NODE_ENV=production
 COPY --from=build /app/node_modules /app/node_modules
 COPY --from=build /app/packages /app/packages
+# next itself (and some of its own deps) resolve nested under
+# apps/admin/node_modules rather than hoisted to the root - npm's own call,
+# not something to fight - so that has to be copied too, or `next start`
+# comes up with nothing to run.
+COPY --from=build /app/apps/admin/node_modules ./node_modules
 COPY --from=build /app/apps/admin/.next ./.next
 COPY --from=build /app/apps/admin/package.json ./package.json
 COPY --from=build /app/apps/admin/next.config.mjs ./next.config.mjs
