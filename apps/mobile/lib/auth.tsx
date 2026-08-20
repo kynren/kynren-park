@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback, typ
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
-import { api, setToken, getToken } from './api';
+import { api, setToken, getToken, setRefreshToken, getRefreshToken } from './api';
 
 export interface AuthUser {
   id: string;
@@ -30,17 +30,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Restore session on launch.
+  // Restore session on launch. The access token is short-lived (15 min), so
+  // most re-opens land here with it already expired — api()'s own 401 retry
+  // transparently redeems the (30-day, still-live) refresh token before this
+  // /me call ever fails, which is what actually keeps a guest signed in
+  // across app restarts instead of just within one 15-minute window.
   useEffect(() => {
     (async () => {
-      const token = await getToken();
-      if (token) {
+      const [token, refreshToken] = await Promise.all([getToken(), getRefreshToken()]);
+      if (token || refreshToken) {
         try {
           const me = await api<AuthUser>('/me');
           setUser(me);
           registerPushToken().catch(() => undefined);
         } catch {
           await setToken(null);
+          await setRefreshToken(null);
         }
       }
       setLoading(false);
@@ -49,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const applySession = useCallback(async (res: AuthResponse) => {
     await setToken(res.accessToken);
+    await setRefreshToken(res.refreshToken);
     setUser(res.user);
     registerPushToken().catch(() => undefined);
   }, []);
@@ -76,7 +82,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(async () => {
+    const refreshToken = await getRefreshToken();
+    if (refreshToken) {
+      // Best-effort: revoke server-side so the refresh token can't be
+      // redeemed again, but don't let an offline device block signing out.
+      await api('/auth/logout', { method: 'POST', body: JSON.stringify({ refreshToken }) }).catch(() => undefined);
+    }
     await setToken(null);
+    await setRefreshToken(null);
     setUser(null);
   }, []);
 
