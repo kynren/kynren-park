@@ -21,6 +21,7 @@ web-build/
 # Prisma
 packages/db/prisma/*.db
 packages/db/prisma/migrations/dev.db*
+packages/db/generated/
 
 # Logs
 *.log

@@ -3,12 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
     }
   },
   "files": ["dist"],
@@ -26,10 +26,13 @@
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
-    "@prisma/client": "^6.1.0"
+    "@prisma/client": "^7.6.0",
+    "@prisma/adapter-pg": "^7.6.0",
+    "pg": "^8.13.1"
   },
   "devDependencies": {
-    "prisma": "^6.1.0",
-    "tsx": "^4.19.2"
+    "prisma": "^7.6.0",
+    "tsx": "^4.19.2",
+    "@types/pg": "^8.11.10"
   }
 }

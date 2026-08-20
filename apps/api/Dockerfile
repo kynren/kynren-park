@@ -15,12 +15,15 @@ COPY apps/api/package.json ./apps/api/
 RUN npm install --workspace @kynren/api --workspace @kynren/db --workspace @kynren/shared \
     --include-workspace-root --no-audit --no-fund
 
-# Build the workspace packages, generate the Prisma client, then build the API.
+# Generate the Prisma client before building @kynren/db — its src/index.ts
+# imports directly from the generated output (Prisma v7's engine-less
+# `prisma-client` generator writes there, not to node_modules), so tsc needs
+# it to exist first.
 COPY packages ./packages
 COPY apps/api ./apps/api
 RUN npm run build --workspace @kynren/shared \
- && npm run build --workspace @kynren/db \
  && DATABASE_URL="postgresql://u:p@localhost:5432/db?schema=public" npm run db:generate \
+ && npm run build --workspace @kynren/db \
  && npm run build --workspace @kynren/api
 
 # ---- Runtime stage ----

@@ -3,9 +3,23 @@
  * Run with: npm run db:seed
  */
 import { randomBytes, scryptSync } from 'node:crypto';
-import { PrismaClient, AttractionCategory, PoiType, StaffRole, TicketCategory, PriceRange, SessionStatus } from '@prisma/client';
+import { existsSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import {
+  PrismaClient, AttractionCategory, PoiType, StaffRole, TicketCategory, PriceRange, SessionStatus,
+} from '../generated/prisma/client.js';
+import { PrismaPg } from '@prisma/adapter-pg';
 
-const prisma = new PrismaClient();
+// Run directly via tsx (not through the Prisma CLI), so it needs its own
+// env load — mirrors prisma.config.ts / apps/api/src/main.ts.
+if (!process.env.DATABASE_URL) {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const p = resolve(here, '../../../.env'); // packages/db/prisma -> repo root
+  if (existsSync(p)) process.loadEnvFile(p);
+}
+
+const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }) });
 
 // Password hashing (scrypt) — must match packages/shared/src/crypto.ts.
 function hashPassword(password: string): string {
