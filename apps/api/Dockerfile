@@ -34,11 +34,16 @@ ENV NODE_ENV=production
 ENV API_PORT=4000
 
 # node_modules carries the generated Prisma client and the @kynren/* symlinks;
-# packages/ carries their built dist that those symlinks resolve to.
+# packages/ carries their built dist that those symlinks resolve to. Some of
+# @kynren/api's own deps (currently @nestjs/* and express) land nested under
+# apps/api/node_modules rather than hoisted to the root — npm's own call,
+# not something to fight — so that has to be copied too, or Node's module
+# resolution walking up from apps/api/dist/main.js comes up empty for them.
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/packages ./packages
 COPY --from=build /app/apps/api/dist ./apps/api/dist
+COPY --from=build /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=build /app/apps/api/package.json ./apps/api/package.json
 
 EXPOSE 4000
