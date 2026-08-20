@@ -3,15 +3,37 @@
 import { useRef, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 
+type QrType = 'attraction' | 'restaurant' | 'shop' | 'poi' | 'menu-item' | 'shop-item';
+
 /**
- * A per-entity QR code. Encodes a `kynren://spot/<type>/<id>` deep link that the
- * mobile app's scanner resolves to the spot on the map. Shows a modal with the
- * code and a PNG download for printing/signage.
+ * A per-entity QR code.
+ *
+ * For a location (attraction/restaurant/shop/poi) this encodes a
+ * `kynren://spot/<type>/<id>` deep link that the mobile app's scanner
+ * resolves to that spot on the map.
+ *
+ * For an individual menu item or shop product — which isn't its own map
+ * spot, just something sold at one — it encodes
+ * `kynren://item/<menu|shop>/<parentSlug>/<id>` instead; the scanner jumps
+ * straight to that restaurant/shop's own screen rather than the map.
+ * `parentSlug` is required for these two types.
+ *
+ * Either way: a modal with the code and a PNG download for printing/signage.
  */
-export function QrButton({ type, id, label }: { type: 'attraction' | 'restaurant' | 'shop' | 'poi'; id: string; label: string }) {
+export function QrButton({
+  type, id, label, parentSlug,
+}: {
+  type: QrType;
+  id: string;
+  label: string;
+  parentSlug?: string;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const value = `kynren://spot/${type}/${id}`;
+  const value =
+    type === 'menu-item' ? `kynren://item/menu/${parentSlug}/${id}`
+    : type === 'shop-item' ? `kynren://item/shop/${parentSlug}/${id}`
+    : `kynren://spot/${type}/${id}`;
 
   function download() {
     const canvas = ref.current?.querySelector('canvas');

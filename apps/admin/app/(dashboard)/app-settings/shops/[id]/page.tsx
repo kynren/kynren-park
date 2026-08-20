@@ -209,6 +209,7 @@ export default function ShopDetail() {
               )}
               <div style={{ marginTop: 6 }}>
                 <button className="tbtn" onClick={() => editItem(it)}>Edit</button>{' '}
+                <QrButton type="shop-item" id={it.id} label={it.name} parentSlug={s.slug} />{' '}
                 <button className="tbtn danger" onClick={() => removeItem(it)}>Remove</button>
               </div>
             </div>

@@ -7,6 +7,7 @@ import { confirmDelete } from '../../../../lib/confirm';
 import { uploadToast } from '../../../../lib/toast';
 import { GalleryEditor } from '../../../../components/GalleryEditor';
 import { ImportCsvModal } from '../../../../components/ImportCsvModal';
+import { QrButton } from '../../../../components/QrButton';
 
 interface Poi {
   id: string; type: string; name: string; lat: number; lng: number; color: string | null; mapZone: string | null;
@@ -156,6 +157,7 @@ export default function Facilities() {
               <td style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--muted)' }}>{p.lat.toFixed(4)}, {p.lng.toFixed(4)}</td>
               <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
                 <button className="tbtn" onClick={() => openEdit(p)}>Edit</button>{' '}
+                <QrButton type="poi" id={p.id} label={p.name} />{' '}
                 <button className="tbtn danger" onClick={() => remove(p)}>Remove</button>
               </td>
             </tr>

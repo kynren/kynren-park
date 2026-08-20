@@ -205,6 +205,7 @@ export default function RestaurantDetail() {
               {mi.description && <p className="hint" style={{ margin: '2px 0' }}>{mi.description}</p>}
               <div style={{ marginTop: 6 }}>
                 <button className="tbtn" onClick={() => setItem({ ...mi })}>Edit</button>{' '}
+                <QrButton type="menu-item" id={mi.id} label={mi.name} parentSlug={r.slug} />{' '}
                 <button className="tbtn danger" onClick={() => removeItem(mi)}>Remove</button>
               </div>
             </div>

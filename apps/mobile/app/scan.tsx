@@ -11,6 +11,14 @@ function parseSpot(data: string): { type: string; id: string } | null {
   return m ? { type: m[1].toLowerCase(), id: m[2] } : null;
 }
 
+// A menu item / shop product isn't its own map spot — it's something sold at
+// one — so its code carries the parent's slug and goes straight to that
+// restaurant/shop screen instead of through the map.
+function parseItem(data: string): { kind: 'menu' | 'shop'; slug: string } | null {
+  const m = data.match(/item\/(menu|shop)\/([\w-]+)\/([\w-]+)/i);
+  return m ? { kind: m[1].toLowerCase() as 'menu' | 'shop', slug: m[2] } : null;
+}
+
 export default function ScanScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -20,8 +28,14 @@ export default function ScanScreen() {
 
   function onScanned({ data }: { data: string }) {
     if (handled.current) return;
+    const item = parseItem(data);
+    if (item) {
+      handled.current = true;
+      router.replace(`/${item.kind === 'menu' ? 'restaurant' : 'shop'}/${item.slug}`);
+      return;
+    }
     const spot = parseSpot(data);
-    if (!spot) { setError('That’s not a Kynren spot code. Try another.'); return; }
+    if (!spot) { setError('That’s not a Kynren code. Try another.'); return; }
     handled.current = true;
     router.replace({ pathname: '/map', params: { spot: `${spot.type}:${spot.id}` } });
   }
@@ -38,8 +52,8 @@ export default function ScanScreen() {
         />
       ) : (
         <View style={[styles.fill, styles.center, { padding: 28 }]}>
-          <Text style={styles.permH}>Scan spot codes</Text>
-          <Text style={styles.permTxt}>Allow camera access to scan a QR code and find that spot on the map.</Text>
+          <Text style={styles.permH}>Scan Kynren codes</Text>
+          <Text style={styles.permTxt}>Allow camera access to scan a code — a spot on the map, or a menu item or product.</Text>
           <Pressable style={styles.permBtn} onPress={requestPermission}>
             <Text style={styles.permBtnTxt}>Allow camera</Text>
           </Pressable>
@@ -50,7 +64,7 @@ export default function ScanScreen() {
       {permission?.granted && (
         <View style={styles.overlay} pointerEvents="none">
           <View style={styles.reticle} />
-          <Text style={styles.hint}>Point at a Kynren spot QR code</Text>
+          <Text style={styles.hint}>Point at a Kynren QR code</Text>
         </View>
       )}
       {error ? <Text style={[styles.err, { bottom: insets.bottom + 96 }]}>{error}</Text> : null}
