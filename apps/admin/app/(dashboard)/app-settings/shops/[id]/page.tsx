@@ -14,7 +14,23 @@ const STOCK_IMPORT_COLUMNS = [
   { key: 'description', label: 'Description' },
   { key: 'price', label: 'Price (£)' },
   { key: 'available', label: 'Available' },
+  { key: 'variants', label: 'Variants' },
 ];
+
+// "Small:2.50;Large:3.50;Red" -> [{name:'Small',priceCents:250}, {name:'Large',priceCents:350}, {name:'Red'}].
+// The price half is optional per variant — omit it to fall back to the product's base price.
+function parseVariants(raw: string): Variant[] {
+  return raw
+    .split(';')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const [name, price] = entry.split(':');
+      const priceCents = price !== undefined ? Math.round(parseFloat(price.trim()) * 100) : NaN;
+      return { name: (name ?? '').trim(), ...(Number.isFinite(priceCents) ? { priceCents } : {}) };
+    })
+    .filter((v) => v.name);
+}
 
 interface Poi { id: string; name: string; type: string }
 interface Variant { name: string; priceCents?: number }
@@ -125,6 +141,7 @@ export default function ShopDetail() {
       description: row.description || null,
       priceCents: Math.round(parseFloat(row.price || '0') * 100) || 0,
       available: row.available ? !/^(false|no|0)$/i.test(row.available.trim()) : true,
+      variants: row.variants ? parseVariants(row.variants) : [],
     }));
     const res = await api<{ created: number; skipped: number }>(`/admin/shops/${id}/items/bulk`, {
       method: 'POST', body: JSON.stringify({ items }),
@@ -265,7 +282,7 @@ export default function ShopDetail() {
         <ImportCsvModal
           title="Import stock"
           columns={STOCK_IMPORT_COLUMNS}
-          note="available defaults to yes unless set to false/no/0. Varieties aren't supported by import — add those per-product afterward."
+          note="available defaults to yes unless set to false/no/0. variants is optional and semicolon-separated as Name:Price, e.g. Small:2.50;Large:3.50;Red (a variant with no price uses the base price)."
           onImport={importStock}
           onClose={() => setImportOpen(false)}
         />
