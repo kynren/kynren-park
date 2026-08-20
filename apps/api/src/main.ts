@@ -51,7 +51,7 @@ async function bootstrap() {
     credentials: true,
     origin: allowAll
       ? true
-      : (origin, cb) => {
+      : (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => {
           // No Origin header → non-browser client (curl, mobile app): allow.
           if (!origin || localhostRe.test(origin) || configured.includes(origin)) {
             cb(null, true);

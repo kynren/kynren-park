@@ -3,6 +3,7 @@ import {
   ForbiddenException, BadRequestException, NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import type { StringValue } from 'ms';
 import { createHash, randomBytes } from 'node:crypto';
 import type { RegisterInput, LoginInput } from '@kynren/shared';
 import { hashPassword, verifyPassword } from '@kynren/shared/crypto';
@@ -25,7 +26,7 @@ export class AuthService {
   private signAccess(payload: object) {
     return this.jwt.sign(payload, {
       secret: process.env.JWT_ACCESS_SECRET,
-      expiresIn: process.env.JWT_ACCESS_TTL || '15m',
+      expiresIn: (process.env.JWT_ACCESS_TTL || '15m') as StringValue,
     });
   }
 
