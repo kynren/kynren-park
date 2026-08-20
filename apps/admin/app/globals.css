@@ -60,8 +60,9 @@ a { color: var(--green); text-decoration: none; }
 
 .main { flex: 1; padding: 24px 30px 0; max-width: 1500px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 .main-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; padding-bottom: 36px; min-width: 0; }
-/* Sticky System header + tabs so they stay put while content scrolls. */
-.sys-head { position: sticky; top: 0; z-index: 6; background: var(--app-bg); padding-top: 2px; }
+/* Sticky System header + tabs so they stay put while content scrolls.
+   Stacks below the breadcrumb (.pagenav, see below) at PAGENAV_H. */
+.sys-head { position: sticky; top: 48px; z-index: 5; background: var(--app-bg); padding-top: 2px; }
 
 /* ---- Top header ---- */
 .topheader { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 24px; }
@@ -219,11 +220,23 @@ button.primary:hover { filter: brightness(0.95); }
 .crumb { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); margin-bottom: 8px; flex-wrap: wrap; }
 .crumb a { color: var(--muted); }
 .crumb a:hover { color: var(--green); }
-/* global back + breadcrumb bar (PageNav) */
-.pagenav { display: flex; align-items: center; gap: 14px; margin: 2px 0 14px; flex-wrap: wrap; }
+/* global back + breadcrumb bar (PageNav) — sticky at the top of the
+   scroll pane (.main-scroll) so it stays visible while a long page
+   scrolls underneath it. min-height keeps its box a predictable size so
+   the page header below (.page-actions) can stack directly under it
+   without a gap or overlap — see PAGENAV_H below. */
+.pagenav { display: flex; align-items: center; gap: 14px; margin: 2px 0 14px; flex-wrap: wrap; position: sticky; top: 0; z-index: 6; background: var(--app-bg); min-height: 32px; }
 .pagenav .crumb { margin-bottom: 0; }
 .backbtn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: #fff; color: var(--ink); border-radius: 999px; padding: 6px 14px 6px 10px; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; }
 .backbtn:hover { border-color: var(--green); color: var(--green); }
+/* Every page's own title/subtitle/actions row (h1 + buttons) — always the
+   first .page-actions on the page; a second one further down (e.g. a
+   "Menu" section header) scrolls normally, only the page's own header
+   sticks. Defaults to top:0 for single-segment root pages with no
+   breadcrumb; PAGENAV_H (48px = .pagenav's ~32px content + its margins)
+   below stacks it under .pagenav wherever one is present. */
+.page-actions:first-of-type { position: sticky; top: 0; z-index: 5; background: var(--app-bg); padding-top: 4px; }
+.pagenav ~ * .page-actions:first-of-type, .pagenav ~ .page-actions:first-of-type { top: 48px; /* PAGENAV_H */ }
 .page-actions { display: flex; justify-content: space-between; align-items: center; margin: 6px 0 18px; gap: 12px; flex-wrap: wrap; }
 
 /* data table */
