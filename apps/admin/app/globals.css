@@ -242,6 +242,14 @@ button.primary:hover { filter: brightness(0.95); }
    same reason .pagenav uses padding above — see that comment. */
 .page-actions:first-of-type { position: sticky; top: 0; z-index: 5; background: var(--app-bg); margin-top: 0; padding-top: 6px; }
 .pagenav ~ * .page-actions:first-of-type, .pagenav ~ .page-actions:first-of-type { top: 46px; /* PAGENAV_H (2px overlap buffer against rounding) */ }
+/* System pages (/system/*) already have their own sticky section header
+   (.sys-head, above) pinned at this same top:46px offset. A system page's
+   own .page-actions (e.g. SimpleCrud's "+ Add organization" row) must NOT
+   also try to stick there too — sys-head is taller than the offset, so a
+   second element sticking to the same spot renders on top of it once both
+   are pinned, hiding the System tabs underneath. Drop back to normal flow
+   for those; .sys-head is the only sticky header this section needs. */
+.sys-head ~ .page-actions:first-of-type, .sys-head ~ * .page-actions:first-of-type { position: static; top: auto; }
 .page-actions { display: flex; justify-content: space-between; align-items: center; margin: 6px 0 18px; gap: 12px; flex-wrap: wrap; }
 
 /* data table */
