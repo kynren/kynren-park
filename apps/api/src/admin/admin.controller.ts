@@ -3,6 +3,7 @@ import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { Roles } from '../common/decorators.js';
 import { RolesGuard } from '../common/guards.js';
+import { ukTodayStr } from '../common/uk-date.js';
 
 @ApiTags('admin')
 @ApiBearerAuth()
@@ -15,7 +16,7 @@ export class AdminController {
   /** Rich dashboard analytics for the selected day. */
   @Get('analytics')
   async analytics(@Query('date') date?: string) {
-    const day = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : new Date().toISOString().slice(0, 10);
+    const day = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : ukTodayStr();
     const start = new Date(`${day}T00:00:00.000Z`);
     const end = new Date(`${day}T23:59:59.999Z`);
     const dayDate = new Date(`${day}T00:00:00.000Z`);

@@ -7,10 +7,7 @@ import { ScheduleService } from './schedule.service.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { Public, RequirePermission } from '../common/decorators.js';
 import { PermissionsGuard } from '../common/guards.js';
-
-function todayStr() {
-  return new Date().toISOString().slice(0, 10);
-}
+import { ukTodayStr } from '../common/uk-date.js';
 
 @ApiTags('schedule')
 @Controller('schedule')
@@ -24,7 +21,7 @@ export class ScheduleController {
   @Public()
   @Get()
   byDate(@Query('date') date?: string) {
-    return this.schedule.byDate(date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : todayStr());
+    return this.schedule.byDate(date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : ukTodayStr());
   }
 
   /** Staff: change a session's live status → realtime + push. */

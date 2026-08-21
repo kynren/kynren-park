@@ -5,6 +5,7 @@ import { RequirePermission } from '../common/decorators.js';
 import { PermissionsGuard } from '../common/guards.js';
 import { DEFAULT_HOME_SECTIONS, resolveHomeScreen } from './home-screen.util.js';
 import { IMAGE_SLOTS, DEFAULT_IMAGE } from './image-slots.js';
+import { ukTodayStr } from '../common/uk-date.js';
 import { ScheduleService } from '../schedule/schedule.service.js';
 
 function slugify(s: string): string {
@@ -731,7 +732,7 @@ export class ManageController {
   // ---- System console: app users -------------------------------------------
   @Get('users')
   async listUsers() {
-    const today = new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`);
+    const today = new Date(`${ukTodayStr()}T00:00:00.000Z`);
     const [users, todayBookings, pois] = await Promise.all([
       this.prisma.user.findMany({
         orderBy: { createdAt: 'desc' },
