@@ -73,6 +73,24 @@ Notifications.setNotificationHandler({
   }),
 });
 
+/**
+ * Turn an admin-entered NotificationTemplate/Announcement `deepLink` (free
+ * text) into an in-app expo-router path. The backend's own generated
+ * deepLinks are already bare paths ("/attraction/slug"), which pass through
+ * unchanged, but the field is free text an admin can type anything into —
+ * including a scheme-prefixed form like "kynren://attraction/slug" (the
+ * scanner's QR codes use a similarly-shaped kynren:// scheme for a
+ * different purpose, so typing that pattern here by mistake is plausible).
+ * Strips a leading scheme if present. Returns null for empty input so a
+ * blank deepLink is a no-op instead of navigating to "/".
+ */
+function resolveDeepLink(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const withoutScheme = trimmed.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '');
+  return withoutScheme.startsWith('/') ? withoutScheme : `/${withoutScheme}`;
+}
+
 function RootNav() {
   const { scheme } = useThemePref();
   const dark = scheme === 'dark';
@@ -86,8 +104,17 @@ function RootNav() {
     registerPushToken().catch(() => undefined);
     const sub = Notifications.addNotificationResponseReceivedListener((resp) => {
       const data = resp.notification.request.content.data as { type?: string; deepLink?: string } | undefined;
-      if (data?.deepLink) router.push(data.deepLink as never);
-      else if (data?.type === 'announcement') router.push('/notifications');
+      const path = data?.deepLink ? resolveDeepLink(data.deepLink) : null;
+      if (path) {
+        try {
+          router.push(path as never);
+        } catch {
+          // Admin-entered deepLink didn't resolve to a real route — fail
+          // quietly rather than crash on tap.
+        }
+      } else if (data?.type === 'announcement') {
+        router.push('/notifications');
+      }
     });
     return () => sub.remove();
   }, [router]);
