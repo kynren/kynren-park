@@ -4,7 +4,9 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { NestFactory } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import express from 'express';
+import helmet from 'helmet';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module.js';
 
@@ -33,7 +35,19 @@ function loadRootEnv() {
 
 async function bootstrap() {
   const envPath = loadRootEnv();
-  const app = await NestFactory.create(AppModule, { bodyParser: false });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
+  // Trust exactly one hop of reverse proxy (Caddy, in front of this API in
+  // every deployed environment) so req.ip reflects the real client IP from
+  // X-Forwarded-For instead of Caddy's own container IP. Without this,
+  // every request looks like it comes from the same address, and
+  // ThrottlerGuard's per-client rate limits (see app.module.ts) would end
+  // up shared across every actual user instead of applying per-client.
+  app.set('trust proxy', 1);
+  // Standard security headers (X-Content-Type-Options, X-Frame-Options,
+  // Strict-Transport-Security, etc.). CSP off: this API mostly serves JSON
+  // to the mobile app/admin, not HTML, and a default CSP breaks the /docs
+  // Swagger UI's inline scripts/styles — not worth fighting for an API.
+  app.use(helmet({ contentSecurityPolicy: false }));
   // Larger limit so uploaded map images (base64 data URLs) aren't rejected.
   app.use(express.json({ limit: '25mb' }));
   app.use(express.urlencoded({ limit: '25mb', extended: true }));
