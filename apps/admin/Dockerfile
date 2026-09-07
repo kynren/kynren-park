@@ -17,6 +17,15 @@ ARG NEXT_PUBLIC_API_URL=http://localhost:4000
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 RUN npm run build --workspace @kynren/shared \
  && npm run build --workspace @kynren/admin
+# npm's hoisting call for @kynren/admin's own deps (currently next and
+# some of its own deps) is NOT deterministic across environments — the
+# exact same package.json can hoist fully to the root on one machine and
+# nest under apps/admin/node_modules on another (observed directly: this
+# happened with apps/api's Dockerfile on a fresh build host that hoisted
+# differently than the machine this was first written on). Guarantee the
+# directory exists either way so the runtime stage's COPY below never
+# hard-fails on a topology it didn't happen to see locally.
+RUN mkdir -p apps/admin/node_modules
 
 # ---- Runtime stage ----
 FROM node:20-slim AS runtime

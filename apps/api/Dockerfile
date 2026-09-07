@@ -25,6 +25,16 @@ RUN npm run build --workspace @kynren/shared \
  && DATABASE_URL="postgresql://u:p@localhost:5432/db?schema=public" npm run db:generate \
  && npm run build --workspace @kynren/db \
  && npm run build --workspace @kynren/api
+# npm's hoisting call for @kynren/api's own deps (currently some of
+# @nestjs/*, express) is NOT deterministic across environments — the exact
+# same package.json hoists some deps under apps/api/node_modules on one
+# machine and fully to the root on another (observed directly: this exact
+# Dockerfile failed on a fresh build host because apps/api/node_modules
+# didn't exist at all, even though it reliably did on the machine this was
+# first written on). Guarantee the directory exists either way so the
+# runtime stage's COPY below never hard-fails on a topology it didn't
+# happen to see locally.
+RUN mkdir -p apps/api/node_modules
 
 # ---- Runtime stage ----
 FROM node:20-slim AS runtime
