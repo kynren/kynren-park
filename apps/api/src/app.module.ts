@@ -20,6 +20,9 @@ import { BrandingModule } from './branding/branding.module.js';
 import { UsersModule } from './users/users.module.js';
 import { AdminModule } from './admin/admin.module.js';
 import { StatusModule } from './status/status.module.js';
+import { SmeetzModule } from './smeetz/smeetz.module.js';
+import { ShuttleModule } from './shuttle/shuttle.module.js';
+import { WeatherModule } from './weather/weather.module.js';
 import { HealthController } from './health/health.controller.js';
 import { JwtAuthGuard } from './common/guards.js';
 
@@ -49,6 +52,9 @@ import { JwtAuthGuard } from './common/guards.js';
     UsersModule,
     AdminModule,
     StatusModule,
+    SmeetzModule,
+    ShuttleModule,
+    WeatherModule,
   ],
   controllers: [HealthController],
   providers: [

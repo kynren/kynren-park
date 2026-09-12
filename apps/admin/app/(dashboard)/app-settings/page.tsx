@@ -18,7 +18,9 @@ const CARDS: { href: string; title: string; desc: string; icon: string; ready: b
   { href: '/app-settings/facilities', title: 'Facilities', ready: true, icon: 'M4 4h7v7H4z|M13 4h7v7h-7z|M4 13h7v7H4z|M13 13h7v7h-7z', desc: 'Toilets, first aid, shops and any service shown on the map — add one at a time or import a batch from a CSV.' },
   { href: '/app-settings/push', title: 'Push Templates', ready: true, icon: 'M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9|M13.7 21a2 2 0 0 1-3.4 0', desc: 'Create push-notification templates and assign them to actions.' },
   { href: '/app-settings/walkthrough', title: 'Walkthrough', ready: true, icon: 'M12 2 2 7l10 5 10-5-10-5z|M2 17l10 5 10-5|M2 12l10 5 10-5', desc: 'Write the first-time onboarding tour and pick which tab each step appears on.' },
-  { href: '/system/api-connection', title: 'API Connections', ready: true, icon: 'M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1|M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1', desc: 'Push and pull data to and from other applications.' },
+  { href: '/app-settings/content', title: 'Content Pages', ready: true, icon: 'M6 3h9l5 5v13H6z|M15 3v5h5|M9 12h6|M9 16h6', desc: 'FAQ, info, safety and accessibility pages shown in the app’s help section.' },
+  { href: '/app-settings/shuttle', title: 'Shuttle', ready: true, icon: 'M4 16V8a2 2 0 0 1 2-2h9l5 5v5|M4 16h16|M7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z|M17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z', desc: 'Scheduled shuttle routes, stops and departure times (timetable, not live GPS).' },
+  { href: '/system/api-connection', title: 'API Connections', ready: true, icon: 'M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1|M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1', desc: 'Push and pull data to and from other applications, including Smeetz ticketing.' },
   { href: '/system/users', title: 'Users', ready: true, icon: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2|M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z|M22 21v-2a4 4 0 0 0-3-3.9', desc: 'Everyone who installed the app and who is in the park right now.' },
 ];
 

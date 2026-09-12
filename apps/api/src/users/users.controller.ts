@@ -1,5 +1,6 @@
-import { Body, Controller, Delete, Get, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Patch, Post } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { Prisma } from '@kynren/db';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CurrentUser } from '../common/decorators.js';
 import type { AuthPrincipal } from '../common/decorators.js';
@@ -14,8 +15,86 @@ export class UsersController {
   me(@CurrentUser() user: AuthPrincipal) {
     return this.prisma.user.findUnique({
       where: { id: user.sub },
-      select: { id: true, email: true, name: true, locale: true, accessibilityPrefs: true },
+      select: {
+        id: true, email: true, name: true, locale: true, accessibilityPrefs: true,
+        marketingConsent: true, consentedAt: true,
+      },
     });
+  }
+
+  /** Merge-patch the guest's accessibility preferences (a free-form JSON blob). */
+  @Patch('accessibility')
+  async updateAccessibility(@CurrentUser() user: AuthPrincipal, @Body() body: Record<string, unknown>) {
+    const current = await this.prisma.user.findUnique({ where: { id: user.sub }, select: { accessibilityPrefs: true } });
+    const merged = { ...(current?.accessibilityPrefs as Record<string, unknown> | null ?? {}), ...body };
+    const updated = await this.prisma.user.update({
+      where: { id: user.sub },
+      data: { accessibilityPrefs: merged as Prisma.InputJsonValue },
+      select: { accessibilityPrefs: true },
+    });
+    return updated.accessibilityPrefs;
+  }
+
+  // --- GDPR: consent, export, deletion ---------------------------------------
+
+  @Patch('consent')
+  async setConsent(@CurrentUser() user: AuthPrincipal, @Body() body: { marketingConsent?: boolean }) {
+    const marketingConsent = !!body?.marketingConsent;
+    const updated = await this.prisma.user.update({
+      where: { id: user.sub },
+      data: { marketingConsent, consentedAt: marketingConsent ? new Date() : null },
+      select: { marketingConsent: true, consentedAt: true },
+    });
+    return updated;
+  }
+
+  /** Right to data portability: a JSON dump of everything tied to this account. */
+  @Get('export')
+  async exportData(@CurrentUser() user: AuthPrincipal) {
+    const [profile, bookings, orders, favorites, itineraries, notifications, smeetzLinkedOrders] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: user.sub },
+        select: {
+          id: true, email: true, name: true, locale: true, accessibilityPrefs: true,
+          marketingConsent: true, consentedAt: true, createdAt: true,
+        },
+      }),
+      this.prisma.booking.findMany({ where: { userId: user.sub }, include: { tickets: true } }),
+      this.prisma.order.findMany({ where: { userId: user.sub }, include: { items: true } }),
+      this.prisma.favorite.findMany({ where: { userId: user.sub } }),
+      this.prisma.itinerary.findMany({ where: { userId: user.sub }, include: { items: true } }),
+      this.prisma.notification.findMany({ where: { userId: user.sub } }),
+      this.prisma.smeetzLinkedOrder.findMany({ where: { userId: user.sub } }),
+    ]);
+    return { exportedAt: new Date().toISOString(), profile, bookings, orders, favorites, itineraries, notifications, smeetzLinkedOrders };
+  }
+
+  /**
+   * Right to erasure — implemented as anonymization rather than a hard
+   * cascading delete, so booking/order history needed for accounting/legal
+   * retention survives while all personal identifiers are cleared.
+   */
+  @Delete()
+  async deleteAccount(@CurrentUser() user: AuthPrincipal) {
+    await this.prisma.$transaction([
+      this.prisma.pushToken.deleteMany({ where: { userId: user.sub } }),
+      this.prisma.refreshToken.deleteMany({ where: { userId: user.sub } }),
+      this.prisma.user.update({
+        where: { id: user.sub },
+        data: {
+          email: null,
+          name: null,
+          passwordHash: null,
+          accessibilityPrefs: Prisma.JsonNull,
+          lastLat: null,
+          lastLng: null,
+          lastSeenAt: null,
+          marketingConsent: false,
+          consentedAt: null,
+        },
+      }),
+    ]);
+    return { ok: true };
   }
 
   /** Report the guest's current location (for in-park presence). */

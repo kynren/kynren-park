@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ScrollView, View, Text, StyleSheet, TextInput, Switch, Image, Alert } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, TextInput, Switch, Image, Alert, Share } from 'react-native';
 import { Touchable } from '../components/Touchable';
 import { useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,6 +8,8 @@ import * as ImagePicker from 'expo-image-picker';
 import Svg, { Path } from 'react-native-svg';
 import { theme } from '../lib/theme';
 import { useThemePref, type ThemePref } from '../lib/theme-context';
+import { useAuth } from '../lib/auth';
+import { api } from '../lib/api';
 
 const PROFILE_KEY = 'kynren_profile';
 
@@ -37,14 +39,67 @@ export default function SettingsScreen() {
   const pal = usePalette();
   const insets = useSafeAreaInsets();
   const { pref, setPref } = useThemePref();
+  const { user, logout } = useAuth();
   const [p, setP] = useState<Profile>(EMPTY);
   const [saved, setSaved] = useState(false);
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [marketingConsent, setMarketingConsent] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     AsyncStorage.getItem(PROFILE_KEY).then((raw) => raw && setP({ ...EMPTY, ...JSON.parse(raw) }));
   }, []);
   useEffect(() => () => { if (savedTimer.current) clearTimeout(savedTimer.current); }, []);
+  useEffect(() => {
+    if (!user) return;
+    api<{ marketingConsent?: boolean }>('/me').then((me) => setMarketingConsent(!!me.marketingConsent)).catch(() => undefined);
+  }, [user]);
+
+  async function toggleConsent(next: boolean) {
+    setMarketingConsent(next);
+    try {
+      await api('/me/consent', { method: 'PATCH', body: JSON.stringify({ marketingConsent: next }) });
+    } catch {
+      setMarketingConsent(!next);
+    }
+  }
+
+  async function exportData() {
+    setExporting(true);
+    try {
+      const data = await api('/me/export');
+      await Share.share({ message: JSON.stringify(data, null, 2), title: 'My Kynren data' });
+    } catch {
+      Alert.alert('Couldn’t export your data', 'Please try again.');
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  function deleteAccount() {
+    Alert.alert(
+      'Delete your account?',
+      'This removes your personal details from Kynren. Your booking history is kept for accounting records but is no longer linked to you. This can’t be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete account', style: 'destructive', onPress: async () => {
+            setDeleting(true);
+            try {
+              await api('/me', { method: 'DELETE' });
+              await logout();
+              router.replace('/(tabs)');
+            } catch {
+              Alert.alert('Couldn’t delete your account', 'Please try again.');
+            } finally {
+              setDeleting(false);
+            }
+          },
+        },
+      ],
+    );
+  }
 
   const set = <K extends keyof Profile>(k: K, v: Profile[K]) => setP((prev) => ({ ...prev, [k]: v }));
 
@@ -130,6 +185,18 @@ export default function SettingsScreen() {
         <Touchable style={styles.saveBtn} onPress={save}>
           <Text style={styles.saveTxt}>{saved ? '✓ Saved' : 'Save changes'}</Text>
         </Touchable>
+
+        {user && (
+          <Section title="Privacy & data" pal={pal}>
+            <Toggle label="Marketing announcements" value={marketingConsent} onChange={toggleConsent} pal={pal} />
+            <Touchable onPress={exportData} disabled={exporting}>
+              <Text style={[styles.linkAction, { color: theme.brand }]}>{exporting ? 'Preparing export…' : 'Export my data'}</Text>
+            </Touchable>
+            <Touchable onPress={deleteAccount} disabled={deleting}>
+              <Text style={[styles.linkAction, { color: '#c0392b' }]}>{deleting ? 'Deleting…' : 'Delete my account'}</Text>
+            </Touchable>
+          </Section>
+        )}
       </ScrollView>
     </View>
   );
@@ -194,4 +261,5 @@ const styles = StyleSheet.create({
   segTxt: { fontWeight: '700', fontSize: 14 },
   saveBtn: { backgroundColor: theme.brand, borderRadius: 12, paddingVertical: 16, alignItems: 'center' },
   saveTxt: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  linkAction: { fontSize: 15, fontWeight: '700', paddingVertical: 4 },
 });

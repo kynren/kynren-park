@@ -78,6 +78,21 @@ export class PushService {
     await this.sendToTokens(tokens.map((t) => t.token), title, body, data);
   }
 
+  /**
+   * Like sendToAll, but for the ANNOUNCEMENT category specifically (the
+   * closest existing category to "marketing"), which GDPR requires an opt-in
+   * for. Anonymous/guest devices (no linked account, so no consent record to
+   * check) still receive it, matching their existing behaviour; a
+   * signed-in guest only receives it once they've turned marketing consent on.
+   */
+  async sendMarketingToAll(title: string, body: string, data?: Record<string, unknown>) {
+    const tokens = await this.prisma.pushToken.findMany({
+      where: { OR: [{ userId: null }, { user: { marketingConsent: true } }] },
+      select: { token: true },
+    });
+    await this.sendToTokens(tokens.map((t) => t.token), title, body, data);
+  }
+
   private async sendToTokens(tokens: string[], title: string, body: string, data?: Record<string, unknown>) {
     const valid = tokens.filter((t) => Expo.isExpoPushToken(t));
     if (valid.length === 0) return;

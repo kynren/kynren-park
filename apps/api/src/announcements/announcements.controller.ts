@@ -57,7 +57,7 @@ export class AnnouncementsController {
     // Send immediately when not scheduled for later.
     if (!body.scheduledAt) {
       this.realtime.emit(REALTIME_EVENTS.announcement, announcement, body.targetDate);
-      await this.push.sendToAll(announcement.title, announcement.body, {
+      await this.push.sendMarketingToAll(announcement.title, announcement.body, {
         type: 'announcement',
         id: announcement.id,
         ...(announcement.deepLink ? { deepLink: announcement.deepLink } : {}),
@@ -69,7 +69,7 @@ export class AnnouncementsController {
   // ---- Admin management (schedule / edit / delete / resend) ------------------
   private async dispatch(a: { id: string; title: string; body: string; targetDate: Date | null; deepLink?: string | null }) {
     this.realtime.emit(REALTIME_EVENTS.announcement, a, a.targetDate?.toISOString().slice(0, 10));
-    await this.push.sendToAll(a.title, a.body, {
+    await this.push.sendMarketingToAll(a.title, a.body, {
       type: 'announcement',
       id: a.id,
       ...(a.deepLink ? { deepLink: a.deepLink } : {}),

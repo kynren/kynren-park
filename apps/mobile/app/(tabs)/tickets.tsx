@@ -1,11 +1,12 @@
 import { useCallback, useState } from 'react';
-import { ScrollView, View, Text, StyleSheet, Alert } from 'react-native';
+import { ScrollView, View, Text, TextInput, StyleSheet, Alert } from 'react-native';
 import { Touchable } from '../../components/Touchable';
 import { useFocusEffect, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import QRCode from 'react-native-qrcode-svg';
 import { useSync } from '../../lib/sync';
 import { useAuth } from '../../lib/auth';
+import { api } from '../../lib/api';
 import { useI18n } from '../../lib/i18n';
 import { poundsFromCents } from '../../lib/format';
 import { theme } from '../../lib/theme';
@@ -18,19 +19,49 @@ interface CachedTicket {
   qrToken: string;
 }
 
+interface SmeetzLinkedOrder {
+  reference: string;
+  linkedAt: string;
+  order: Record<string, unknown> | null;
+}
+
 export default function TicketsScreen() {
   const { bundle } = useSync();
   const { user, logout } = useAuth();
   const { t } = useI18n();
   const router = useRouter();
   const [tickets, setTickets] = useState<CachedTicket[]>([]);
+  const [smeetzOrders, setSmeetzOrders] = useState<SmeetzLinkedOrder[]>([]);
+  const [linkRef, setLinkRef] = useState('');
+  const [linking, setLinking] = useState(false);
 
   // Reload cached tickets whenever the tab regains focus (e.g. after booking).
   useFocusEffect(
     useCallback(() => {
       AsyncStorage.getItem('kynren_tickets').then((raw) => setTickets(raw ? JSON.parse(raw) : []));
-    }, []),
+      if (user) {
+        api<SmeetzLinkedOrder[]>('/smeetz/my-orders').then(setSmeetzOrders).catch(() => undefined);
+      } else {
+        setSmeetzOrders([]);
+      }
+    }, [user]),
   );
+
+  async function linkSmeetzOrder() {
+    const reference = linkRef.trim();
+    if (!reference) return;
+    setLinking(true);
+    try {
+      await api('/smeetz/link', { method: 'POST', body: JSON.stringify({ reference }) });
+      setLinkRef('');
+      const orders = await api<SmeetzLinkedOrder[]>('/smeetz/my-orders');
+      setSmeetzOrders(orders);
+    } catch {
+      Alert.alert('Couldn’t link that booking', 'Check the reference and try again.');
+    } finally {
+      setLinking(false);
+    }
+  }
 
   return (
     <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
@@ -90,6 +121,32 @@ export default function TicketsScreen() {
         ))
       )}
 
+      {user && (
+        <>
+          <Text style={styles.h2}>Booked via Smeetz?</Text>
+          <View style={styles.linkRow}>
+            <TextInput
+              style={[styles.input, { flex: 1 }]}
+              value={linkRef}
+              onChangeText={setLinkRef}
+              placeholder="Enter your Smeetz order reference"
+              autoCapitalize="characters"
+              autoCorrect={false}
+            />
+            <Touchable style={styles.linkBtn} onPress={linkSmeetzOrder} disabled={linking}>
+              <Text style={styles.linkBtnText}>{linking ? '…' : 'Link'}</Text>
+            </Touchable>
+          </View>
+          {smeetzOrders.map((o) => (
+            <View key={o.reference} style={styles.ticket}>
+              <Text style={styles.ticketType}>Smeetz booking</Text>
+              <Text style={styles.muted}>{o.reference}</Text>
+              {!o.order && <Text style={[styles.muted, { marginTop: 6 }]}>Couldn’t refresh this booking right now.</Text>}
+            </View>
+          ))}
+        </>
+      )}
+
       <Text style={styles.h2}>{t('tickets.prices')}</Text>
       {(bundle?.ticketTypes ?? []).map((tt) => (
         <View key={tt.id} style={styles.priceRow}>
@@ -118,6 +175,10 @@ const styles = StyleSheet.create({
   langText: { color: theme.ink, fontWeight: '600', fontSize: 14 },
   chev: { color: theme.muted, fontSize: 20 },
   cta: { backgroundColor: theme.brand, borderRadius: 12, padding: 15, alignItems: 'center', marginTop: 12, marginBottom: 6 },
+  linkRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  input: { backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border, borderRadius: 10, padding: 12, color: theme.ink },
+  linkBtn: { backgroundColor: theme.brand, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 16 },
+  linkBtnText: { color: '#fff', fontWeight: '700' },
   ctaText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   empty: { backgroundColor: theme.card, borderRadius: 12, padding: 20, borderWidth: 1, borderColor: theme.border, marginTop: 10 },
   emptyTitle: { fontWeight: '700', color: theme.ink, fontSize: 15 },

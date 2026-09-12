@@ -868,4 +868,50 @@ export class ManageController {
       ],
     };
   }
+
+  // ---- Content pages (FAQ / info / safety / accessibility) -------------------
+  private async uniqueContentSlug(base: string, ignoreId?: string): Promise<string> {
+    const root = slugify(base);
+    let slug = root;
+    for (let i = 2; i < 50; i++) {
+      const existing = await this.prisma.contentPage.findUnique({ where: { slug } });
+      if (!existing || existing.id === ignoreId) return slug;
+      slug = `${root}-${i}`;
+    }
+    return `${root}-${Date.now()}`;
+  }
+
+  @Get('content-pages')
+  listContentPages() {
+    return this.prisma.contentPage.findMany({ orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }] });
+  }
+
+  @Post('content-pages')
+  async createContentPage(@Body() b: any) {
+    if (!b?.title) throw new BadRequestException('title is required');
+    const slug = await this.uniqueContentSlug(b.slug || b.title);
+    return this.prisma.contentPage.create({
+      data: {
+        slug,
+        title: b.title,
+        body: b.body ?? '',
+        category: b.category ?? null,
+        sortOrder: Number(b.sortOrder ?? 0),
+        published: b.published ?? true,
+      },
+    });
+  }
+
+  @Patch('content-pages/:id')
+  updateContentPage(@Param('id') id: string, @Body() b: any) {
+    const data = pick(b, ['title', 'body', 'category', 'published']);
+    if (b.sortOrder !== undefined) data.sortOrder = Number(b.sortOrder);
+    return this.prisma.contentPage.update({ where: { id }, data });
+  }
+
+  @Delete('content-pages/:id')
+  async deleteContentPage(@Param('id') id: string) {
+    await this.prisma.contentPage.delete({ where: { id } });
+    return { deleted: true };
+  }
 }

@@ -12,6 +12,50 @@ import { theme, categoryColor, statusColor } from '../../lib/theme';
 import { useThemePref } from '../../lib/theme-context';
 import { useBrand } from '../../lib/brand';
 import { SkeletonRows } from '../../components/Shimmer';
+import { api } from '../../lib/api';
+
+// Open-Meteo WMO weather codes, grouped to a small icon set.
+const WEATHER_ICON: Record<number, string> = {
+  0: '☀️', 1: '🌤️', 2: '⛅', 3: '☁️',
+  45: '🌫️', 48: '🌫️',
+  51: '🌦️', 53: '🌦️', 55: '🌦️',
+  61: '🌧️', 63: '🌧️', 65: '🌧️',
+  71: '🌨️', 73: '🌨️', 75: '🌨️',
+  80: '🌦️', 81: '🌧️', 82: '⛈️',
+  95: '⛈️', 96: '⛈️', 99: '⛈️',
+};
+
+interface WeatherResponse {
+  current?: { temperature_2m?: number; weather_code?: number };
+}
+
+function WeatherShuttleRow({ pal }: { pal: ReturnType<typeof usePalette> }) {
+  const router = useRouter();
+  const [weather, setWeather] = useState<WeatherResponse | null>(null);
+
+  useEffect(() => {
+    api<WeatherResponse>('/weather').then(setWeather).catch(() => undefined);
+  }, []);
+
+  return (
+    <View style={styles.quickRow}>
+      <Touchable style={[styles.quickCard, { backgroundColor: pal.card }]} onPress={() => {}} disabled>
+        <Text style={styles.quickIcon}>{WEATHER_ICON[weather?.current?.weather_code ?? 0] ?? '🌤️'}</Text>
+        <Text style={[styles.quickText, { color: pal.text }]}>
+          {weather?.current?.temperature_2m != null ? `${Math.round(weather.current.temperature_2m)}°C` : 'Weather'}
+        </Text>
+      </Touchable>
+      <Touchable style={[styles.quickCard, { backgroundColor: pal.card }]} onPress={() => router.push('/shuttle')}>
+        <Text style={styles.quickIcon}>🚌</Text>
+        <Text style={[styles.quickText, { color: pal.text }]}>Shuttle</Text>
+      </Touchable>
+      <Touchable style={[styles.quickCard, { backgroundColor: pal.card }]} onPress={() => router.push('/accessibility')}>
+        <Text style={styles.quickIcon}>♿</Text>
+        <Text style={[styles.quickText, { color: pal.text }]}>Access</Text>
+      </Touchable>
+    </View>
+  );
+}
 
 const HERO_H = Math.min(520, Math.max(420, Dimensions.get('window').height * 0.56));
 const DEFAULT_SECTIONS = ['actions', 'welcome', 'visit', 'announcement', 'alerts', 'comingUp', 'favourites'];
@@ -226,6 +270,7 @@ export default function HomeScreen() {
         </View>
       </View>
 
+      <WeatherShuttleRow pal={pal} />
       {sectionOrder.map((key) => renderSection(key))}
     </ScrollView>
 
@@ -355,6 +400,10 @@ const styles = StyleSheet.create({
   logoImg: { height: 40, width: 170 },
   avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   tagline: { color: '#fff', fontSize: 34, fontWeight: '800', lineHeight: 38, textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 8 },
+  quickRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 18, marginTop: 18 },
+  quickCard: { flex: 1, borderRadius: 14, paddingVertical: 14, alignItems: 'center', gap: 4 },
+  quickIcon: { fontSize: 20 },
+  quickText: { fontSize: 12, fontWeight: '700' },
   actions: { paddingHorizontal: 18, marginTop: -6, gap: 12 },
   primaryBtn: { backgroundColor: theme.brand, borderRadius: 999, paddingVertical: 17, alignItems: 'center' },
   primaryTxt: { color: '#fff', fontSize: 17, fontWeight: '800' },
