@@ -47,6 +47,9 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:-}
+      # Smeetz ticketing (server-side only). Production key — see .env.
+      SMEETZ_API_URL: ${SMEETZ_API_URL:-https://services.test.smeetz.com}
+      SMEETZ_API_KEY: ${SMEETZ_API_KEY:-}
     depends_on: [redis]
     networks: [assetnet]
     expose: ["4000"]
