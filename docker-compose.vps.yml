@@ -25,6 +25,28 @@ services:
     restart: unless-stopped
     networks: [assetnet]
 
+  # Self-hosted, replacing Prisma's hosted "Prisma Postgres" (db.prisma.io) after that account
+  # hit a plan limit and started rejecting all connections. Named park-postgres (not postgres) —
+  # kynren-asset-register already runs its own service literally named "postgres" on this same
+  # shared assetnet network, and reusing that name would collide. No host port is published
+  # (unlike asset-register's postgres) since nothing here needs host-side CLI access to it.
+  park-postgres:
+    image: postgres:16-alpine
+    container_name: kynren-park-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${PARK_POSTGRES_USER:-kynren_park}
+      POSTGRES_PASSWORD: ${PARK_POSTGRES_PASSWORD:?set PARK_POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${PARK_POSTGRES_DB:-kynren_park}
+    volumes:
+      - park_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PARK_POSTGRES_USER:-kynren_park} -d ${PARK_POSTGRES_DB:-kynren_park}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [assetnet]
+
   api:
     build:
       context: .
@@ -50,7 +72,11 @@ services:
       # Smeetz ticketing (server-side only). Production key — see .env.
       SMEETZ_API_URL: ${SMEETZ_API_URL:-https://services.test.smeetz.com}
       SMEETZ_API_KEY: ${SMEETZ_API_KEY:-}
-    depends_on: [redis]
+    depends_on:
+      redis:
+        condition: service_started
+      park-postgres:
+        condition: service_healthy
     networks: [assetnet]
     expose: ["4000"]
 
@@ -70,3 +96,6 @@ networks:
   assetnet:
     external: true
     name: kynren-asset-register_default
+
+volumes:
+  park_postgres_data:
