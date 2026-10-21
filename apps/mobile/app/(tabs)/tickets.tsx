@@ -19,10 +19,80 @@ interface CachedTicket {
   qrToken: string;
 }
 
+interface GuestTicket {
+  barcode: string | null;
+  status: string | null;
+  night: string | null;
+  holder: string | null;
+}
+interface GuestLine {
+  kind: string;
+  name: string;
+  priceName: string | null;
+  quantity: number;
+  tickets: GuestTicket[];
+}
+interface GuestOrder {
+  reference: string;
+  status: string;
+  placedAt: string;
+  currency: string;
+  valueTotal: number;
+  liveTickets: number;
+  nights: string[];
+  lines: GuestLine[];
+}
 interface SmeetzLinkedOrder {
   reference: string;
+  source: string;
   linkedAt: string;
-  order: Record<string, unknown> | null;
+  order: Partial<GuestOrder> | null;
+}
+
+const DEAD = /CANCEL|REFUND|VOID|EXPIRE/i;
+const day = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+function SmeetzOrderCard({ o }: { o: SmeetzLinkedOrder }) {
+  const order = o.order;
+  const lines = order?.lines ?? [];
+  return (
+    <View style={styles.ticket}>
+      <Text style={styles.ticketType}>Smeetz booking</Text>
+      <Text style={styles.muted}>
+        {o.reference}
+        {order?.placedAt ? ` · booked ${day(order.placedAt)}` : ''}
+      </Text>
+      {order?.liveTickets != null && (
+        <Text style={styles.muted}>
+          {order.liveTickets} ticket{order.liveTickets === 1 ? '' : 's'}
+          {order.nights?.length ? ` · ${order.nights.map(day).join(', ')}` : ''}
+          {order.status ? ` · ${order.status.toLowerCase()}` : ''}
+        </Text>
+      )}
+      {!order && <Text style={[styles.muted, { marginTop: 6 }]}>Couldn’t refresh this booking right now.</Text>}
+      {lines.map((line, i) =>
+        line.kind === 'TICKET' ? (
+          line.tickets
+            .filter((tk) => tk.barcode && !DEAD.test(tk.status ?? ''))
+            .map((tk) => (
+              <View key={tk.barcode} style={styles.smeetzTicket}>
+                <View style={styles.qrBox}>
+                  <QRCode value={tk.barcode as string} size={120} />
+                </View>
+                <Text style={styles.ticketType}>{line.name}</Text>
+                <Text style={styles.muted}>
+                  {[line.priceName, tk.night ? day(tk.night) : null, tk.holder].filter(Boolean).join(' · ')}
+                </Text>
+              </View>
+            ))
+        ) : (
+          <Text key={i} style={styles.muted}>
+            {line.quantity} × {line.name}
+          </Text>
+        ),
+      )}
+    </View>
+  );
 }
 
 export default function TicketsScreen() {
@@ -40,7 +110,10 @@ export default function TicketsScreen() {
     useCallback(() => {
       AsyncStorage.getItem('kynren_tickets').then((raw) => setTickets(raw ? JSON.parse(raw) : []));
       if (user) {
-        api<SmeetzLinkedOrder[]>('/smeetz/my-orders').then(setSmeetzOrders).catch(() => undefined);
+        // Show what is stored at once, then look again for bookings made since.
+        const load = () => api<SmeetzLinkedOrder[]>('/smeetz/my-orders').then(setSmeetzOrders);
+        load().catch(() => undefined);
+        api('/smeetz/refresh', { method: 'POST' }).then(load).catch(() => undefined);
       } else {
         setSmeetzOrders([]);
       }
@@ -124,6 +197,10 @@ export default function TicketsScreen() {
       {user && (
         <>
           <Text style={styles.h2}>Booked via Smeetz?</Text>
+          <Touchable style={styles.cta} onPress={() => router.push('/smeetz-link')}>
+            <Text style={styles.ctaText}>Find my bookings by email</Text>
+          </Touchable>
+          <Text style={[styles.muted, { marginBottom: 6 }]}>Or enter a booking reference:</Text>
           <View style={styles.linkRow}>
             <TextInput
               style={[styles.input, { flex: 1 }]}
@@ -138,11 +215,7 @@ export default function TicketsScreen() {
             </Touchable>
           </View>
           {smeetzOrders.map((o) => (
-            <View key={o.reference} style={styles.ticket}>
-              <Text style={styles.ticketType}>Smeetz booking</Text>
-              <Text style={styles.muted}>{o.reference}</Text>
-              {!o.order && <Text style={[styles.muted, { marginTop: 6 }]}>Couldn’t refresh this booking right now.</Text>}
-            </View>
+            <SmeetzOrderCard key={o.reference} o={o} />
           ))}
         </>
       )}
@@ -175,6 +248,7 @@ const styles = StyleSheet.create({
   langText: { color: theme.ink, fontWeight: '600', fontSize: 14 },
   chev: { color: theme.muted, fontSize: 20 },
   cta: { backgroundColor: theme.brand, borderRadius: 12, padding: 15, alignItems: 'center', marginTop: 12, marginBottom: 6 },
+  smeetzTicket: { alignItems: 'center', marginTop: 16, paddingTop: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.border, alignSelf: 'stretch' },
   linkRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   input: { backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border, borderRadius: 10, padding: 12, color: theme.ink },
   linkBtn: { backgroundColor: theme.brand, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 16 },

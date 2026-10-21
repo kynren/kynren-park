@@ -76,6 +76,8 @@ async function refreshAccessToken(): Promise<string | null> {
   return refreshing;
 }
 
+export type ApiError = Error & { status: number; serverMessage?: string };
+
 export async function api<T = unknown>(path: string, options: RequestInit = {}): Promise<T> {
   const token = await getToken();
   const doFetch = (tok: string | null) =>
@@ -96,7 +98,17 @@ export async function api<T = unknown>(path: string, options: RequestInit = {}):
     const fresh = await refreshAccessToken();
     if (fresh) res = await doFetch(fresh);
   }
-  if (!res.ok) throw new Error(`Request failed (${res.status})`);
+  if (!res.ok) {
+    const error = new Error(`Request failed (${res.status})`) as ApiError;
+    error.status = res.status;
+    try {
+      const body = (await res.json()) as { message?: string | string[] };
+      error.serverMessage = Array.isArray(body.message) ? body.message.join(', ') : body.message;
+    } catch {
+      // Not JSON: the status alone will do.
+    }
+    throw error;
+  }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }

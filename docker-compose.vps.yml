@@ -72,6 +72,9 @@ services:
       # Smeetz ticketing (server-side only). Production key — see .env.
       SMEETZ_API_URL: ${SMEETZ_API_URL:-https://services.test.smeetz.com}
       SMEETZ_API_KEY: ${SMEETZ_API_KEY:-}
+      # Finds a guest's Smeetz orders by email via the groups app's customer index, over the internal network.
+      GROUPS_LOOKUP_URL: ${GROUPS_LOOKUP_URL:-http://kynren-groups:3000}
+      GROUPS_LOOKUP_SECRET: ${GROUPS_LOOKUP_SECRET:-}
     depends_on:
       redis:
         condition: service_started

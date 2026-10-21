@@ -27,6 +27,11 @@ export default function AuthScreen() {
     try {
       if (mode === 'login') await login(email.trim(), password);
       else await register(email.trim(), password, name.trim() || undefined);
+      if (mode === 'register') {
+        // New accounts are offered their Smeetz bookings straight away.
+        router.replace({ pathname: '/smeetz-link', params: { email: email.trim(), setup: '1' } });
+        return;
+      }
       if (router.canGoBack()) router.back();
       else router.replace('/(tabs)');
     } catch {

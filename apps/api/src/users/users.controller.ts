@@ -79,6 +79,8 @@ export class UsersController {
     await this.prisma.$transaction([
       this.prisma.pushToken.deleteMany({ where: { userId: user.sub } }),
       this.prisma.refreshToken.deleteMany({ where: { userId: user.sub } }),
+      this.prisma.smeetzLinkedOrder.deleteMany({ where: { userId: user.sub } }),
+      this.prisma.emailVerification.deleteMany({ where: { userId: user.sub } }),
       this.prisma.user.update({
         where: { id: user.sub },
         data: {

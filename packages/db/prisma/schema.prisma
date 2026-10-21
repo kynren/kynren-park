@@ -119,6 +119,7 @@ model User {
   orders             Order[]
   notifications      Notification[]
   smeetzLinkedOrders SmeetzLinkedOrder[]
+  emailVerifications EmailVerification[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 }
@@ -379,18 +380,39 @@ model ShuttleStop {
 // ---------------------------------------------------------------------------
 
 // A Smeetz-issued order (bought via Smeetz's own checkout, outside this app)
-// that a guest has linked into their in-app wallet by entering its reference.
-// We don't mirror Smeetz's ticket data here — my-orders re-fetches it live —
-// this just remembers which references belong to which guest.
+// that a guest has linked into their in-app wallet - either by entering its
+// reference, or by proving they own the email it was bought with (source
+// 'email', which also keeps the address and a snapshot of the order as the
+// groups app's customer index last reported it).
 model SmeetzLinkedOrder {
-  id             String   @id @default(cuid())
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             String    @id @default(cuid())
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId         String
   orderReference String
-  linkedAt       DateTime @default(now())
+  source         String    @default("reference") // reference | email
+  email          String?
+  snapshot       Json?
+  snapshotAt     DateTime?
+  linkedAt       DateTime  @default(now())
 
   @@unique([userId, orderReference])
   @@index([userId])
+}
+
+// A one-time code emailed to prove a guest controls an address before orders
+// bought with it are linked to their account. Only a hash of the code is kept.
+model EmailVerification {
+  id         String    @id @default(cuid())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  email      String
+  codeHash   String
+  attempts   Int       @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, email])
 }
 
 // ---------------------------------------------------------------------------
