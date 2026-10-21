@@ -1,208 +1,82 @@
-import { useState, type JSX } from 'react';
-import { ScrollView, View, Text, StyleSheet } from 'react-native';
-import { Touchable } from '../../components/Touchable';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import Svg, { Path, Circle } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Touchable } from '../../components/Touchable';
+import { Button } from '../../components/ui/Button';
+import { Card, SearchPill, SectionHeader } from '../../components/ui/Controls';
+import { Icon, type IconName } from '../../components/ui/Icon';
+import { RestaurantCard, useRestaurantFavs } from '../../components/ui/RestaurantCard';
+import { ScreenHeader } from '../../components/ui/Header';
 import { useSync } from '../../lib/sync';
-import { ukTodayStr } from '../../lib/format';
-import { theme } from '../../lib/theme';
-import { useThemePref } from '../../lib/theme-context';
+import { featureGradient } from '../../lib/theme';
+import { useUI } from '../../lib/ui';
 
-function useMealPalette() {
-  const dark = useThemePref().scheme === 'dark';
-  return dark
-    ? { screen: '#0c0c0c', card: '#1d1d1d', panel: '#2a2a2a', text: '#ffffff', sub: '#9a9a9a', line: '#262626', icon: '#e6e6e6', header: '#141414' }
-    : { screen: theme.bg, card: '#ffffff', panel: '#efe9e2', text: theme.ink, sub: theme.muted, line: theme.border, icon: theme.brand, header: theme.brand };
-}
+const SLOTS: { slot: string; label: string; icon: IconName }[] = [
+  { slot: 'lunch', label: 'Lunch', icon: 'fork' },
+  { slot: 'dinner', label: 'Dinner', icon: 'star' },
+  { slot: 'sweet', label: 'Sweet break', icon: 'heart' },
+];
 
-function fmtLong(ymd: string) {
-  const d = new Date(`${ymd}T00:00:00.000Z`);
-  const wd = d.toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' });
-  const md = d.toLocaleDateString('en-GB', { month: 'long', day: 'numeric', timeZone: 'UTC' });
-  return { wd, md };
-}
-
-// --- icons -----------------------------------------------------------------
-type IP = { color: string; size?: number };
-function ChefHat({ color, size = 30 }: IP) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M7 15a4.2 4.2 0 0 1-1.2-8.1A3.4 3.4 0 0 1 12 5.4a3.4 3.4 0 0 1 6.2 1.5A4.2 4.2 0 0 1 17 15" />
-      <Path d="M7 15h10v2.6a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1Z" />
-      <Path d="M20 5.5l1.4-1M20 8h1.6" />
-    </Svg>
-  );
-}
-function Cup({ color, size = 28 }: IP) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M5 10h11v4a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4Z" />
-      <Path d="M16 11h1.8a2 2 0 0 1 0 4H16" />
-      <Path d="M8 3c-.6 1 .6 2 0 3M11.5 3c-.6 1 .6 2 0 3" />
-    </Svg>
-  );
-}
-function Bag({ color, size = 30 }: IP) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M6.5 8h11l-1 11a1.2 1.2 0 0 1-1.2 1.1H8.7A1.2 1.2 0 0 1 7.5 19Z" />
-      <Path d="M6.5 8 8 4.6h8L17.5 8" />
-      <Path d="M11 12.5l1-1 1 1M12 11.5v3" />
-    </Svg>
-  );
-}
-function Plate({ color, size = 30 }: IP) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
-      <Circle cx="12" cy="12" r="8.5" />
-      <Circle cx="12" cy="12" r="4.5" />
-    </Svg>
-  );
-}
-
-export default function MealScreen() {
+export default function RestaurantsTab() {
   const { bundle } = useSync();
   const router = useRouter();
-  const pal = useMealPalette();
-  const dark = useThemePref().scheme === 'dark';
-  const headerBg = dark ? pal.header : (bundle?.branding?.primary || pal.header);
   const insets = useSafeAreaInsets();
-  const [open, setOpen] = useState(true);
-  const { wd, md } = fmtLong(ukTodayStr()); // today's date, UK local
+  const { c } = useUI();
+  const { favs, toggle } = useRestaurantFavs();
+  const restaurants = bundle?.restaurants ?? [];
+  const collect = restaurants.filter((r) => r.clickCollect !== false && r.menuItems.length > 0).length;
 
   return (
-    <View style={[styles.screen, { backgroundColor: pal.screen }]}>
-      {/* Fixed top bar — matches the Program screen (default app top-bar colour) */}
-      <View style={[styles.topBar, { backgroundColor: headerBg, paddingTop: insets.top + 8 }]}>
-        <Text style={styles.brand}>KYNREN</Text>
-        <View style={{ flexDirection: 'row', gap: 6 }}>
-          <Touchable onPress={() => router.push('/notifications')} hitSlop={8} style={styles.avatar}>
-            <Text style={{ fontSize: 16 }}>🔔</Text>
-          </Touchable>
-          <Touchable onPress={() => router.push('/profile')} hitSlop={8} style={styles.avatar}>
-            <Text style={{ fontSize: 16 }}>👤</Text>
-          </Touchable>
-        </View>
-      </View>
-      <Text style={[styles.title, { color: pal.text }]}>Dining at Kynren</Text>
-
+    <View style={[styles.screen, { backgroundColor: c.screen }]}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
-      {/* Your meals */}
-      <Touchable style={styles.sectionHead} onPress={() => setOpen((o) => !o)}>
-        <Text style={[styles.sectionLabel, { color: pal.text }]}>Your meals on {wd}, {md}</Text>
-        <Text style={[styles.caret, { color: pal.sub }]}>{open ? '⌃' : '⌄'}</Text>
-      </Touchable>
+        <ScreenHeader title="Restaurants" colors={featureGradient.restaurants} overlap={27}>
+          <SearchPill placeholder="Find a restaurant or a dish" onPress={() => router.navigate('/(tabs)/search?filter=food')} />
+        </ScreenHeader>
 
-      {open && (
-        <View style={styles.body}>
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-            <MealSlot label="Lunch" pal={pal} onPress={() => router.push('/restaurants?slot=lunch')} />
-            <MealSlot label="Dinner" pal={pal} onPress={() => router.push('/restaurants?slot=dinner')} />
-          </View>
-          <Touchable style={[styles.sweet, { backgroundColor: pal.card }]} onPress={() => router.push('/restaurants?slot=sweet')}>
-            <View style={[styles.sweetIcon, { backgroundColor: pal.panel }]}>
-              <Cup color={pal.icon} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.rowTitle, { color: pal.text }]}>Sweet break</Text>
-              <Text style={[styles.rowSub, { color: pal.sub }]}>See available places</Text>
-            </View>
-            <Text style={[styles.chev, { color: pal.sub }]}>›</Text>
-          </Touchable>
+        <View style={styles.slots}>
+          {SLOTS.map((s) => (
+            <Touchable key={s.slot} onPress={() => router.push(`/restaurants?slot=${s.slot}`)} accessibilityRole="button" accessibilityLabel={s.label} style={[styles.slot, { backgroundColor: c.card }]}>
+              <View style={[styles.slotIcon, { backgroundColor: c.tint }]}>
+                <Icon name={s.icon} color={c.link} size={22} />
+              </View>
+              <Text style={[styles.slotLabel, { color: c.text }]} numberOfLines={1}>{s.label}</Text>
+            </Touchable>
+          ))}
         </View>
-      )}
 
-      {/* Click & Collect */}
-      <Text style={[styles.sectionLabel, styles.bodyPad, { color: pal.text, marginTop: 22 }]}>Click &amp; Collect</Text>
-      <View style={styles.body}>
-        <BigCard
-          pal={pal}
-          Icon={Bag}
-          title={'Order online,\npick up on-site'}
-          sub="Available only on the day of your visit"
-          onPress={() => router.push('/restaurants?slot=collect')}
-        />
-      </View>
+        {collect > 0 && (
+          <Card style={styles.collect}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.collectTitle, { color: c.text }]}>Click &amp; Collect</Text>
+              <Text style={[styles.collectSub, { color: c.sub }]}>Order online, pick up on-site. Available only on the day of your visit.</Text>
+              <Button size="sm" label="Order food" onPress={() => router.push('/restaurants?slot=collect')} style={{ marginTop: 12 }} />
+            </View>
+          </Card>
+        )}
 
-      {/* Book in our restaurants */}
-      <Text style={[styles.sectionLabel, styles.bodyPad, { color: pal.text, marginTop: 22 }]}>Book in our restaurants</Text>
-      <View style={styles.body}>
-        <BigCard
-          pal={pal}
-          Icon={Plate}
-          title={'Book in one of our\nrestaurants'}
-          sub="Available online now"
-          onPress={() => router.push('/restaurants')}
-        />
-      </View>
+        <View style={{ marginTop: 26 }}>
+          <SectionHeader title="Our restaurants" />
+        </View>
+        <View style={styles.list}>
+          {restaurants.length === 0 && <Text style={[styles.empty, { color: c.sub }]}>Loading restaurants…</Text>}
+          {restaurants.map((r) => (
+            <RestaurantCard key={r.id} r={r} faved={favs.has(r.id)} onFav={() => toggle(r.id)} />
+          ))}
+        </View>
       </ScrollView>
     </View>
   );
 }
 
-function MealSlot({ label, pal, onPress }: { label: string; pal: ReturnType<typeof useMealPalette>; onPress: () => void }) {
-  return (
-    <Touchable style={[styles.slot, { backgroundColor: pal.card }]} onPress={onPress}>
-      <View style={[styles.slotTop, { backgroundColor: pal.panel }]}>
-        <ChefHat color={pal.icon} />
-      </View>
-      <View style={styles.slotBottom}>
-        <Text style={[styles.slotLabel, { color: pal.text }]}>{label}</Text>
-        <View style={styles.slotSubRow}>
-          <Text style={[styles.rowSub, { color: pal.sub }]}>Add a restaurant</Text>
-          <Text style={[styles.chev, { color: pal.sub }]}>›</Text>
-        </View>
-      </View>
-    </Touchable>
-  );
-}
-
-function BigCard({
-  pal, Icon, title, sub, onPress,
-}: {
-  pal: ReturnType<typeof useMealPalette>;
-  Icon: (p: IP) => JSX.Element;
-  title: string;
-  sub: string;
-  onPress: () => void;
-}) {
-  return (
-    <Touchable style={[styles.bigCard, { backgroundColor: pal.card }]} onPress={onPress}>
-      <View style={[styles.bigIcon, { backgroundColor: pal.panel }]}>
-        <Icon color={pal.icon} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={[styles.bigTitle, { color: pal.text }]}>{title}</Text>
-        <Text style={[styles.rowSub, { color: pal.sub, marginTop: 3 }]}>{sub}</Text>
-      </View>
-      <Text style={[styles.chev, { color: pal.sub }]}>›</Text>
-    </Touchable>
-  );
-}
-
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12 },
-  brand: { color: '#fff', fontSize: 20, fontWeight: '800', letterSpacing: 2 },
-  avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 27, fontWeight: '700', textAlign: 'center', marginTop: 6, marginBottom: 18 },
-  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
-  sectionLabel: { fontSize: 20, fontWeight: '700' },
-  bodyPad: { paddingHorizontal: 16 },
-  caret: { fontSize: 20, fontWeight: '800' },
-  body: { paddingHorizontal: 16, marginTop: 12, gap: 12 },
-  slot: { flex: 1, borderRadius: 14, overflow: 'hidden' },
-  slotTop: { height: 92, alignItems: 'center', justifyContent: 'center' },
-  slotBottom: { padding: 12 },
-  slotLabel: { fontSize: 18, fontWeight: '800' },
-  slotSubRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 },
-  sweet: { flexDirection: 'row', alignItems: 'center', borderRadius: 14, padding: 12, gap: 12 },
-  sweetIcon: { width: 54, height: 54, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  rowTitle: { fontSize: 17, fontWeight: '800' },
-  rowSub: { fontSize: 13 },
-  chev: { fontSize: 24, marginLeft: 6 },
-  bigCard: { flexDirection: 'row', alignItems: 'center', borderRadius: 14, padding: 14, gap: 14 },
-  bigIcon: { width: 62, height: 62, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  bigTitle: { fontSize: 18, fontWeight: '800', lineHeight: 22 },
+  slots: { flexDirection: 'row', gap: 12, paddingHorizontal: 20, marginTop: 20 },
+  slot: { flex: 1, alignItems: 'center', gap: 8, paddingVertical: 14, borderRadius: 18 },
+  slotIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  slotLabel: { fontSize: 13, fontWeight: '700' },
+  collect: { marginHorizontal: 20, marginTop: 16, padding: 18, flexDirection: 'row' },
+  collectTitle: { fontSize: 17, fontWeight: '800' },
+  collectSub: { fontSize: 13.5, lineHeight: 19, marginTop: 4 },
+  list: { paddingHorizontal: 20, gap: 16, marginTop: 14 },
+  empty: { textAlign: 'center', marginTop: 20 },
 });

@@ -5,7 +5,6 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
 import { AnnouncementMegaphone } from '../components/AnnouncementMegaphone';
 import { LoadingOverlay } from '../components/LoadingOverlay';
-import { FloatingScanner } from '../components/FloatingScanner';
 import { Walkthrough } from '../components/Walkthrough';
 import * as Notifications from 'expo-notifications';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -124,30 +123,33 @@ function RootNav() {
       <StatusBar style={dark ? 'light' : 'light'} />
       <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: dark ? '#141414' : theme.brand },
+          headerStyle: { backgroundColor: dark ? '#111a2c' : theme.brand },
           headerTintColor: '#fff',
           headerTitleStyle: { fontWeight: '700' },
-          contentStyle: { backgroundColor: dark ? '#0c0c0c' : theme.bg },
+          contentStyle: { backgroundColor: dark ? '#0b1220' : theme.bg },
         }}
       >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="menu" options={{ headerShown: false, presentation: 'transparentModal', animation: 'none' }} />
         <Stack.Screen name="attraction/[slug]" options={{ headerShown: false }} />
-        <Stack.Screen name="auth" options={{ title: 'Sign in', presentation: 'modal' }} />
-        <Stack.Screen name="book" options={{ title: 'Book tickets', presentation: 'modal' }} />
-        <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
+        <Stack.Screen name="auth" options={{ headerShown: false, presentation: 'modal' }} />
+        <Stack.Screen name="book" options={{ headerShown: false, presentation: 'modal' }} />
+        <Stack.Screen name="notifications" options={{ headerShown: false }} />
         <Stack.Screen name="restaurant/[slug]" options={{ headerShown: false }} />
         <Stack.Screen name="restaurants" options={{ headerShown: false }} />
         <Stack.Screen name="facility/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="shop/[slug]" options={{ headerShown: false }} />
-        <Stack.Screen name="orders" options={{ title: 'My Orders' }} />
+        <Stack.Screen name="orders" options={{ headerShown: false }} />
+        <Stack.Screen name="accessibility" options={{ headerShown: false }} />
+        <Stack.Screen name="shuttle" options={{ headerShown: false }} />
+        <Stack.Screen name="smeetz-link" options={{ headerShown: false }} />
         <Stack.Screen name="settings" options={{ headerShown: false }} />
         <Stack.Screen name="profile" options={{ headerShown: false }} />
         <Stack.Screen name="favorites" options={{ headerShown: false }} />
         <Stack.Screen name="seen" options={{ headerShown: false }} />
-        <Stack.Screen name="language" options={{ title: 'Language', presentation: 'modal' }} />
+        <Stack.Screen name="language" options={{ headerShown: false, presentation: 'modal' }} />
         <Stack.Screen name="scan" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
       </Stack>
-      <FloatingScanner />
       <AnnouncementMegaphone />
       <Walkthrough />
       <LoadingOverlay />

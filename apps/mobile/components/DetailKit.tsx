@@ -1,22 +1,51 @@
+import { useMemo } from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ImageCarousel } from './ImageCarousel';
 import { Touchable } from './Touchable';
+import { GradientFill } from './ui/Gradient';
+import { serif, band } from '../lib/theme';
+import { useUI } from '../lib/ui';
 
-// Shared dark-card visual language for shop/show/restaurant/facility detail
-// pages: a full-bleed photo gallery with a near-black content sheet below it.
-export const dk = {
-  bg: '#121212',
-  sheet: '#151515',
-  ink: '#ffffff',
-  sub: '#b7b3ad',
-  line: '#2a2a2a',
-  chip: '#232323',
-  pill: '#262626',
+// Shared visual language for the shop / show / restaurant / facility detail pages: a full-bleed photo (or the feature's own
+// gradient when there is none) with a rounded white sheet rising over it.
+export type DK = {
+  bg: string;
+  sheet: string;
+  ink: string;
+  sub: string;
+  line: string;
+  chip: string;
+  pill: string;
+  primary: string;
+  /** Primary as text or an icon on a tinted surface (lighter in dark mode). */
+  link: string;
+  dark: boolean;
 };
+
+export function useDK(): DK {
+  const { c, dark } = useUI();
+  return useMemo(
+    () => ({ bg: c.screen, sheet: c.card, ink: c.text, sub: c.sub, line: c.line, chip: c.soft, pill: c.tint, primary: c.primary, link: c.link, dark }),
+    [c, dark],
+  );
+}
+
+/** The top of a detail page: the photo gallery, or a gradient band (with room for the close button) when there are no photos. */
+export function DetailHero({ images, height, colors = band }: { images: string[]; height: number; colors?: { from: string; to: string } }) {
+  const insets = useSafeAreaInsets();
+  if (images.length > 0) return <ImageCarousel images={images} height={height} />;
+  return (
+    <View style={{ height: insets.top + 120, overflow: 'hidden' }}>
+      <GradientFill from={colors.from} to={colors.to} vertical />
+    </View>
+  );
+}
 
 export function CloseButton({ onPress }: { onPress: () => void }) {
   return (
-    <Touchable style={styles.closeBtn} onPress={onPress} hitSlop={8}>
+    <Touchable style={styles.closeBtn} onPress={onPress} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
       <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
         <Path d="M6 6l12 12M18 6L6 18" />
       </Svg>
@@ -25,39 +54,43 @@ export function CloseButton({ onPress }: { onPress: () => void }) {
 }
 
 export function IconBadge({ letter, image, tint }: { letter: string; image?: string | null; tint?: string }) {
+  const dk = useDK();
   return (
-    <View style={[styles.badge, { borderColor: dk.line }]}>
+    <View style={[styles.badge, { backgroundColor: dk.pill }]}>
       {image ? (
         <Image source={{ uri: image }} style={styles.badgeImg} />
       ) : (
-        <Text style={[styles.badgeTxt, { color: tint ?? dk.ink }]}>{letter}</Text>
+        <Text style={[styles.badgeTxt, { color: tint ?? dk.link }]}>{letter}</Text>
       )}
     </View>
   );
 }
 
 export function TagChip({ icon, label }: { icon: string; label: string }) {
+  const dk = useDK();
   return (
-    <View style={styles.tag}>
+    <View style={[styles.tag, { backgroundColor: dk.chip }]}>
       <Text style={styles.tagIcon}>{icon}</Text>
-      <Text style={styles.tagTxt}>{label}</Text>
+      <Text style={[styles.tagTxt, { color: dk.sub }]}>{label}</Text>
     </View>
   );
 }
 
 export function ActionPill({ icon, label, onPress }: { icon: string; label: string; onPress: () => void }) {
+  const dk = useDK();
   return (
-    <Touchable style={styles.actionPill} onPress={onPress}>
-      <Svg width={17} height={17} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+    <Touchable style={[styles.actionPill, { backgroundColor: dk.pill }]} onPress={onPress} accessibilityRole="button" accessibilityLabel={label}>
+      <Svg width={17} height={17} viewBox="0 0 24 24" fill="none" stroke={dk.link} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
         {icon.split('|').map((d, i) => <Path key={i} d={d} />)}
       </Svg>
-      <Text style={styles.actionTxt}>{label}</Text>
+      <Text style={[styles.actionTxt, { color: dk.link }]}>{label}</Text>
     </Touchable>
   );
 }
 
 export function SectionLabel({ children }: { children: string }) {
-  return <Text style={styles.sectionLabel}>{children}</Text>;
+  const dk = useDK();
+  return <Text accessibilityRole="header" style={[styles.sectionLabel, { color: dk.ink }]}>{children}</Text>;
 }
 
 export const ICONS = {
@@ -69,14 +102,14 @@ export const ICONS = {
 };
 
 const styles = StyleSheet.create({
-  closeBtn: { position: 'absolute', right: 14, width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
-  badge: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', borderWidth: 1, overflow: 'hidden' },
+  closeBtn: { position: 'absolute', right: 14, width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(15,31,75,0.55)', alignItems: 'center', justifyContent: 'center' },
+  badge: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   badgeImg: { width: '100%', height: '100%' },
   badgeTxt: { fontWeight: '800', fontSize: 18 },
-  tag: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: dk.chip, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 12 },
+  tag: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingVertical: 7, paddingHorizontal: 13 },
   tagIcon: { fontSize: 13 },
-  tagTxt: { color: dk.sub, fontSize: 12.5, fontWeight: '600' },
-  actionPill: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: dk.pill, borderRadius: 999, paddingVertical: 12, paddingHorizontal: 16, flex: 1, justifyContent: 'center' },
-  actionTxt: { color: '#fff', fontWeight: '700', fontSize: 13.5 },
-  sectionLabel: { color: dk.ink, fontSize: 17, fontWeight: '800', marginTop: 22, marginBottom: 10 },
+  tagTxt: { fontSize: 12.5, fontWeight: '600' },
+  actionPill: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, paddingVertical: 12, paddingHorizontal: 16, flex: 1, justifyContent: 'center' },
+  actionTxt: { fontWeight: '700', fontSize: 13.5 },
+  sectionLabel: { fontFamily: serif, fontSize: 19, fontWeight: '800', marginTop: 24, marginBottom: 10 },
 });

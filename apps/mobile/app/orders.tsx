@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ScrollView, View, Text, StyleSheet, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, RefreshControl } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { io, type Socket } from 'socket.io-client';
+import { Card } from '../components/ui/Controls';
+import { Screen } from '../components/ui/Screen';
 import { REALTIME_EVENTS } from '../lib/shared';
 import { api, API_URL } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { fmtTimeUK, poundsFromCents } from '../lib/format';
-import { theme } from '../lib/theme';
+import { featureGradient } from '../lib/theme';
+import { useUI } from '../lib/ui';
 
 interface Order {
   id: string;
@@ -17,20 +20,23 @@ interface Order {
   items: { id: string; quantity: number; menuItem: { name: string } }[];
 }
 
-const STATUS_META: Record<string, { label: string; color: string }> = {
-  PENDING: { label: 'Order received', color: theme.muted },
-  PREPARING: { label: 'Being prepared', color: theme.warn },
-  READY: { label: 'Ready to collect', color: theme.ok },
-  COLLECTED: { label: 'Collected', color: theme.muted },
-  CANCELLED: { label: 'Cancelled', color: theme.danger },
+const STATUS_LABEL: Record<string, string> = {
+  PENDING: 'Order received',
+  PREPARING: 'Being prepared',
+  READY: 'Ready to collect',
+  COLLECTED: 'Collected',
+  CANCELLED: 'Cancelled',
 };
 
 export default function OrdersScreen() {
   const { user } = useAuth();
   const router = useRouter();
+  const { c } = useUI();
   const [orders, setOrders] = useState<Order[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const socketRef = useRef<Socket | null>(null);
+
+  const statusColor: Record<string, string> = { PENDING: c.sub, PREPARING: c.warn, READY: c.ok, COLLECTED: c.sub, CANCELLED: c.danger };
 
   useEffect(() => {
     if (!user) router.replace('/auth');
@@ -70,46 +76,42 @@ export default function OrdersScreen() {
   }
 
   return (
-    <ScrollView showsVerticalScrollIndicator={false}
-      style={{ flex: 1 }}
-      contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-    >
+    <Screen title="My orders" colors={featureGradient.restaurants} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
       {orders.length === 0 ? (
-        <Text style={styles.muted}>No orders yet. Order ahead from the Food tab and track it here.</Text>
+        <Text style={[styles.muted, { color: c.sub }]}>No orders yet. Order ahead from the Restaurants tab and track it here.</Text>
       ) : (
         orders.map((o) => {
-          const meta = STATUS_META[o.status] ?? STATUS_META.PENDING!;
+          const color = statusColor[o.status] ?? c.sub;
           return (
-            <View key={o.id} style={styles.card}>
+            <Card key={o.id} style={styles.card}>
               <View style={styles.top}>
-                <Text style={styles.restaurant}>{o.restaurant.name}</Text>
-                <View style={[styles.badge, { backgroundColor: meta.color }]}>
-                  <Text style={styles.badgeText}>{meta.label}</Text>
+                <Text style={[styles.restaurant, { color: c.text }]} numberOfLines={2}>{o.restaurant.name}</Text>
+                <View style={[styles.badge, { backgroundColor: color }]}>
+                  <Text style={styles.badgeText}>{STATUS_LABEL[o.status] ?? STATUS_LABEL.PENDING}</Text>
                 </View>
               </View>
-              <Text style={styles.muted}>Pickup at {fmtTimeUK(new Date(o.pickupSlot))}</Text>
+              <Text style={[styles.muted, { color: c.sub }]}>Pickup at {fmtTimeUK(new Date(o.pickupSlot))}</Text>
               {o.items.map((it) => (
-                <Text key={it.id} style={styles.line}>
+                <Text key={it.id} style={[styles.line, { color: c.text }]}>
                   {it.quantity}× {it.menuItem.name}
                 </Text>
               ))}
-              <Text style={styles.total}>{poundsFromCents(o.totalCents)}</Text>
-            </View>
+              <Text style={[styles.total, { color: c.link }]}>{poundsFromCents(o.totalCents)}</Text>
+            </Card>
           );
         })
       )}
-    </ScrollView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  muted: { color: theme.muted, fontSize: 14 },
-  card: { backgroundColor: theme.card, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: theme.border, marginBottom: 12 },
-  top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  restaurant: { fontWeight: '800', color: theme.ink, fontSize: 16 },
-  badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
-  badgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  line: { color: theme.ink, marginTop: 4 },
-  total: { fontWeight: '800', color: theme.brand, marginTop: 8 },
+  muted: { fontSize: 14, lineHeight: 20 },
+  card: { padding: 16 },
+  top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 4 },
+  restaurant: { flex: 1, fontWeight: '800', fontSize: 16 },
+  badge: { paddingHorizontal: 11, paddingVertical: 5, borderRadius: 999 },
+  badgeText: { color: '#ffffff', fontSize: 11.5, fontWeight: '700' },
+  line: { marginTop: 4, fontSize: 14.5 },
+  total: { fontWeight: '800', marginTop: 10, fontSize: 16 },
 });

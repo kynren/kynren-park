@@ -1,7 +1,12 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 import { ScrollView, View, Text, TextInput, StyleSheet, Alert } from 'react-native';
-import { Touchable } from '../../components/Touchable';
 import { KeyboardAvoid } from '../../components/KeyboardAvoid';
+import { Touchable } from '../../components/Touchable';
+import { Button } from '../../components/ui/Button';
+import { Card, SectionHeader } from '../../components/ui/Controls';
+import { GradientFill } from '../../components/ui/Gradient';
+import { ScreenHeader } from '../../components/ui/Header';
+import { Icon } from '../../components/ui/Icon';
 import { useFocusEffect, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import QRCode from 'react-native-qrcode-svg';
@@ -10,7 +15,8 @@ import { useAuth } from '../../lib/auth';
 import { api } from '../../lib/api';
 import { useI18n } from '../../lib/i18n';
 import { poundsFromCents } from '../../lib/format';
-import { theme } from '../../lib/theme';
+import { serif, featureGradient } from '../../lib/theme';
+import { radius, shadow, useUI } from '../../lib/ui';
 
 interface CachedTicket {
   id: string;
@@ -53,45 +59,70 @@ interface SmeetzLinkedOrder {
 const DEAD = /CANCEL|REFUND|VOID|EXPIRE/i;
 const day = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
+/** A paper ticket: a parchment top with what it is and when, then the QR on white, big enough to scan from a phone held at the gate. */
+function PassCard({ title, subtitle, code, footer, children }: { title: string; subtitle?: string; code: string; footer?: string; children?: ReactNode }) {
+  const { c, dark } = useUI();
+  return (
+    <View style={[styles.pass, shadow(2, dark), { backgroundColor: c.card }]}>
+      <View style={[styles.passTop, { backgroundColor: c.soft }]}>
+        <Text style={[styles.passLabel, { color: c.accent }]}>ENTRANCE TICKET</Text>
+        <Text style={[styles.passTitle, { color: c.text }]} numberOfLines={2}>{title}</Text>
+        {subtitle ? <Text style={[styles.passSub, { color: c.sub }]} numberOfLines={2}>{subtitle}</Text> : null}
+        <View style={[styles.passRule, { backgroundColor: c.accent }]} />
+      </View>
+      <View style={styles.tear}>
+        <View style={[styles.notch, { left: -12, backgroundColor: c.screen }]} />
+        <View style={[styles.dash, { borderColor: c.line }]} />
+        <View style={[styles.notch, { right: -12, backgroundColor: c.screen }]} />
+      </View>
+      <View style={styles.passBody}>
+        <View style={styles.qrBox}>
+          <QRCode value={code} size={196} />
+        </View>
+        {footer ? <Text style={[styles.passFoot, { color: c.sub }]}>{footer}</Text> : null}
+        {children}
+      </View>
+    </View>
+  );
+}
+
 function SmeetzOrderCard({ o }: { o: SmeetzLinkedOrder }) {
+  const { c } = useUI();
   const order = o.order;
   const lines = order?.lines ?? [];
+  const summary = [
+    order?.liveTickets != null ? `${order.liveTickets} ticket${order.liveTickets === 1 ? '' : 's'}` : null,
+    order?.nights?.length ? order.nights.map(day).join(', ') : null,
+    order?.status ? order.status.toLowerCase() : null,
+  ].filter(Boolean).join(' · ');
+  const passes = lines.flatMap((line) =>
+    line.kind === 'TICKET' ? line.tickets.filter((tk) => tk.barcode && !DEAD.test(tk.status ?? '')).map((tk) => ({ line, tk })) : [],
+  );
+  const extras = lines.filter((l) => l.kind !== 'TICKET');
+
   return (
-    <View style={styles.ticket}>
-      <Text style={styles.ticketType}>Smeetz booking</Text>
-      <Text style={styles.muted}>
-        {o.reference}
-        {order?.placedAt ? ` · booked ${day(order.placedAt)}` : ''}
-      </Text>
-      {order?.liveTickets != null && (
-        <Text style={styles.muted}>
-          {order.liveTickets} ticket{order.liveTickets === 1 ? '' : 's'}
-          {order.nights?.length ? ` · ${order.nights.map(day).join(', ')}` : ''}
-          {order.status ? ` · ${order.status.toLowerCase()}` : ''}
+    <View style={{ gap: 16 }}>
+      <Card style={styles.orderHead}>
+        <Text style={[styles.orderTitle, { color: c.text }]}>Smeetz booking</Text>
+        <Text style={[styles.muted, { color: c.sub }]}>
+          {o.reference}
+          {order?.placedAt ? ` · booked ${day(order.placedAt)}` : ''}
         </Text>
-      )}
-      {!order && <Text style={[styles.muted, { marginTop: 6 }]}>Couldn’t refresh this booking right now.</Text>}
-      {lines.map((line, i) =>
-        line.kind === 'TICKET' ? (
-          line.tickets
-            .filter((tk) => tk.barcode && !DEAD.test(tk.status ?? ''))
-            .map((tk) => (
-              <View key={tk.barcode} style={styles.smeetzTicket}>
-                <View style={styles.qrBox}>
-                  <QRCode value={tk.barcode as string} size={120} />
-                </View>
-                <Text style={styles.ticketType}>{line.name}</Text>
-                <Text style={styles.muted}>
-                  {[line.priceName, tk.night ? day(tk.night) : null, tk.holder].filter(Boolean).join(' · ')}
-                </Text>
-              </View>
-            ))
-        ) : (
-          <Text key={i} style={styles.muted}>
-            {line.quantity} × {line.name}
-          </Text>
-        ),
-      )}
+        {summary ? <Text style={[styles.muted, { color: c.sub }]}>{summary}</Text> : null}
+        {!order && <Text style={[styles.muted, { color: c.sub, marginTop: 6 }]}>Couldn’t refresh this booking right now.</Text>}
+        {extras.map((line, i) => (
+          <Text key={i} style={[styles.muted, { color: c.sub }]}>{line.quantity} × {line.name}</Text>
+        ))}
+      </Card>
+      {passes.map(({ line, tk }) => (
+        <PassCard
+          key={tk.barcode as string}
+          title={line.name}
+          subtitle={[line.priceName, tk.night ? day(tk.night) : null].filter(Boolean).join(' · ')}
+          code={tk.barcode as string}
+          footer={tk.holder ?? undefined}
+        />
+      ))}
     </View>
   );
 }
@@ -101,6 +132,7 @@ export default function TicketsScreen() {
   const { user, logout } = useAuth();
   const { t } = useI18n();
   const router = useRouter();
+  const { c } = useUI();
   const [tickets, setTickets] = useState<CachedTicket[]>([]);
   const [smeetzOrders, setSmeetzOrders] = useState<SmeetzLinkedOrder[]>([]);
   const [linkRef, setLinkRef] = useState('');
@@ -139,132 +171,137 @@ export default function TicketsScreen() {
 
   return (
     <KeyboardAvoid>
-    <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-      <Text style={styles.h1}>{t('tickets.title')}</Text>
+      <View style={[styles.screen, { backgroundColor: c.screen }]}>
+        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }}>
+          <ScreenHeader title={t('tickets.title')} colors={featureGradient.tickets} />
 
-      {/* Account */}
-      <View style={styles.account}>
-        {user ? (
-          <>
-            <Text style={styles.accountName}>👤 {user.name || user.email}</Text>
-            <Touchable onPress={logout}>
-              <Text style={styles.link}>{t('common.signOut')}</Text>
-            </Touchable>
-          </>
-        ) : (
-          <>
-            <Text style={styles.muted}>{t('tickets.signInToBook')}</Text>
-            <Touchable onPress={() => router.push('/auth')}>
-              <Text style={styles.link}>{t('common.signIn')}</Text>
-            </Touchable>
-          </>
-        )}
-      </View>
+          <View style={styles.pad}>
+            {/* Account */}
+            <Card style={styles.account}>
+              <View style={[styles.avatar, { backgroundColor: c.tint }]}>
+                <Icon name="user" color={c.link} size={20} />
+              </View>
+              <Text style={[styles.accountName, { color: c.text }]} numberOfLines={2}>
+                {user ? user.name || user.email : t('tickets.signInToBook')}
+              </Text>
+              <Touchable onPress={user ? logout : () => router.push('/auth')} hitSlop={8}>
+                <Text style={[styles.link, { color: c.link }]}>{user ? t('common.signOut') : t('common.signIn')}</Text>
+              </Touchable>
+            </Card>
 
-      <Touchable style={styles.langRow} onPress={() => router.push('/language')}>
-        <Text style={styles.langText}>🌐 {t('common.language')}</Text>
-        <Text style={styles.chev}>›</Text>
-      </Touchable>
+            <Button full label={t('tickets.book')} icon="ticket" onPress={() => router.push(user ? '/book' : '/auth')} style={{ marginTop: 14 }} />
 
-      <Touchable
-        style={styles.cta}
-        onPress={() => router.push(user ? '/book' : '/auth')}
-      >
-        <Text style={styles.ctaText}>{t('tickets.book')}</Text>
-      </Touchable>
+            {/* Tickets on this device */}
+            {tickets.length === 0 ? (
+              <Card style={styles.empty}>
+                <View style={[styles.emptyIcon, { backgroundColor: c.tint }]}>
+                  <Icon name="ticket" color={c.link} size={28} />
+                </View>
+                <Text style={[styles.emptyTitle, { color: c.text }]}>No tickets on this device yet</Text>
+                <Text style={[styles.muted, { color: c.sub, textAlign: 'center' }]}>
+                  Once you book, your tickets appear here as scannable QR codes that work even with no signal — so entry is never blocked by patchy Wi-Fi.
+                </Text>
+              </Card>
+            ) : (
+              <View style={{ gap: 16, marginTop: 20 }}>
+                {tickets.map((tk) => (
+                  <PassCard key={tk.id} title={tk.ticketType} subtitle={tk.visitDate} code={tk.qrToken} footer={tk.reference}>
+                    <Touchable
+                      style={styles.wallet}
+                      onPress={() => Alert.alert('Add to Wallet', 'Apple/Google Wallet passes require signing certificates and are configured server-side (coming in a later release). Your offline QR above already works for entry.')}
+                    >
+                      <Text style={[styles.walletText, { color: c.link }]}>Add to Apple / Google Wallet</Text>
+                    </Touchable>
+                  </PassCard>
+                ))}
+              </View>
+            )}
+          </View>
 
-      {tickets.length === 0 ? (
-        <View style={styles.empty}>
-          <Text style={styles.emptyTitle}>No tickets on this device yet</Text>
-          <Text style={styles.muted}>
-            Once you book, your tickets appear here as scannable QR codes that work even with no signal
-            — so entry is never blocked by patchy Wi-Fi.
-          </Text>
-        </View>
-      ) : (
-        tickets.map((t) => (
-          <View key={t.id} style={styles.ticket}>
-            <View style={styles.qrBox}>
-              <QRCode value={t.qrToken} size={140} />
+          {user && (
+            <View style={{ marginTop: 28 }}>
+              <SectionHeader title="Booked via Smeetz?" />
+              <View style={[styles.pad, { marginTop: 12 }]}>
+                <Button full variant="soft" label="Find my bookings by email" icon="search" onPress={() => router.push('/smeetz-link')} />
+                <Text style={[styles.muted, { color: c.sub, marginTop: 14, marginBottom: 8 }]}>Or enter a booking reference:</Text>
+                <View style={styles.linkRow}>
+                  <TextInput
+                    style={[styles.input, { flex: 1, backgroundColor: c.card, color: c.text, borderColor: c.line }]}
+                    value={linkRef}
+                    onChangeText={setLinkRef}
+                    placeholder="Your Smeetz order reference"
+                    placeholderTextColor={c.placeholder}
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                  />
+                  <Button label="Link" size="sm" loading={linking} onPress={linkSmeetzOrder} />
+                </View>
+                {smeetzOrders.length > 0 && (
+                  <View style={{ gap: 20, marginTop: 20 }}>
+                    {smeetzOrders.map((o) => (
+                      <SmeetzOrderCard key={o.reference} o={o} />
+                    ))}
+                  </View>
+                )}
+              </View>
             </View>
-            <Text style={styles.ticketType}>{t.ticketType}</Text>
-            <Text style={styles.muted}>{t.reference} · {t.visitDate}</Text>
-            <Touchable style={styles.wallet} onPress={() => Alert.alert('Add to Wallet', 'Apple/Google Wallet passes require signing certificates and are configured server-side (coming in a later release). Your offline QR above already works for entry.')}>
-              <Text style={styles.walletText}>Add to Apple / Google Wallet</Text>
-            </Touchable>
-          </View>
-        ))
-      )}
+          )}
 
-      {user && (
-        <>
-          <Text style={styles.h2}>Booked via Smeetz?</Text>
-          <Touchable style={styles.cta} onPress={() => router.push('/smeetz-link')}>
-            <Text style={styles.ctaText}>Find my bookings by email</Text>
-          </Touchable>
-          <Text style={[styles.muted, { marginBottom: 6 }]}>Or enter a booking reference:</Text>
-          <View style={styles.linkRow}>
-            <TextInput
-              style={[styles.input, { flex: 1 }]}
-              value={linkRef}
-              onChangeText={setLinkRef}
-              placeholder="Enter your Smeetz order reference"
-              autoCapitalize="characters"
-              autoCorrect={false}
-            />
-            <Touchable style={styles.linkBtn} onPress={linkSmeetzOrder} disabled={linking}>
-              <Text style={styles.linkBtnText}>{linking ? '…' : 'Link'}</Text>
-            </Touchable>
+          <View style={{ marginTop: 28 }}>
+            <SectionHeader title={t('tickets.prices')} />
+            <View style={[styles.pad, { marginTop: 12, gap: 10 }]}>
+              {(bundle?.ticketTypes ?? []).map((tt) => (
+                <Card key={tt.id} style={styles.priceRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.priceName, { color: c.text }]}>{tt.name}</Text>
+                    {tt.description ? <Text style={[styles.muted, { color: c.sub }]}>{tt.description}</Text> : null}
+                  </View>
+                  <Text style={[styles.price, { color: c.link }]}>{poundsFromCents(tt.priceCents)}</Text>
+                </Card>
+              ))}
+              <Text style={[styles.muted, { color: c.sub, marginTop: 6, textAlign: 'center' }]}>
+                Advance Saver prices. Book online to secure your day — capacity is limited.
+              </Text>
+            </View>
           </View>
-          {smeetzOrders.map((o) => (
-            <SmeetzOrderCard key={o.reference} o={o} />
-          ))}
-        </>
-      )}
-
-      <Text style={styles.h2}>{t('tickets.prices')}</Text>
-      {(bundle?.ticketTypes ?? []).map((tt) => (
-        <View key={tt.id} style={styles.priceRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.priceName}>{tt.name}</Text>
-            {tt.description && <Text style={styles.muted}>{tt.description}</Text>}
-          </View>
-          <Text style={styles.price}>{poundsFromCents(tt.priceCents)}</Text>
-        </View>
-      ))}
-      <Text style={[styles.muted, { marginTop: 14, textAlign: 'center' }]}>
-        Advance Saver prices. Book online to secure your day — capacity is limited.
-      </Text>
-    </ScrollView>
+        </ScrollView>
+      </View>
     </KeyboardAvoid>
   );
 }
 
+const NOTCH = 24;
+
 const styles = StyleSheet.create({
-  h1: { fontSize: 22, fontWeight: '800', color: theme.ink, marginBottom: 12 },
-  h2: { fontSize: 16, fontWeight: '700', color: theme.ink, marginTop: 24, marginBottom: 10 },
-  muted: { color: theme.muted, fontSize: 13, marginTop: 4 },
-  account: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: theme.card, borderRadius: 10, padding: 14, borderWidth: 1, borderColor: theme.border },
-  accountName: { fontWeight: '700', color: theme.ink },
-  link: { color: theme.brand, fontWeight: '700' },
-  langRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: theme.card, borderRadius: 10, padding: 14, borderWidth: 1, borderColor: theme.border, marginTop: 10 },
-  langText: { color: theme.ink, fontWeight: '600', fontSize: 14 },
-  chev: { color: theme.muted, fontSize: 20 },
-  cta: { backgroundColor: theme.brand, borderRadius: 12, padding: 15, alignItems: 'center', marginTop: 12, marginBottom: 6 },
-  smeetzTicket: { alignItems: 'center', marginTop: 16, paddingTop: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.border, alignSelf: 'stretch' },
-  linkRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  input: { backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border, borderRadius: 10, padding: 12, color: theme.ink },
-  linkBtn: { backgroundColor: theme.brand, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 16 },
-  linkBtnText: { color: '#fff', fontWeight: '700' },
-  ctaText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  empty: { backgroundColor: theme.card, borderRadius: 12, padding: 20, borderWidth: 1, borderColor: theme.border, marginTop: 10 },
-  emptyTitle: { fontWeight: '700', color: theme.ink, fontSize: 15 },
-  ticket: { backgroundColor: theme.card, borderRadius: 14, padding: 18, alignItems: 'center', borderWidth: 1, borderColor: theme.border, marginTop: 14 },
-  qrBox: { padding: 12, backgroundColor: '#fff', borderRadius: 10 },
-  ticketType: { fontWeight: '800', color: theme.ink, fontSize: 16, marginTop: 12 },
-  wallet: { marginTop: 12, borderWidth: 1, borderColor: theme.border, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14 },
-  walletText: { color: theme.ink, fontSize: 13, fontWeight: '600' },
-  priceRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.card, borderRadius: 10, padding: 14, borderWidth: 1, borderColor: theme.border, marginBottom: 8 },
-  priceName: { fontWeight: '600', color: theme.ink, fontSize: 15 },
-  price: { fontWeight: '800', color: theme.brand, fontSize: 16 },
+  screen: { flex: 1 },
+  pad: { paddingHorizontal: 20, marginTop: 8 },
+  muted: { fontSize: 13, marginTop: 4, lineHeight: 18 },
+  account: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
+  avatar: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  accountName: { flex: 1, fontWeight: '700', fontSize: 15 },
+  link: { fontWeight: '700', fontSize: 14 },
+  empty: { alignItems: 'center', padding: 24, marginTop: 20, gap: 8 },
+  emptyIcon: { width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  emptyTitle: { fontWeight: '800', fontSize: 16 },
+  pass: { borderRadius: 24, overflow: 'hidden' },
+  passTop: { paddingHorizontal: 22, paddingVertical: 20 },
+  passLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 2.5, marginBottom: 6 },
+  passTitle: { fontFamily: serif, fontSize: 21, fontWeight: '700' },
+  passSub: { fontSize: 13.5, marginTop: 4 },
+  passRule: { height: 2, width: 44, borderRadius: 1, marginTop: 14 },
+  tear: { height: NOTCH, justifyContent: 'center' },
+  notch: { position: 'absolute', top: 0, width: NOTCH, height: NOTCH, borderRadius: NOTCH / 2 },
+  dash: { marginHorizontal: NOTCH, borderTopWidth: 1.5, borderStyle: 'dashed' },
+  passBody: { alignItems: 'center', paddingHorizontal: 22, paddingBottom: 22, paddingTop: 2 },
+  qrBox: { padding: 14, backgroundColor: '#ffffff', borderRadius: radius.card },
+  passFoot: { fontSize: 13.5, fontWeight: '600', marginTop: 14 },
+  wallet: { marginTop: 10, paddingVertical: 6 },
+  walletText: { fontSize: 13.5, fontWeight: '700' },
+  orderHead: { padding: 16 },
+  orderTitle: { fontWeight: '800', fontSize: 16 },
+  linkRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+  input: { borderWidth: 1, borderRadius: radius.field, paddingVertical: 12, paddingHorizontal: 14, fontSize: 15 },
+  priceRow: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 },
+  priceName: { fontWeight: '700', fontSize: 15 },
+  price: { fontWeight: '800', fontSize: 17 },
 });

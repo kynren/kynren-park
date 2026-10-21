@@ -9,10 +9,14 @@ import { useLocation } from '../../lib/location';
 import { useSync } from '../../lib/sync';
 import { useFavoriteIds } from '../../lib/favorites';
 import { fmtTime, ukNow, ukTodayStr } from '../../lib/format';
-import { theme } from '../../lib/theme';
+import { serif, band, theme } from '../../lib/theme';
 import { useThemePref } from '../../lib/theme-context';
 import { Touchable } from '../../components/Touchable';
+import { GradientFill } from '../../components/ui/Gradient';
+import { SearchPill } from '../../components/ui/Controls';
+import { Icon } from '../../components/ui/Icon';
 import { selection } from '../../lib/haptics';
+import { shadow, useUI } from '../../lib/ui';
 
 // Authoring coordinate system for the illustrated basemap (a viewBox). The SVG
 // is stretched to exactly fill the measured screen, and pins are projected into
@@ -175,13 +179,14 @@ export default function MapScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const dark = useThemePref().scheme === 'dark';
+  const { c } = useUI();
   const cpal = dark
     // Brighter than a typical "muted" grey — this is an outdoor park app, and
     // a guest confirmed the popup subtitle was genuinely hard to read even
     // though the colour technically passed a contrast-ratio check indoors;
     // direct sunlight eats a lot more contrast than that check accounts for.
-    ? { card: '#1f1f24', ink: '#ffffff', muted: '#cfcfd6' }
-    : { card: '#ffffff', ink: theme.ink, muted: theme.muted };
+    ? { card: c.card, ink: '#ffffff', muted: '#cfd8ea' }
+    : { card: c.card, ink: c.text, muted: c.sub };
   const params = useLocalSearchParams<{ focus?: string; spot?: string }>();
   // Multiple categories can be active at once; defaults to Shows on first load.
   const [cats, setCats] = useState<Set<Cat>>(() => new Set<Cat>(['shows']));
@@ -192,7 +197,7 @@ export default function MapScreen() {
   const [closingPin, setClosingPin] = useState<Pin | null>(null);
   const displayPin = selected ?? closingPin;
   const [search, setSearch] = useState('');
-  const [searchOpen, setSearchOpen] = useState(false); // the search bar shows only when the search icon is tapped
+  const [nearOpen, setNearOpen] = useState(true); // the "Near You" strip can be folded away to give the map the whole screen
   const [pendingSelect, setPendingSelect] = useState<string | null>(null);
   const [pendingSpot, setPendingSpot] = useState<string | null>(null);
   // "Find on Map" isolation: when set, only this pin is shown (others hidden)
@@ -690,8 +695,8 @@ export default function MapScreen() {
   // set, fills the pin. Show/evening pins carry a "next time" pill.
   function renderPin(pin: Pin) {
     const isSel = selected?.id === pin.id;
-    const tint = pin.kind === 'evening' ? '#2c3e70'
-      : pin.kind === 'restaurant' ? '#f5601e'
+    const tint = pin.kind === 'evening' ? '#6e1423'
+      : pin.kind === 'restaurant' ? '#a8452d'
         : pin.kind === 'facility' ? (pin.color ?? '#6b6460')
           : theme.brand;
     const glyph = pin.kind === 'evening' ? '🌙' : pin.kind === 'restaurant' ? '🍴' : pin.kind === 'facility' ? (pin.emoji ?? '•') : null;
@@ -732,7 +737,6 @@ export default function MapScreen() {
     setCats((p) => new Set(p).add(r.kind));
     setPendingSelect(r.id);
     setSearch('');
-    setSearchOpen(false);
     Keyboard.dismiss();
   }
   // Once the pins for the chosen layer are ready, select & centre the result.
@@ -813,6 +817,21 @@ export default function MapScreen() {
   // Only show the beacon when we have a real GPS fix within half a mile of the
   // park — never when far away or when there's no location fix at all.
   const showMe = distToPark != null && distToPark <= HALF_MILE_M;
+
+  // The "Near You" strip: shows and restaurants nearest the guest when we have a real fix inside the park, otherwise the
+  // park's own order. Tapping one reuses the search-result path, which selects it and zooms to it.
+  const nearby = useMemo(() => {
+    const items: { id: string; kind: Cat; title: string; zone: string | null; image: string | null; dist: number | null }[] = [];
+    const add = (id: string, kind: Cat, title: string, poiId: string | null | undefined, image: string | null | undefined) => {
+      const p = poiId ? poiById.get(poiId) : undefined;
+      if (!p) return;
+      items.push({ id, kind, title, zone: p.mapZone ?? null, image: image ?? p.image ?? null, dist: locationReal && gps ? distMeters(gps, { lat: p.lat, lng: p.lng }) : null });
+    };
+    for (const a of bundle?.attractions ?? []) add(a.id, 'shows', a.name, a.poiId, a.heroImage);
+    for (const r of bundle?.restaurants ?? []) add(r.id, 'restaurants', r.name, r.poiId, r.heroImage);
+    items.sort((a, b) => (a.dist != null && b.dist != null ? a.dist - b.dist : 0));
+    return items.slice(0, 12);
+  }, [bundle, poiById, gps, locationReal]);
   const youAreHere = useMemo(() => {
     if (!project) return { x: vw / 2, y: vh * 0.7 };
     if (locationReal && gps) return project.toXY(gps.lat, gps.lng);
@@ -933,7 +952,7 @@ export default function MapScreen() {
             style={StyleSheet.absoluteFill}
             onPress={() => {
               if (dismissTimer.current) { clearTimeout(dismissTimer.current); dismissTimer.current = null; return; } // 2nd tap → keep popup
-              dismissTimer.current = setTimeout(() => { dismissTimer.current = null; dismissPopup(); setSearchOpen(false); Keyboard.dismiss(); }, DISMISS_DEBOUNCE_MS);
+              dismissTimer.current = setTimeout(() => { dismissTimer.current = null; dismissPopup(); Keyboard.dismiss(); }, DISMISS_DEBOUNCE_MS);
             }}
           />
 
@@ -995,7 +1014,7 @@ export default function MapScreen() {
                   {displayPin.image ? (
                     <Image source={{ uri: displayPin.image }} style={styles.calloutThumb} />
                   ) : (
-                    <View style={[styles.calloutThumb, styles.calloutThumbFallback, displayPin.kind === 'evening' && { backgroundColor: '#2c3e70' }]}>
+                    <View style={[styles.calloutThumb, styles.calloutThumbFallback, displayPin.kind === 'evening' && { backgroundColor: '#6e1423' }]}>
                       <Text style={{ fontSize: 26 }}>{displayPin.emoji ?? '🎭'}</Text>
                     </View>
                   )}
@@ -1073,7 +1092,7 @@ export default function MapScreen() {
 
         {/* Location banner — the app needs GPS to show your position & distances */}
         {!locationReal && !bannerDismissed && (
-          <View style={[styles.geoBanner, { top: insets.top + 62 }]}>
+          <View style={[styles.geoBanner, { top: insets.top + 120 }]}>
             <Text style={styles.geoIcon}>📱</Text>
             <Text style={styles.geoTxt}>
               {gps ? 'You seem to be outside the park' : 'Turn on location to see where you are and how far things are'}
@@ -1091,73 +1110,66 @@ export default function MapScreen() {
           </View>
         )}
 
-        {/* Search — opens from the 🔍 control below the locate button */}
-        {searchOpen && (
-        <View style={[styles.searchWrap, { top: insets.top + 8 }]}>
-          <View style={styles.searchBar}>
-            <Text style={styles.searchIcon}>🔍</Text>
-            <TextInput
-              autoFocus
-              style={styles.searchInput}
-              placeholder="Search the map…"
-              placeholderTextColor="#8a8a8a"
-              value={search}
-              onChangeText={setSearch}
-              returnKeyType="search"
-            />
-            <Touchable onPress={() => { setSearch(''); setSearchOpen(false); Keyboard.dismiss(); }} hitSlop={8}><Text style={styles.searchClear}>✕</Text></Touchable>
+        {/* Header: the sky band with the menu button and title, and the search pill resting on its lower edge */}
+        <View style={[styles.topBand, { height: insets.top + 80 }]} pointerEvents="box-none">
+          <View style={[StyleSheet.absoluteFill, styles.topBandBg]} pointerEvents="none">
+            <GradientFill from={band.from} to={band.to} vertical />
           </View>
+          <View style={[styles.topRow, { paddingTop: insets.top + 8 }]} pointerEvents="box-none">
+            <Touchable style={styles.topSide} onPress={() => router.push('/menu')} accessibilityRole="button" accessibilityLabel="Open menu" hitSlop={10}>
+              <Icon name="menu" color="#ffffff" size={26} />
+            </Touchable>
+            <Text accessibilityRole="header" style={styles.topTitle}>MAP</Text>
+            <Touchable style={[styles.topSide, { alignItems: 'flex-end' }]} onPress={() => router.push('/scan')} accessibilityRole="button" accessibilityLabel="Scan a QR code" hitSlop={10}>
+              <Icon name="scan" color="#ffffff" size={24} />
+            </Touchable>
+          </View>
+        </View>
+
+        <View style={[styles.searchWrap, { top: insets.top + 53 }]} pointerEvents="box-none">
+          <SearchPill placeholder="Find attractions" value={search} onChangeText={setSearch} />
           {search.trim().length > 0 && (
-            <View style={styles.searchResults}>
+            <View style={[styles.searchResults, { backgroundColor: c.card }]}>
               {searchResults.length === 0 ? (
-                <Text style={styles.searchEmpty}>No matches</Text>
+                <Text style={[styles.searchEmpty, { color: c.sub }]}>No matches</Text>
               ) : (
                 searchResults.map((r) => (
-                  <Touchable key={`${r.kind}:${r.id}`} haptic="selection" style={styles.searchRow} onPress={() => goToResult(r)}>
-                    <Text style={styles.searchName} numberOfLines={1}>{r.name}</Text>
-                    <Text style={styles.searchSub}>{r.sub}</Text>
+                  <Touchable key={`${r.kind}:${r.id}`} haptic="selection" style={[styles.searchRow, { borderBottomColor: c.line }]} onPress={() => goToResult(r)}>
+                    <Text style={[styles.searchName, { color: c.text }]} numberOfLines={1}>{r.name}</Text>
+                    <Text style={[styles.searchSub, { color: c.sub }]}>{r.sub}</Text>
                   </Touchable>
                 ))
               )}
             </View>
           )}
         </View>
-        )}
-
-        {/* Profile */}
-        <Touchable style={[styles.profileBtn, { top: insets.top + 8 }]} onPress={() => router.push('/profile')}>
-          <Text style={{ fontSize: 18 }}>👤</Text>
-        </Touchable>
 
         {/* Zoom + locate controls */}
-        <View style={[styles.ctrlCol, { top: insets.top + 62 }]}>
+        <View style={[styles.ctrlCol, { top: insets.top + 124 }]}>
           {/* Compass — only shown once the map has been turned; tap to snap back
               to north-up, like Google/Apple Maps. */}
           {ROTATE_SUPPORTED && rotated && (
-            <Touchable style={styles.ctrlBtn} onPress={resetRotation}>
+            <Touchable style={[styles.ctrlBtn, shadow(1, dark), { backgroundColor: c.card }]} onPress={resetRotation} accessibilityLabel="Point north">
               <Reanimated.View style={compassStyle}><Text style={{ fontSize: 17 }}>🧭</Text></Reanimated.View>
             </Touchable>
           )}
-          <Touchable style={styles.ctrlBtn} onPress={() => zoomTo(scale.value + 0.4)}>
-            <Text style={styles.ctrlTxt}>＋</Text>
+          <Touchable style={[styles.ctrlBtn, shadow(1, dark), { backgroundColor: c.card }]} onPress={() => zoomTo(scale.value + 0.4)} accessibilityLabel="Zoom in">
+            <Text style={[styles.ctrlTxt, { color: c.text }]}>＋</Text>
           </Touchable>
-          <Touchable style={styles.ctrlBtn} onPress={() => zoomTo(scale.value - 0.4)}>
-            <Text style={styles.ctrlTxt}>－</Text>
+          <Touchable style={[styles.ctrlBtn, shadow(1, dark), { backgroundColor: c.card }]} onPress={() => zoomTo(scale.value - 0.4)} accessibilityLabel="Zoom out">
+            <Text style={[styles.ctrlTxt, { color: c.text }]}>－</Text>
           </Touchable>
-          <Touchable style={styles.ctrlBtn} onPress={fitAll}>
-            <Text style={{ fontSize: 15 }}>🗺️</Text>
+          <Touchable style={[styles.ctrlBtn, shadow(1, dark), { backgroundColor: c.card }]} onPress={fitAll} accessibilityLabel="Show the whole park">
+            <Icon name="map" color={c.link} size={20} />
           </Touchable>
-          <Touchable style={styles.ctrlBtn} onPress={recenter}>
-            <Text style={{ fontSize: 17 }}>📍</Text>
-          </Touchable>
-          <Touchable style={styles.ctrlBtn} onPress={() => { dismissPopup(); setSearchOpen(true); }}>
-            <Text style={{ fontSize: 16 }}>🔍</Text>
+          <Touchable style={[styles.ctrlBtn, shadow(1, dark), { backgroundColor: c.card }]} onPress={recenter} accessibilityLabel="Centre on my location">
+            <Icon name="pin" color={c.link} size={20} />
           </Touchable>
         </View>
 
         {/* Find on Map isolation: a chip to bring every pin back. */}
         {soloId && (
-          <View style={[styles.showAllWrap, { top: insets.top + 58 }]} pointerEvents="box-none">
+          <View style={[styles.showAllWrap, { top: insets.top + 120 }]} pointerEvents="box-none">
             <Touchable style={styles.showAllChip} onPress={() => { setSoloId(null); dismissPopup(); }}>
               <Text style={styles.showAllTxt}>← Show all pins</Text>
             </Touchable>
@@ -1166,7 +1178,7 @@ export default function MapScreen() {
 
         {/* "Tap the map to explore" hint, until the guest opens something */}
         {!selected && !soloId && !hintDismissed && (
-          <View style={styles.hintWrap} pointerEvents="box-none">
+          <View style={[styles.hintWrap, { top: insets.top + 120 }]} pointerEvents="box-none">
             <Touchable style={styles.hintChip} onPress={() => setHintDismissed(true)}>
               <Text style={styles.hintChipTxt}>TAP THE MAP TO EXPLORE</Text>
             </Touchable>
@@ -1175,28 +1187,65 @@ export default function MapScreen() {
 
         {/* Walk-time pill when a destination is selected */}
         {selected && selectedDist != null && (
-          <View style={styles.walkPill} pointerEvents="none">
-            <Text style={styles.walkPillTxt}>🚶 {walkMins(selectedDist)} min walk</Text>
+          <View style={[styles.walkPill, { backgroundColor: c.card }]} pointerEvents="none">
+            <Text style={[styles.walkPillTxt, { color: c.text }]}>🚶 {walkMins(selectedDist)} min walk</Text>
           </View>
         )}
 
-        {/* Bottom category pills (Puy du Fou style) */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.pills}
-          contentContainerStyle={styles.pillsContent}
-        >
-          {PILLS.map((p) => {
-            const on = cats.has(p.key);
-            return (
-              <Touchable key={p.key} haptic="selection" style={[styles.pill, on && styles.pillOn]} onPress={() => { setCats((prev) => { const n = new Set(prev); if (n.has(p.key)) n.delete(p.key); else n.add(p.key); return n; }); dismissPopup(); setSoloId(null); }}>
-                <Text style={[styles.pillEmoji, on && { color: '#fff' }]}>{p.emoji}</Text>
-                <Text style={[styles.pillLabel, on && styles.pillLabelOn]}>{p.label}</Text>
+        {/* Bottom: the layer filters, then the "Near You" sheet */}
+        <View style={styles.bottomStack} pointerEvents="box-none">
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pills} contentContainerStyle={styles.pillsContent}>
+            {PILLS.map((p) => {
+              const on = cats.has(p.key);
+              return (
+                <Touchable
+                  key={p.key}
+                  haptic="selection"
+                  accessibilityState={{ selected: on }}
+                  style={[styles.pill, shadow(1, dark), { backgroundColor: on ? c.primary : c.card }]}
+                  onPress={() => { setCats((prev) => { const n = new Set(prev); if (n.has(p.key)) n.delete(p.key); else n.add(p.key); return n; }); dismissPopup(); setSoloId(null); }}
+                >
+                  <Text style={[styles.pillEmoji, { color: on ? '#fff' : c.text }]}>{p.emoji}</Text>
+                  <Text style={[styles.pillLabel, { color: on ? '#fff' : c.text }]}>{p.label}</Text>
+                </Touchable>
+              );
+            })}
+          </ScrollView>
+
+          {!displayPin && nearby.length > 0 && (
+            <View style={[styles.sheet, shadow(2, dark, 'up'), { backgroundColor: c.card }]}>
+              <Touchable style={styles.sheetHead} onPress={() => setNearOpen((v) => !v)} accessibilityRole="button" accessibilityLabel={nearOpen ? 'Hide nearby places' : 'Show nearby places'}>
+                <View style={[styles.grab, { backgroundColor: c.line }]} />
+                <View style={styles.sheetTitleRow}>
+                  <Text style={[styles.sheetTitle, { color: c.text }]}>{locationReal ? 'Near you' : 'Around the park'}</Text>
+                  <View style={{ transform: [{ rotate: nearOpen ? '90deg' : '-90deg' }] }}>
+                    <Icon name="chevron" color={c.sub} size={20} />
+                  </View>
+                </View>
               </Touchable>
-            );
-          })}
-        </ScrollView>
+              {nearOpen && (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.nearRow}>
+                  {nearby.map((n) => (
+                    <Touchable key={`${n.kind}:${n.id}`} style={[styles.nearCard, { backgroundColor: c.screen }]} onPress={() => goToResult({ id: n.id, kind: n.kind })} accessibilityRole="button" accessibilityLabel={`${n.title}${n.dist != null ? `, ${fmtDist(n.dist)} away` : ''}`}>
+                      {n.image ? (
+                        <Image source={{ uri: n.image }} style={styles.nearImg} resizeMode="cover" />
+                      ) : (
+                        <View style={[styles.nearImg, { backgroundColor: c.tint, alignItems: 'center', justifyContent: 'center' }]}>
+                          <Icon name={n.kind === 'restaurants' ? 'fork' : 'calendar'} color={c.link} size={26} />
+                        </View>
+                      )}
+                      <Text numberOfLines={1} style={[styles.nearName, { color: c.link }]}>{n.title}</Text>
+                      <View style={styles.nearMeta}>
+                        <Icon name="pin" color={c.sub} size={13} />
+                        <Text numberOfLines={1} style={[styles.nearZone, { color: c.sub }]}>{n.dist != null ? fmtDist(n.dist) : n.zone ?? 'Kynren'}</Text>
+                      </View>
+                    </Touchable>
+                  ))}
+                </ScrollView>
+              )}
+            </View>
+          )}
+        </View>
       </View>
     </View>
   );
@@ -1313,8 +1362,8 @@ const styles = StyleSheet.create({
   pinNum: { color: theme.ink, fontWeight: '800', fontSize: 15 },
   pinEmoji: { fontSize: 16 },
   pinTail: { width: 0, height: 0, borderLeftWidth: 7, borderRightWidth: 7, borderTopWidth: 11, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: theme.brand, marginTop: -3 },
-  pinTime: { marginTop: 1, backgroundColor: '#fff', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 2, shadowOffset: { width: 0, height: 1 }, elevation: 3, ...noLiveShadow },
-  pinTimeTxt: { color: theme.ink, fontWeight: '800', fontSize: 11 },
+  pinTime: { marginTop: 1, backgroundColor: '#e8861a', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 2, shadowOffset: { width: 0, height: 1 }, elevation: 3, ...noLiveShadow },
+  pinTimeTxt: { color: '#ffffff', fontWeight: '800', fontSize: 11 },
   clusterWrap: { position: 'absolute', left: -20, top: -20, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   cluster: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.brand, alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3, shadowOffset: { width: 0, height: 2 }, elevation: 6, ...noLiveShadow },
   clusterTxt: { color: '#fff', fontWeight: '800', fontSize: 15 },
@@ -1330,12 +1379,9 @@ const styles = StyleSheet.create({
   meGlow: { position: 'absolute', width: 46, height: 46, borderRadius: 23, opacity: 0.18 },
   meDot: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#1a73e8', borderWidth: 3.5, borderColor: '#fff', shadowColor: '#1a73e8', shadowOpacity: 0.6, shadowRadius: 5, shadowOffset: { width: 0, height: 1 }, elevation: 6 },
   mePulse: { position: 'absolute', width: 22, height: 22, borderRadius: 11, backgroundColor: '#1a73e8' },
-  hintWrap: { position: 'absolute', left: 0, right: 0, bottom: 74, alignItems: 'center' },
+  hintWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   hintChip: { backgroundColor: 'rgba(17,17,17,0.9)', borderRadius: 8, paddingVertical: 9, paddingHorizontal: 16 },
   hintChipTxt: { color: '#fff', fontSize: 12, fontWeight: '800', letterSpacing: 0.6 },
-  // Left-anchored, not right: the global FloatingScanner FAB (components/
-  // FloatingScanner.tsx) is also right-aligned near the bottom of every
-  // screen and was covering this pill.
   walkPill: { position: 'absolute', left: 14, bottom: 74, backgroundColor: '#fff', borderRadius: 999, paddingVertical: 9, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 5 },
   walkPillTxt: { color: theme.ink, fontWeight: '800', fontSize: 13 },
   // The card floats above the (zero-size) pin anchor; a little arrow points
@@ -1357,28 +1403,37 @@ const styles = StyleSheet.create({
   geoIcon: { fontSize: 18 },
   geoTxt: { flex: 1, color: '#f0a8a8', fontSize: 14, fontWeight: '600' },
   geoClose: { color: '#f0a8a8', fontSize: 16, fontWeight: '700' },
-  hint: { position: 'absolute', bottom: 128, left: 24, right: 24, backgroundColor: 'rgba(255,255,255,0.97)', borderRadius: 12, padding: 14, zIndex: 80, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 10 },
+  hint: { position: 'absolute', bottom: 300, left: 24, right: 24, backgroundColor: 'rgba(255,255,255,0.97)', borderRadius: 12, padding: 14, zIndex: 80, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 10 },
   hintText: { textAlign: 'center', color: theme.ink, fontWeight: '600', fontSize: 13 },
-  profileBtn: { position: 'absolute', right: 14, top: 14, width: 44, height: 44, borderRadius: 22, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 4, elevation: 4 },
-  searchWrap: { position: 'absolute', top: 14, left: 14, right: 66, zIndex: 60 },
-  // Frosted/translucent so it blends into the map rather than a solid block.
-  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.72)', borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.55)', paddingHorizontal: 12, height: 44, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
-  searchIcon: { fontSize: 14, opacity: 0.8 },
-  searchInput: { flex: 1, fontSize: 15, color: theme.ink, padding: 0 },
-  searchClear: { color: theme.muted, fontSize: 14, fontWeight: '700' },
-  searchResults: { backgroundColor: '#fff', borderRadius: 12, marginTop: 6, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6, elevation: 6 },
-  searchRow: { paddingHorizontal: 14, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: theme.border },
-  searchName: { fontSize: 14, fontWeight: '700', color: theme.ink },
-  searchSub: { fontSize: 12, color: theme.muted, marginTop: 1, textTransform: 'capitalize' },
-  searchEmpty: { padding: 14, color: theme.muted, fontSize: 13 },
-  ctrlCol: { position: 'absolute', right: 14, top: 70, gap: 8 },
-  ctrlBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 3, elevation: 3 },
-  ctrlTxt: { fontSize: 20, fontWeight: '700', color: theme.ink },
-  pills: { position: 'absolute', left: 0, right: 0, bottom: 16 },
+  searchWrap: { position: 'absolute', left: 16, right: 16, zIndex: 72 },
+  searchResults: { borderRadius: 20, marginTop: 8, overflow: 'hidden', shadowColor: '#1f3c78', shadowOpacity: 0.16, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
+  searchRow: { paddingHorizontal: 18, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
+  searchName: { fontSize: 14, fontWeight: '700' },
+  searchSub: { fontSize: 12, marginTop: 1, textTransform: 'capitalize' },
+  searchEmpty: { padding: 16, fontSize: 13 },
+  ctrlCol: { position: 'absolute', right: 16, gap: 10, zIndex: 50 },
+  ctrlBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  ctrlTxt: { fontFamily: serif, fontSize: 20, fontWeight: '700' },
+  pills: { flexGrow: 0, marginBottom: 12 },
   pillsContent: { flexDirection: 'row', gap: 8, paddingHorizontal: 12, alignItems: 'center', flexGrow: 1, justifyContent: 'center' },
-  pill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#fff', borderRadius: 999, paddingVertical: 12, paddingHorizontal: 16, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 5, elevation: 5 },
-  pillOn: { backgroundColor: theme.brand },
-  pillEmoji: { fontSize: 15, color: theme.ink },
-  pillLabel: { fontWeight: '800', fontSize: 13, color: theme.ink },
-  pillLabelOn: { color: '#fff' },
+  pill: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingVertical: 11, paddingHorizontal: 16 },
+  pillEmoji: { fontSize: 15 },
+  pillLabel: { fontWeight: '800', fontSize: 13 },
+  topBand: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 70 },
+  topBandBg: { overflow: 'hidden', borderBottomLeftRadius: 32, borderBottomRightRadius: 32 },
+  topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20 },
+  topSide: { width: 44, height: 44, justifyContent: 'center' },
+  topTitle: { color: '#ffffff', fontSize: 15, fontWeight: '700', letterSpacing: 3 },
+  bottomStack: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 40 },
+  sheet: { borderTopLeftRadius: 30, borderTopRightRadius: 30, paddingBottom: 14 },
+  sheetHead: { paddingTop: 10, paddingHorizontal: 20, paddingBottom: 8 },
+  grab: { alignSelf: 'center', width: 44, height: 4, borderRadius: 2, marginBottom: 12 },
+  sheetTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sheetTitle: { fontFamily: serif, fontSize: 19, fontWeight: '800' },
+  nearRow: { gap: 12, paddingHorizontal: 20, paddingBottom: 6 },
+  nearCard: { width: 152, borderRadius: 20, padding: 8 },
+  nearImg: { width: '100%', height: 84, borderRadius: 14 },
+  nearName: { fontSize: 14, fontWeight: '800', marginTop: 8, paddingHorizontal: 2 },
+  nearMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3, paddingHorizontal: 2 },
+  nearZone: { fontSize: 12, fontWeight: '600', flexShrink: 1 },
 });

@@ -1,13 +1,17 @@
 import { useMemo, useState } from 'react';
-import { ScrollView, View, Text, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, Alert } from 'react-native';
 import { Touchable } from '../components/Touchable';
+import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Controls';
+import { Screen } from '../components/ui/Screen';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSync } from '../lib/sync';
 import { useAuth } from '../lib/auth';
 import { api } from '../lib/api';
 import { poundsFromCents } from '../lib/format';
-import { theme } from '../lib/theme';
+import { serif, featureGradient } from '../lib/theme';
+import { useUI } from '../lib/ui';
 
 interface BookingResult {
   reference: string;
@@ -17,6 +21,7 @@ interface BookingResult {
 
 export default function BookScreen() {
   const router = useRouter();
+  const { c } = useUI();
   const { bundle, date } = useSync();
   const { user } = useAuth();
   const ticketTypes = bundle?.ticketTypes ?? [];
@@ -73,57 +78,59 @@ export default function BookScreen() {
   }
 
   return (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-      <Text style={styles.h1}>Book your visit</Text>
-      <Text style={styles.muted}>Visit date: {date}</Text>
+    <Screen title="Buy tickets" colors={featureGradient.tickets}>
+      <View>
+        <Text style={[styles.h1, { color: c.text }]}>Book your visit</Text>
+        <Text style={[styles.muted, { color: c.sub }]}>Visit date: {date}</Text>
+      </View>
 
-      <View style={{ marginTop: 16, gap: 10 }}>
-        {ticketTypes.map((t) => (
-          <View key={t.id} style={styles.row}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.name}>{t.name}</Text>
-              <Text style={styles.price}>{poundsFromCents(t.priceCents)}</Text>
-            </View>
-            <View style={styles.stepper}>
-              <Touchable style={styles.stepBtn} onPress={() => bump(t.id, -1)}>
-                <Text style={styles.stepTxt}>−</Text>
-              </Touchable>
-              <Text style={styles.qty}>{qty[t.id] ?? 0}</Text>
-              <Touchable style={styles.stepBtn} onPress={() => bump(t.id, 1)}>
-                <Text style={styles.stepTxt}>+</Text>
-              </Touchable>
-            </View>
+      {ticketTypes.map((t) => (
+        <Card key={t.id} style={styles.row}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.name, { color: c.text }]}>{t.name}</Text>
+            <Text style={[styles.price, { color: c.link }]}>{poundsFromCents(t.priceCents)}</Text>
           </View>
-        ))}
+          <View style={styles.stepper}>
+            <Touchable style={[styles.stepBtn, { backgroundColor: c.tint }]} onPress={() => bump(t.id, -1)} accessibilityLabel={`Fewer ${t.name}`} hitSlop={6}>
+              <Text style={[styles.stepTxt, { color: c.link }]}>−</Text>
+            </Touchable>
+            <Text style={[styles.qty, { color: c.text }]}>{qty[t.id] ?? 0}</Text>
+            <Touchable style={[styles.stepBtn, { backgroundColor: c.primary }]} onPress={() => bump(t.id, 1)} accessibilityLabel={`More ${t.name}`} hitSlop={6}>
+              <Text style={[styles.stepTxt, { color: '#ffffff' }]}>+</Text>
+            </Touchable>
+          </View>
+        </Card>
+      ))}
+
+      <View style={[styles.totalRow, { borderTopColor: c.line }]}>
+        <Text style={[styles.totalLabel, { color: c.text }]}>Total</Text>
+        <Text style={[styles.totalValue, { color: c.link }]}>{poundsFromCents(total)}</Text>
       </View>
 
-      <View style={styles.totalRow}>
-        <Text style={styles.totalLabel}>Total</Text>
-        <Text style={styles.totalValue}>{poundsFromCents(total)}</Text>
-      </View>
-
-      <Touchable style={[styles.cta, count === 0 && { opacity: 0.5 }]} onPress={book} disabled={submitting || count === 0}>
-        {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.ctaText}>{user ? `Confirm booking (${count})` : `Sign in to book (${count})`}</Text>}
-      </Touchable>
-      <Text style={styles.note}>Demo checkout — no payment is taken. Tickets are issued instantly with offline QR codes.</Text>
-    </ScrollView>
+      <Button
+        full
+        label={user ? `Confirm booking (${count})` : `Sign in to book (${count})`}
+        onPress={book}
+        loading={submitting}
+        disabled={count === 0}
+      />
+      <Text style={[styles.note, { color: c.sub }]}>Demo checkout — no payment is taken. Tickets are issued instantly with offline QR codes.</Text>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  h1: { fontSize: 24, fontWeight: '800', color: theme.ink },
-  muted: { color: theme.muted, fontSize: 14, marginTop: 4 },
-  row: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.card, borderRadius: 10, padding: 14, borderWidth: 1, borderColor: theme.border },
-  name: { fontWeight: '600', color: theme.ink, fontSize: 15 },
-  price: { color: theme.brand, fontWeight: '700', marginTop: 2 },
+  h1: { fontFamily: serif, fontSize: 24, fontWeight: '800' },
+  muted: { fontSize: 14, marginTop: 4 },
+  row: { flexDirection: 'row', alignItems: 'center', padding: 16 },
+  name: { fontWeight: '700', fontSize: 15.5 },
+  price: { fontWeight: '800', marginTop: 2, fontSize: 15 },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  stepBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: theme.bg, borderWidth: 1, borderColor: theme.border, alignItems: 'center', justifyContent: 'center' },
-  stepTxt: { fontSize: 20, color: theme.ink, fontWeight: '700' },
-  qty: { minWidth: 20, textAlign: 'center', fontSize: 16, fontWeight: '700', color: theme.ink },
-  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 20, paddingTop: 16, borderTopWidth: 1, borderTopColor: theme.border },
-  totalLabel: { fontSize: 16, fontWeight: '700', color: theme.ink },
-  totalValue: { fontSize: 20, fontWeight: '800', color: theme.brand },
-  cta: { backgroundColor: theme.brand, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 18 },
-  ctaText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  note: { color: theme.muted, fontSize: 12, textAlign: 'center', marginTop: 12 },
+  stepBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  stepTxt: { fontFamily: serif, fontSize: 21, fontWeight: '700', lineHeight: 24 },
+  qty: { minWidth: 20, textAlign: 'center', fontSize: 17, fontWeight: '800' },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16, borderTopWidth: 1 },
+  totalLabel: { fontSize: 16, fontWeight: '700' },
+  totalValue: { fontFamily: serif, fontSize: 22, fontWeight: '800' },
+  note: { fontSize: 12.5, textAlign: 'center' },
 });

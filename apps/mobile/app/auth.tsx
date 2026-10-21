@@ -1,16 +1,18 @@
 import { useState } from 'react';
-import { ScrollView, View, Text, TextInput, StyleSheet, ActivityIndicator } from 'react-native';
-import { useHeaderHeight } from '@react-navigation/elements';
-import { Touchable } from '../components/Touchable';
-import { KeyboardAvoid } from '../components/KeyboardAvoid';
-import { ManagedImage } from '../components/ManagedImage';
+import { Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Touchable } from '../components/Touchable';
+import { ManagedImage } from '../components/ManagedImage';
+import { Button } from '../components/ui/Button';
+import { Screen } from '../components/ui/Screen';
+import { TextField } from '../components/ui/Controls';
 import { useAuth } from '../lib/auth';
-import { theme } from '../lib/theme';
+import { useUI } from '../lib/ui';
+import { serif } from '../lib/theme';
 
 export default function AuthScreen() {
   const router = useRouter();
-  const headerHeight = useHeaderHeight();
+  const { c } = useUI();
   const { login, register } = useAuth();
   const [mode, setMode] = useState<'login' | 'register'>('register');
   const [name, setName] = useState('');
@@ -45,68 +47,45 @@ export default function AuthScreen() {
   }
 
   return (
-    <KeyboardAvoid offset={headerHeight}>
-    <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
-      <ManagedImage slot="auth.header" style={{ height: 150, borderRadius: 16, marginBottom: 18 }} fadeColor="#ffffff" />
-      <Text style={styles.h1}>{mode === 'login' ? 'Welcome back' : 'Create your account'}</Text>
-      <Text style={styles.muted}>
-        {mode === 'login'
-          ? 'Sign in to book tickets and save your day.'
-          : 'So we can hold your tickets and remind you before each show.'}
+    <Screen title={mode === 'login' ? 'Sign in' : 'Create account'} keyboard>
+      <ManagedImage slot="auth.header" style={{ height: 150, borderRadius: 20 }} fadeColor={c.screen} />
+      <Text style={[styles.h1, { color: c.text }]}>{mode === 'login' ? 'Welcome back' : 'Create your account'}</Text>
+      <Text style={[styles.muted, { color: c.sub }]}>
+        {mode === 'login' ? 'Sign in to book tickets and save your day.' : 'So we can hold your tickets and remind you before each show.'}
       </Text>
 
-      {mode === 'register' && (
-        <>
-          <Text style={styles.label}>Name (optional)</Text>
-          <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Your name" autoCapitalize="words" />
-        </>
-      )}
-      <Text style={styles.label}>Email</Text>
-      <TextInput
-        style={styles.input}
-        value={email}
-        onChangeText={setEmail}
-        placeholder="you@example.com"
-        keyboardType="email-address"
+      {mode === 'register' && <TextField label="Name (optional)" value={name} onChangeText={setName} placeholder="Your name" autoCapitalize="words" />}
+      <TextField label="Email" value={email} onChangeText={setEmail} placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
+      <TextField
+        label="Password"
+        value={password}
+        onChangeText={setPassword}
+        placeholder="At least 8 characters"
+        secureTextEntry={!showPw}
         autoCapitalize="none"
         autoCorrect={false}
+        trailing={
+          <Touchable onPress={() => setShowPw((v) => !v)} hitSlop={8}>
+            <Text style={[styles.toggle, { color: c.link }]}>{showPw ? 'Hide' : 'Show'}</Text>
+          </Touchable>
+        }
       />
-      <Text style={styles.label}>Password</Text>
-      <View style={styles.pwWrap}>
-        <TextInput style={[styles.input, styles.pwInput]} value={password} onChangeText={setPassword} placeholder="At least 8 characters" secureTextEntry={!showPw} autoCapitalize="none" autoCorrect={false} />
-        <Touchable style={styles.pwToggle} onPress={() => setShowPw((v) => !v)} hitSlop={8}>
-          <Text style={styles.pwToggleTxt}>{showPw ? 'Hide' : 'Show'}</Text>
-        </Touchable>
-      </View>
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? <Text style={[styles.error, { color: c.danger }]}>{error}</Text> : null}
 
-      <Touchable style={styles.cta} onPress={submit} disabled={loading}>
-        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.ctaText}>{mode === 'login' ? 'Sign in' : 'Create account'}</Text>}
+      <Button full label={mode === 'login' ? 'Sign in' : 'Create account'} onPress={submit} loading={loading} style={{ marginTop: 6 }} />
+
+      <Touchable onPress={() => setMode(mode === 'login' ? 'register' : 'login')} style={{ marginTop: 4 }}>
+        <Text style={[styles.switch, { color: c.link }]}>{mode === 'login' ? 'New here? Create an account' : 'Already have an account? Sign in'}</Text>
       </Touchable>
-
-      <Touchable onPress={() => setMode(mode === 'login' ? 'register' : 'login')} style={{ marginTop: 16 }}>
-        <Text style={styles.switch}>
-          {mode === 'login' ? 'New here? Create an account' : 'Already have an account? Sign in'}
-        </Text>
-      </Touchable>
-    </ScrollView>
-    </KeyboardAvoid>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 20, paddingBottom: 40, gap: 4 },
-  h1: { fontSize: 24, fontWeight: '800', color: theme.ink },
-  muted: { color: theme.muted, fontSize: 14, marginBottom: 8 },
-  label: { fontSize: 13, color: theme.muted, marginTop: 14, marginBottom: 4 },
-  input: { backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border, borderRadius: 10, padding: 12, fontSize: 15 },
-  pwWrap: { position: 'relative', justifyContent: 'center' },
-  pwInput: { paddingRight: 64 },
-  pwToggle: { position: 'absolute', right: 12, paddingVertical: 6, paddingHorizontal: 4 },
-  pwToggleTxt: { color: theme.brand, fontWeight: '700', fontSize: 13 },
-  error: { color: theme.danger, marginTop: 12, fontSize: 13 },
-  cta: { backgroundColor: theme.brand, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 22 },
-  ctaText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  switch: { color: theme.brand, textAlign: 'center', fontWeight: '600' },
+  h1: { fontFamily: serif, fontSize: 24, fontWeight: '800' },
+  muted: { fontSize: 14, lineHeight: 20, marginTop: -6 },
+  toggle: { fontWeight: '700', fontSize: 13 },
+  error: { fontSize: 13.5, fontWeight: '600' },
+  switch: { textAlign: 'center', fontWeight: '700', paddingVertical: 8 },
 });

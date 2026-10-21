@@ -1,16 +1,18 @@
-import { useEffect, useRef, useState } from 'react';
-import { ScrollView, View, Text, StyleSheet, TextInput, Switch, Image, Alert, Share } from 'react-native';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { View, Text, StyleSheet, Switch, Image, Alert, Share } from 'react-native';
 import { Touchable } from '../components/Touchable';
-import { KeyboardAvoid } from '../components/KeyboardAvoid';
-import { useRouter, Stack } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Button } from '../components/ui/Button';
+import { Card, TextField } from '../components/ui/Controls';
+import { Icon } from '../components/ui/Icon';
+import { Screen } from '../components/ui/Screen';
+import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
-import Svg, { Path } from 'react-native-svg';
-import { theme } from '../lib/theme';
 import { useThemePref, type ThemePref } from '../lib/theme-context';
 import { useAuth } from '../lib/auth';
 import { api } from '../lib/api';
+import { useUI } from '../lib/ui';
+import { serif } from '../lib/theme';
 
 const PROFILE_KEY = 'kynren_profile';
 
@@ -28,17 +30,9 @@ interface Profile {
 }
 const EMPTY: Profile = { firstName: '', lastName: '', phone: '', address: '', photoUri: null, wheelchair: false, audioDesc: false, captioning: false, bsl: false, notes: '' };
 
-function usePalette() {
-  const dark = useThemePref().scheme === 'dark';
-  return dark
-    ? { screen: '#0c0c0c', card: '#1a1a1a', input: '#161616', text: '#ffffff', sub: '#9a9a9a', line: '#2a2a2a', placeholder: '#6a6a6a' }
-    : { screen: theme.bg, card: '#ffffff', input: '#ffffff', text: theme.ink, sub: theme.muted, line: theme.border, placeholder: '#9a938c' };
-}
-
 export default function SettingsScreen() {
   const router = useRouter();
-  const pal = usePalette();
-  const insets = useSafeAreaInsets();
+  const { c } = useUI();
   const { pref, setPref } = useThemePref();
   const { user, logout } = useAuth();
   const [p, setP] = useState<Profile>(EMPTY);
@@ -121,148 +115,111 @@ export default function SettingsScreen() {
     if (!res.canceled && res.assets[0]) set('photoUri', res.assets[0].uri);
   }
 
-  const initials = `${p.firstName?.[0] ?? ''}${p.lastName?.[0] ?? ''}`.toUpperCase() || '👤';
+  const initials = `${p.firstName?.[0] ?? ''}${p.lastName?.[0] ?? ''}`.toUpperCase();
 
   return (
-    <View style={[styles.screen, { backgroundColor: pal.screen }]}>
-      <Stack.Screen options={{ headerShown: false }} />
-      <View style={[styles.top, { paddingTop: insets.top + 8 }]}>
-        <Touchable onPress={() => router.back()} style={styles.backBtn}>
-          <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><Path d="M15 5l-7 7 7 7" /></Svg>
+    <Screen title="Account" keyboard contentStyle={{ gap: 24 }}>
+      {/* Photo */}
+      <View style={{ alignItems: 'center', gap: 10 }}>
+        <Touchable onPress={pickPhoto} style={styles.photoWrap} accessibilityRole="button" accessibilityLabel="Change profile photo">
+          {p.photoUri ? (
+            <Image source={{ uri: p.photoUri }} style={styles.photo} />
+          ) : (
+            <View style={[styles.photo, { backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center' }]}>
+              {initials ? <Text style={styles.photoInitials}>{initials}</Text> : <Icon name="user" color="#ffffff" size={40} />}
+            </View>
+          )}
+          <View style={[styles.photoEdit, { backgroundColor: c.accent, borderColor: c.screen }]}>
+            <Text style={{ color: '#ffffff', fontSize: 13 }}>✎</Text>
+          </View>
         </Touchable>
-        <Text style={[styles.topTitle, { color: pal.text }]}>Account</Text>
-        <View style={{ width: 42 }} />
+        <Touchable onPress={pickPhoto}><Text style={[styles.changePhoto, { color: c.link }]}>Change photo</Text></Touchable>
       </View>
 
-      <KeyboardAvoid>
-      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, paddingBottom: 40, gap: 22 }}>
-        {/* Photo */}
-        <View style={{ alignItems: 'center', gap: 10 }}>
-          <Touchable onPress={pickPhoto} style={styles.photoWrap}>
-            {p.photoUri ? (
-              <Image source={{ uri: p.photoUri }} style={styles.photo} />
-            ) : (
-              <View style={[styles.photo, styles.photoPlaceholder]}>
-                <Text style={styles.photoInitials}>{initials}</Text>
-              </View>
-            )}
-            <View style={styles.photoEdit}>
-              <Text style={{ color: '#fff', fontSize: 13 }}>✎</Text>
-            </View>
-          </Touchable>
-          <Touchable onPress={pickPhoto}><Text style={styles.changePhoto}>Change photo</Text></Touchable>
+      <Section title="Your details">
+        <TextField label="First name" value={p.firstName} onChangeText={(v) => set('firstName', v)} placeholder="First name" />
+        <TextField label="Last name" value={p.lastName} onChangeText={(v) => set('lastName', v)} placeholder="Last name" />
+        <TextField label="Phone" value={p.phone} onChangeText={(v) => set('phone', v)} placeholder="Phone" keyboardType="phone-pad" />
+        <TextField label="Address" value={p.address} onChangeText={(v) => set('address', v)} placeholder="Address" multiline style={styles.multiline} />
+      </Section>
+
+      <Section title="Accessibility">
+        <Toggle label="Step-free access needs" value={p.wheelchair} onChange={(v) => set('wheelchair', v)} />
+        <Toggle label="Audio description" value={p.audioDesc} onChange={(v) => set('audioDesc', v)} />
+        <Toggle label="Captioning" value={p.captioning} onChange={(v) => set('captioning', v)} />
+        <Toggle label="BSL interpretation" value={p.bsl} onChange={(v) => set('bsl', v)} />
+        <TextField label="Other needs (optional)" value={p.notes} onChangeText={(v) => set('notes', v)} placeholder="Other needs" multiline style={styles.multiline} />
+      </Section>
+
+      <Section title="Appearance">
+        <View style={styles.segment}>
+          {(['light', 'dark', 'system'] as ThemePref[]).map((opt) => {
+            const on = pref === opt;
+            return (
+              <Touchable
+                key={opt}
+                style={[styles.segItem, { backgroundColor: on ? c.primary : c.tint }]}
+                onPress={() => setPref(opt)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: on }}
+              >
+                <Text style={[styles.segTxt, { color: on ? '#ffffff' : c.link }]}>{opt[0].toUpperCase() + opt.slice(1)}</Text>
+              </Touchable>
+            );
+          })}
         </View>
+      </Section>
 
-        {/* Profile */}
-        <Section title="Your details" pal={pal}>
-          <Field label="First name" value={p.firstName} onChange={(v) => set('firstName', v)} pal={pal} />
-          <Field label="Last name" value={p.lastName} onChange={(v) => set('lastName', v)} pal={pal} />
-          <Field label="Phone" value={p.phone} onChange={(v) => set('phone', v)} pal={pal} keyboardType="phone-pad" />
-          <Field label="Address" value={p.address} onChange={(v) => set('address', v)} pal={pal} multiline />
+      <Button full label={saved ? '✓ Saved' : 'Save changes'} onPress={save} />
+
+      {user && (
+        <Section title="Privacy & data">
+          <Toggle label="Marketing announcements" value={marketingConsent} onChange={toggleConsent} />
+          <Touchable onPress={exportData} disabled={exporting}>
+            <Text style={[styles.linkAction, { color: c.link }]}>{exporting ? 'Preparing export…' : 'Export my data'}</Text>
+          </Touchable>
+          <Touchable onPress={deleteAccount} disabled={deleting}>
+            <Text style={[styles.linkAction, { color: c.danger }]}>{deleting ? 'Deleting…' : 'Delete my account'}</Text>
+          </Touchable>
         </Section>
-
-        {/* Accessibility */}
-        <Section title="Accessibility" pal={pal}>
-          <Toggle label="Step-free access needs" value={p.wheelchair} onChange={(v) => set('wheelchair', v)} pal={pal} />
-          <Toggle label="Audio description" value={p.audioDesc} onChange={(v) => set('audioDesc', v)} pal={pal} />
-          <Toggle label="Captioning" value={p.captioning} onChange={(v) => set('captioning', v)} pal={pal} />
-          <Toggle label="BSL interpretation" value={p.bsl} onChange={(v) => set('bsl', v)} pal={pal} />
-          <Field label="Other needs (optional)" value={p.notes} onChange={(v) => set('notes', v)} pal={pal} multiline />
-        </Section>
-
-        {/* Appearance */}
-        <Section title="Appearance" pal={pal}>
-          <View style={styles.segment}>
-            {(['light', 'dark', 'system'] as ThemePref[]).map((opt) => {
-              const on = pref === opt;
-              return (
-                <Touchable key={opt} style={[styles.segItem, on && { backgroundColor: theme.brand }]} onPress={() => setPref(opt)}>
-                  <Text style={[styles.segTxt, { color: on ? '#fff' : pal.text }]}>{opt[0].toUpperCase() + opt.slice(1)}</Text>
-                </Touchable>
-              );
-            })}
-          </View>
-        </Section>
-
-        <Touchable style={styles.saveBtn} onPress={save}>
-          <Text style={styles.saveTxt}>{saved ? '✓ Saved' : 'Save changes'}</Text>
-        </Touchable>
-
-        {user && (
-          <Section title="Privacy & data" pal={pal}>
-            <Toggle label="Marketing announcements" value={marketingConsent} onChange={toggleConsent} pal={pal} />
-            <Touchable onPress={exportData} disabled={exporting}>
-              <Text style={[styles.linkAction, { color: theme.brand }]}>{exporting ? 'Preparing export…' : 'Export my data'}</Text>
-            </Touchable>
-            <Touchable onPress={deleteAccount} disabled={deleting}>
-              <Text style={[styles.linkAction, { color: '#c0392b' }]}>{deleting ? 'Deleting…' : 'Delete my account'}</Text>
-            </Touchable>
-          </Section>
-        )}
-      </ScrollView>
-      </KeyboardAvoid>
-    </View>
+      )}
+    </Screen>
   );
 }
 
-function Section({ title, pal, children }: { title: string; pal: ReturnType<typeof usePalette>; children: React.ReactNode }) {
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  const { c } = useUI();
   return (
-    <View style={{ gap: 12 }}>
-      <Text style={[styles.sectionH, { color: pal.text }]}>{title}</Text>
-      <View style={[styles.card, { backgroundColor: pal.card, borderColor: pal.line }]}>{children}</View>
+    <View style={{ gap: 10 }}>
+      <Text accessibilityRole="header" style={[styles.sectionH, { color: c.text }]}>{title}</Text>
+      <Card style={styles.card}>{children}</Card>
     </View>
   );
 }
 
-function Field({ label, value, onChange, pal, multiline, keyboardType }: {
-  label: string; value: string; onChange: (v: string) => void; pal: ReturnType<typeof usePalette>; multiline?: boolean; keyboardType?: 'default' | 'phone-pad';
-}) {
-  return (
-    <View style={{ gap: 5 }}>
-      <Text style={[styles.label, { color: pal.sub }]}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChange}
-        placeholder={label}
-        placeholderTextColor={pal.placeholder}
-        keyboardType={keyboardType}
-        multiline={multiline}
-        style={[styles.input, { color: pal.text, borderColor: pal.line, backgroundColor: pal.input }, multiline && { height: 74, textAlignVertical: 'top' }]}
-      />
-    </View>
-  );
-}
-
-function Toggle({ label, value, onChange, pal }: { label: string; value: boolean; onChange: (v: boolean) => void; pal: ReturnType<typeof usePalette> }) {
+function Toggle({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
+  const { c } = useUI();
   return (
     <View style={styles.toggleRow}>
-      <Text style={[styles.toggleLabel, { color: pal.text }]}>{label}</Text>
-      <Switch value={value} onValueChange={onChange} trackColor={{ true: theme.brand, false: '#c8c0b6' }} thumbColor="#fff" />
+      <Text style={[styles.toggleLabel, { color: c.text }]}>{label}</Text>
+      <Switch value={value} onValueChange={onChange} trackColor={{ true: c.primary, false: c.line }} thumbColor="#ffffff" accessibilityLabel={label} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1 },
-  top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingBottom: 10 },
-  backBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
-  topTitle: { fontSize: 20, fontWeight: '800' },
   photoWrap: { width: 104, height: 104 },
   photo: { width: 104, height: 104, borderRadius: 52 },
-  photoPlaceholder: { backgroundColor: theme.brand, alignItems: 'center', justifyContent: 'center' },
-  photoInitials: { color: '#fff', fontSize: 34, fontWeight: '800' },
-  photoEdit: { position: 'absolute', right: 2, bottom: 2, width: 32, height: 32, borderRadius: 16, backgroundColor: theme.brand, borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
-  changePhoto: { color: theme.brand, fontWeight: '700', fontSize: 14 },
-  sectionH: { fontSize: 15, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
-  card: { borderRadius: 14, borderWidth: 1, padding: 14, gap: 14 },
-  label: { fontSize: 12, fontWeight: '600' },
-  input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11, fontSize: 15 },
+  photoInitials: { fontFamily: serif, color: '#ffffff', fontSize: 34, fontWeight: '800' },
+  photoEdit: { position: 'absolute', right: 2, bottom: 2, width: 32, height: 32, borderRadius: 16, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  changePhoto: { fontWeight: '700', fontSize: 14 },
+  sectionH: { fontSize: 13, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.2 },
+  card: { padding: 16, gap: 14 },
+  multiline: { height: 80, textAlignVertical: 'top' },
   toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   toggleLabel: { fontSize: 15, fontWeight: '500', flex: 1 },
   segment: { flexDirection: 'row', gap: 8 },
-  segItem: { flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 10, backgroundColor: 'rgba(143,29,33,0.08)' },
+  segItem: { flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 999 },
   segTxt: { fontWeight: '700', fontSize: 14 },
-  saveBtn: { backgroundColor: theme.brand, borderRadius: 12, paddingVertical: 16, alignItems: 'center' },
-  saveTxt: { color: '#fff', fontWeight: '800', fontSize: 16 },
   linkAction: { fontSize: 15, fontWeight: '700', paddingVertical: 4 },
 });

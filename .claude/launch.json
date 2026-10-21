@@ -16,6 +16,13 @@
       "autoPort": true
     },
     {
+      "name": "mobile-web",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["cross-env", "EXPO_PUBLIC_API_URL=https://app-park.kynren.com", "npm", "--prefix", "apps/mobile", "run", "web", "--", "--port", "8099"],
+      "port": 8099,
+      "autoPort": false
+    },
+    {
       "name": "mobile",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev:mobile"],

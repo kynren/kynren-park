@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, View, Text, StyleSheet, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { useSync, type Announcement } from '../lib/sync';
 import { useAuth } from '../lib/auth';
 import { type PersonalNotification } from '../lib/notifications';
 import { api } from '../lib/api';
-import { theme } from '../lib/theme';
 import { Touchable } from '../components/Touchable';
+import { Card } from '../components/ui/Controls';
+import { Icon, type IconName } from '../components/ui/Icon';
+import { Screen } from '../components/ui/Screen';
+import { useUI } from '../lib/ui';
 
 /** Is the announcement live right now (sent + inside its active window)? */
 function isLive(a: Announcement, now: number) {
@@ -17,7 +20,7 @@ function isLive(a: Announcement, now: number) {
   return true;
 }
 
-const TYPE_ICON: Record<string, string> = { session: '⏱️', order: '🍽️', reminder: '🔔' };
+const TYPE_ICON: Record<string, IconName> = { session: 'calendar', order: 'fork', reminder: 'bell' };
 
 // A single feed merging park-wide announcements (public, from the offline
 // bundle) with this guest's own delay/order/reminder history (personal,
@@ -30,6 +33,7 @@ export default function NotificationsScreen() {
   const { bundle, date } = useSync();
   const { user } = useAuth();
   const router = useRouter();
+  const { c } = useUI();
   // Seed from the offline bundle so there's always something to show offline.
   const [announcements, setAnnouncements] = useState<Announcement[]>(bundle?.announcements ?? []);
   const [personal, setPersonal] = useState<PersonalNotification[]>([]);
@@ -84,65 +88,68 @@ export default function NotificationsScreen() {
   ].sort((x, y) => y.at - x.at);
 
   return (
-    <ScrollView showsVerticalScrollIndicator={false}
-      style={{ flex: 1 }}
-      contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-    >
+    <Screen title="Notifications" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
       {items.length === 0 ? (
-        <Text style={styles.muted}>No notifications yet. Park announcements and your show reminders will appear here.</Text>
+        <Text style={[styles.muted, { color: c.sub }]}>No notifications yet. Park announcements and your show reminders will appear here.</Text>
       ) : (
         items.map((item) => {
           if (item.kind === 'personal') {
             const n = item.n;
             return (
-              <Touchable
-                key={item.id}
-                style={styles.card}
-                disabled={!n.deepLink}
-                onPress={() => n.deepLink && router.push(n.deepLink as never)}
-              >
+              <Card key={item.id} style={styles.card} onPress={n.deepLink ? () => router.push(n.deepLink as never) : undefined}>
                 <View style={styles.head}>
-                  <Text style={styles.title}>{TYPE_ICON[n.type] ?? '🔔'} {n.title}</Text>
+                  <View style={[styles.icon, { backgroundColor: c.tint }]}>
+                    <Icon name={TYPE_ICON[n.type] ?? 'bell'} color={c.link} size={18} />
+                  </View>
+                  <Text style={[styles.title, { color: c.text }]}>{n.title}</Text>
                 </View>
-                <Text style={styles.time}>{new Date(n.createdAt).toLocaleString('en-GB')}</Text>
-                <Text style={styles.body}>{n.body}</Text>
-              </Touchable>
+                <Text style={[styles.time, { color: c.sub }]}>{new Date(n.createdAt).toLocaleString('en-GB')}</Text>
+                <Text style={[styles.body, { color: c.text }]}>{n.body}</Text>
+              </Card>
             );
           }
           const a = item.a;
           const speaking = speakingId === a.id;
           const live = isLive(a, now);
           return (
-            <View key={item.id} style={styles.card}>
+            <Card key={item.id} style={styles.card}>
               <View style={styles.head}>
-                <Text style={styles.title}>📣 {a.title}</Text>
-                {live && <View style={styles.liveTag}><Text style={styles.liveTxt}>LIVE</Text></View>}
+                <View style={[styles.icon, { backgroundColor: c.tint }]}>
+                  <Icon name="bell" color={c.link} size={18} />
+                </View>
+                <Text style={[styles.title, { color: c.text }]}>{a.title}</Text>
+                {live && <View style={[styles.liveTag, { backgroundColor: c.accent }]}><Text style={styles.liveTxt}>LIVE</Text></View>}
               </View>
-              <Text style={styles.time}>{new Date(a.sentAt ?? a.createdAt).toLocaleString('en-GB')}</Text>
-              <Text style={styles.body}>{a.body}</Text>
-              <Touchable style={[styles.listen, speaking && styles.listenOn]} haptic="medium" onPress={() => toggleSpeak(a)} hitSlop={6}>
-                <Text style={[styles.listenTxt, speaking && styles.listenTxtOn]}>{speaking ? '■ Stop' : '🔊 Listen'}</Text>
+              <Text style={[styles.time, { color: c.sub }]}>{new Date(a.sentAt ?? a.createdAt).toLocaleString('en-GB')}</Text>
+              <Text style={[styles.body, { color: c.text }]}>{a.body}</Text>
+              <Touchable
+                style={[styles.listen, { backgroundColor: speaking ? c.primary : c.tint }]}
+                haptic="medium"
+                onPress={() => toggleSpeak(a)}
+                hitSlop={6}
+                accessibilityRole="button"
+                accessibilityLabel={speaking ? 'Stop reading aloud' : 'Listen to this announcement'}
+              >
+                <Text style={[styles.listenTxt, { color: speaking ? '#ffffff' : c.link }]}>{speaking ? '■ Stop' : '🔊 Listen'}</Text>
               </Touchable>
-            </View>
+            </Card>
           );
         })
       )}
-    </ScrollView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  muted: { color: theme.muted, fontSize: 14 },
-  card: { backgroundColor: theme.card, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: theme.border, marginBottom: 12 },
-  head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  title: { fontWeight: '700', color: theme.ink, fontSize: 15, flex: 1 },
-  liveTag: { backgroundColor: theme.brand, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
-  liveTxt: { color: '#fff', fontWeight: '800', fontSize: 10, letterSpacing: 0.6 },
-  time: { color: theme.muted, fontSize: 12, marginTop: 2 },
-  body: { color: theme.ink, marginTop: 8, lineHeight: 20 },
-  listen: { alignSelf: 'flex-start', marginTop: 12, flexDirection: 'row', alignItems: 'center', backgroundColor: theme.bg, borderWidth: 1, borderColor: theme.brand, borderRadius: 20, paddingVertical: 7, paddingHorizontal: 14 },
-  listenOn: { backgroundColor: theme.brand },
-  listenTxt: { color: theme.brand, fontWeight: '800', fontSize: 13 },
-  listenTxtOn: { color: '#fff' },
+  muted: { fontSize: 14, lineHeight: 20 },
+  card: { padding: 16 },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  icon: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  title: { fontWeight: '800', fontSize: 15.5, flex: 1 },
+  liveTag: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 },
+  liveTxt: { color: '#ffffff', fontWeight: '800', fontSize: 10, letterSpacing: 0.6 },
+  time: { fontSize: 12, marginTop: 8 },
+  body: { marginTop: 6, lineHeight: 21, fontSize: 14.5 },
+  listen: { alignSelf: 'flex-start', marginTop: 12, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 16 },
+  listenTxt: { fontWeight: '800', fontSize: 13 },
 });

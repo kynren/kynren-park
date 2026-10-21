@@ -1,18 +1,22 @@
-import { ScrollView, View, Text, StyleSheet, RefreshControl, Dimensions, Image } from 'react-native';
-import { ResizeMode, Video } from 'expo-av';
-import { Touchable } from '../../components/Touchable';
-import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
+import { Image, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ResizeMode, Video } from 'expo-av';
+import { useRouter, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Defs, LinearGradient, Stop, Rect, Circle, Path, Polygon, G } from 'react-native-svg';
-import { useSync, type Session } from '../../lib/sync';
+import Svg, { Circle, Defs, G, LinearGradient, Path, Polygon, Rect, Stop } from 'react-native-svg';
+import { Touchable } from '../../components/Touchable';
+import { SkeletonRows } from '../../components/Shimmer';
+import { Card, SearchPill, SectionHeader } from '../../components/ui/Controls';
+import { Button } from '../../components/ui/Button';
+import { GradientFill } from '../../components/ui/Gradient';
+import { Icon, type IconName } from '../../components/ui/Icon';
+import { api } from '../../lib/api';
+import { useAuth } from '../../lib/auth';
 import { useFavoriteIds } from '../../lib/favorites';
 import { fmtTime, ukNow, ukTodayStr } from '../../lib/format';
-import { theme, categoryColor, statusColor } from '../../lib/theme';
-import { useThemePref } from '../../lib/theme-context';
-import { useBrand } from '../../lib/brand';
-import { SkeletonRows } from '../../components/Shimmer';
-import { api } from '../../lib/api';
+import { useSync, type Session } from '../../lib/sync';
+import { serif, band, categoryColor, statusColor, theme } from '../../lib/theme';
+import { useUI, type UIColors } from '../../lib/ui';
 
 // Open-Meteo WMO weather codes, grouped to a small icon set.
 const WEATHER_ICON: Record<number, string> = {
@@ -29,49 +33,18 @@ interface WeatherResponse {
   current?: { temperature_2m?: number; weather_code?: number };
 }
 
-function WeatherShuttleRow({ pal }: { pal: ReturnType<typeof usePalette> }) {
-  const router = useRouter();
-  const [weather, setWeather] = useState<WeatherResponse | null>(null);
-
-  useEffect(() => {
-    api<WeatherResponse>('/weather').then(setWeather).catch(() => undefined);
-  }, []);
-
-  return (
-    <View style={styles.quickRow}>
-      <Touchable style={[styles.quickCard, { backgroundColor: pal.card }]} onPress={() => {}} disabled>
-        <Text style={styles.quickIcon}>{WEATHER_ICON[weather?.current?.weather_code ?? 0] ?? '🌤️'}</Text>
-        <Text style={[styles.quickText, { color: pal.text }]}>
-          {weather?.current?.temperature_2m != null ? `${Math.round(weather.current.temperature_2m)}°C` : 'Weather'}
-        </Text>
-      </Touchable>
-      <Touchable style={[styles.quickCard, { backgroundColor: pal.card }]} onPress={() => router.push('/shuttle')}>
-        <Text style={styles.quickIcon}>🚌</Text>
-        <Text style={[styles.quickText, { color: pal.text }]}>Shuttle</Text>
-      </Touchable>
-      <Touchable style={[styles.quickCard, { backgroundColor: pal.card }]} onPress={() => router.push('/accessibility')}>
-        <Text style={styles.quickIcon}>♿</Text>
-        <Text style={[styles.quickText, { color: pal.text }]}>Access</Text>
-      </Touchable>
-    </View>
-  );
-}
-
-const HERO_H = Math.min(520, Math.max(420, Dimensions.get('window').height * 0.56));
-const DEFAULT_SECTIONS = ['actions', 'welcome', 'visit', 'announcement', 'alerts', 'comingUp', 'favourites'];
-
-function usePalette() {
-  const dark = useThemePref().scheme === 'dark';
-  return dark
-    ? { screen: '#0c0c0c', text: '#ffffff', sub: '#b4b4b4', card: '#1b1b1b', line: '#262626', outline: '#ffffff' }
-    : { screen: theme.bg, text: theme.ink, sub: theme.muted, card: '#ffffff', line: theme.border, outline: theme.ink };
-}
+// What the Home screen shows when no layout has been saved in admin. A saved layout is honoured as it is; the sections
+// it does not mention ('info', 'services') are added at the end, since an older layout predates them.
+const DEFAULT_SECTIONS = ['welcome', 'actions', 'info', 'services', 'announcement', 'alerts', 'visit', 'comingUp', 'favourites'];
+const NEW_SECTIONS = ['info', 'services'];
 
 export default function HomeScreen() {
   const { bundle, date, refresh } = useSync();
   const router = useRouter();
-  const pal = usePalette();
+  const { c } = useUI();
+  const { user } = useAuth();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const [refreshing, setRefreshing] = useState(false);
 
   // Re-check which sessions have finished once a minute, so a show drops off
@@ -83,6 +56,11 @@ export default function HomeScreen() {
   useEffect(() => {
     const t = setInterval(() => setTick((n) => n + 1), 60000);
     return () => clearInterval(t);
+  }, []);
+
+  const [weather, setWeather] = useState<WeatherResponse | null>(null);
+  useEffect(() => {
+    api<WeatherResponse>('/weather').then(setWeather).catch(() => undefined);
   }, []);
 
   const upcoming = useMemo(() => {
@@ -139,93 +117,123 @@ export default function HomeScreen() {
 
   // Admin-designed home screen (published default), if any.
   const home = bundle?.home ?? null;
-  const brand = useBrand();
-  const primary = home?.primaryColor || brand.primary;
   const tagline = home?.tagline || 'An epic tale\nof England';
   const greeting = home?.greeting || 'Welcome';
-  const sectionOrder = home?.sections?.length ? home.sections.filter((s) => s.visible).map((s) => s.key) : DEFAULT_SECTIONS;
+  const saved = home?.sections?.length ? home.sections : null;
+  const sectionOrder = saved
+    ? [...saved.filter((s) => s.visible).map((s) => s.key), ...NEW_SECTIONS.filter((k) => !saved.some((s) => s.key === k))]
+    : DEFAULT_SECTIONS;
+
+  // Pictures for the promo cards come from the park's own content, so they stay current.
+  const showImage = bundle?.attractions?.find((a) => a.category === 'EVENING_SHOW' && a.heroImage)?.heroImage ?? null;
+  const foodImage = bundle?.restaurants?.find((r) => r.heroImage)?.heroImage ?? null;
+  const promoWidth = Math.min(236, Math.round(width * 0.64));
+
+  const go = (to: Href) => () => router.push(to);
 
   const renderSection = (key: string) => {
     switch (key) {
-      case 'actions':
-        return (
-          <View style={styles.actions} key={key}>
-            <Touchable style={[styles.primaryBtn, { backgroundColor: primary }]} onPress={() => router.push('/book')}>
-              <Text style={styles.primaryTxt}>Buy tickets</Text>
-            </Touchable>
-            <Touchable style={[styles.outlineBtn, { borderColor: pal.outline }]} onPress={() => router.push('/auth')}>
-              <Text style={[styles.outlineTxt, { color: pal.text }]}>Create an account</Text>
-            </Touchable>
-          </View>
-        );
       case 'welcome':
         return (
-          <View style={styles.welcomeRow} key={key}>
-            <Text style={styles.wave}>👋</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.welcomeH, { color: pal.text }]}>{greeting}</Text>
-              <View style={styles.welcomeSub}>
-                <View style={[styles.greenDot, { backgroundColor: home?.accentColor || '#3bbf6a' }]} />
-                <Text style={[styles.welcomeTxt, { color: pal.sub }]}>
-                  {home?.greetingSub
-                    ? home.greetingSub
-                    : hours ? `Today, the park will be open from ${hours.open} to ${hours.close}` : 'Plan your day at Kynren – The Storied Lands'}
-                </Text>
-              </View>
+          <View style={styles.welcome} key={key}>
+            <Text style={[styles.welcomeH, { color: c.text }]}>{greeting}</Text>
+            <View style={styles.welcomeSub}>
+              <View style={[styles.dot, { backgroundColor: home?.accentColor || c.ok }]} />
+              <Text style={[styles.welcomeTxt, { color: c.sub }]}>
+                {home?.greetingSub
+                  ? home.greetingSub
+                  : hours ? `Today, the park will be open from ${hours.open} to ${hours.close}` : 'Plan your day at Kynren – The Storied Lands'}
+              </Text>
+            </View>
+          </View>
+        );
+      case 'actions':
+        return (
+          <ScrollView key={key} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.promoRow} style={{ marginTop: 22 }}>
+            <PromoCard width={promoWidth} image={showImage} icon="ticket" title="Buy tickets" text="Book your visit to the park and pick your night." action="Buy now" onPress={go('/book')} c={c} />
+            {user ? (
+              <PromoCard width={promoWidth} image={null} icon="ticket" title="My tickets" text="Your QR codes and bookings, ready for the gate." action="Open" onPress={go('/(tabs)/tickets')} c={c} />
+            ) : (
+              <PromoCard width={promoWidth} image={null} icon="user" title="Your account" text="Hold your tickets and get reminders before each show." action="Create account" onPress={go('/auth')} c={c} />
+            )}
+            <PromoCard width={promoWidth} image={foodImage} icon="fork" title="Order food" text="Order ahead and collect without the queue." action="Order now" onPress={go('/(tabs)/food')} c={c} />
+          </ScrollView>
+        );
+      case 'info':
+        return (
+          <View style={styles.infoRow} key={key}>
+            <InfoTile c={c} label={weather?.current?.temperature_2m != null ? `${Math.round(weather.current.temperature_2m)}°C` : 'Weather'} emoji={WEATHER_ICON[weather?.current?.weather_code ?? 0] ?? '🌤️'} />
+            <InfoTile c={c} label="Shuttle" icon="bus" onPress={go('/shuttle')} />
+            <InfoTile c={c} label="Access" icon="access" onPress={go('/accessibility')} />
+          </View>
+        );
+      case 'services':
+        return (
+          <View key={key} style={{ marginTop: 26, gap: 12 }}>
+            <SectionHeader title="Theme park services" />
+            <View style={{ paddingHorizontal: 20, gap: 12 }}>
+              <ServiceRow c={c} title="Shows" text={upcoming.length ? `${upcoming.length} coming up today` : 'The full programme'} onPress={go('/(tabs)/shows')} />
+              <ServiceRow c={c} title="Attractions" text="Find your way around the park" onPress={go('/(tabs)/map')} />
+              <ServiceRow c={c} title="Restaurants" text="Menus, and order ahead" onPress={go('/(tabs)/food')} />
+              <ServiceRow c={c} title="Shops" text="Gifts and souvenirs" onPress={go({ pathname: '/(tabs)/search', params: { filter: 'shop' } })} />
             </View>
           </View>
         );
       case 'visit':
         return (
-          <Touchable style={[styles.visitCard, { backgroundColor: pal.card }]} key={key} onPress={() => router.push('/plan')}>
-            <View style={styles.visitIcon}>
-              <Svg width={30} height={30} viewBox="0 0 24 24" fill="none" stroke={pal.text} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
-                <Rect x="4" y="5" width="16" height="16" rx="2.4" />
-                <Path d="M4 9.5h16M8 3v4M16 3v4M8 13h2M12 13h2M8 16.5h2" />
-              </Svg>
+          <Card key={key} onPress={go('/(tabs)/plan')} style={[styles.wide, { marginTop: 22 }]}>
+            <View style={[styles.round, { backgroundColor: c.tint }]}>
+              <Icon name="calendar" color={c.link} size={24} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.visitTitle, { color: pal.text }]}>Plan your perfect visit</Text>
-              <Text style={[styles.visitSub, { color: pal.sub }]}>Pick the shows you don’t want to miss</Text>
+              <Text style={[styles.rowName, { color: c.text }]}>Plan your perfect visit</Text>
+              <Text style={[styles.rowSub, { color: c.sub }]}>Pick the shows you don’t want to miss</Text>
             </View>
-            <Text style={[styles.chev, { color: pal.sub }]}>›</Text>
-          </Touchable>
+            <Icon name="chevron" color={c.placeholder} size={20} />
+          </Card>
         );
       case 'announcement':
         return bundle?.announcements?.[0] ? (
-          <View style={[styles.notice, { backgroundColor: pal.card, borderColor: pal.line }]} key={key}>
-            <Text style={[styles.noticeTitle, { color: pal.text }]}>📣 {bundle.announcements[0].title}</Text>
-            <Text style={[styles.noticeBody, { color: pal.sub }]}>{bundle.announcements[0].body}</Text>
-          </View>
+          <Card key={key} style={[styles.wide, { marginTop: 22, alignItems: 'flex-start' }]}>
+            <View style={[styles.round, { backgroundColor: c.tint }]}>
+              <Icon name="bell" color={c.link} size={22} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowName, { color: c.text }]}>{bundle.announcements[0].title}</Text>
+              <Text style={[styles.rowSub, { color: c.sub }]}>{bundle.announcements[0].body}</Text>
+            </View>
+          </Card>
         ) : null;
       case 'alerts':
         return alerts.length > 0 ? (
-          <View style={styles.section} key={key}>
-            <Text style={[styles.sectionH, { color: pal.text }]}>Today’s changes</Text>
-            {alerts.map((s) => (
-              <View key={s.id} style={[styles.alert, { backgroundColor: pal.card, borderColor: pal.line, borderLeftColor: statusColor[s.status] }]}>
-                <Text style={[styles.alertName, { color: pal.text }]}>{s.attraction.name}</Text>
-                <Text style={[styles.alertMeta, { color: pal.sub }]}>
-                  {s.status === 'CANCELLED' ? 'Cancelled' : `Delayed to ${fmtTime(s.revisedStart ?? s.startTime)}`}
-                  {s.note ? ` · ${s.note}` : ''}
-                </Text>
-              </View>
-            ))}
+          <View key={key} style={{ marginTop: 26, gap: 12 }}>
+            <SectionHeader title="Today’s changes" />
+            <View style={{ paddingHorizontal: 20, gap: 12 }}>
+              {alerts.map((s) => (
+                <Card key={s.id} style={[styles.alert, { borderLeftColor: statusColor[s.status] }]}>
+                  <Text style={[styles.rowName, { color: c.text }]}>{s.attraction.name}</Text>
+                  <Text style={[styles.rowSub, { color: c.sub }]}>
+                    {s.status === 'CANCELLED' ? 'Cancelled' : `Delayed to ${fmtTime(s.revisedStart ?? s.startTime)}`}
+                    {s.note ? ` · ${s.note}` : ''}
+                  </Text>
+                </Card>
+              ))}
+            </View>
           </View>
         ) : null;
       case 'comingUp':
         return (
-          <View style={styles.section} key={key}>
-            <Text style={[styles.sectionH, { color: pal.text }]}>Coming up</Text>
-            {!bundle ? (
-              <SkeletonRows count={5} height={62} />
-            ) : upcoming.length === 0 ? (
-              <Text style={{ color: pal.sub, fontSize: 13 }}>No more shows today.</Text>
-            ) : (
-              upcoming.map((s) => (
-                <SessionRow key={s.id} session={s} pal={pal} onPress={() => router.push(`/attraction/${s.attraction.slug}`)} />
-              ))
-            )}
+          <View key={key} style={{ marginTop: 26, gap: 12 }}>
+            <SectionHeader title="Coming up" action="See All" onAction={go('/(tabs)/shows')} />
+            <View style={{ paddingHorizontal: 20, gap: 12 }}>
+              {!bundle ? (
+                <SkeletonRows count={5} height={62} />
+              ) : upcoming.length === 0 ? (
+                <Text style={{ color: c.sub, fontSize: 13 }}>No more shows today.</Text>
+              ) : (
+                upcoming.map((s) => <SessionRow key={s.id} session={s} c={c} onPress={go(`/attraction/${s.attraction.slug}`)} />)
+              )}
+            </View>
           </View>
         );
       case 'favourites':
@@ -234,11 +242,11 @@ export default function HomeScreen() {
         // hide it entirely rather than show an empty state, matching how
         // 'announcement'/'alerts' behave when they have nothing to show.
         return favouriteUpcoming.length > 0 ? (
-          <View style={styles.section} key={key}>
-            <Text style={[styles.sectionH, { color: pal.text }]}>Your favourites</Text>
-            {favouriteUpcoming.map((s) => (
-              <SessionRow key={s.id} session={s} pal={pal} onPress={() => router.push(`/attraction/${s.attraction.slug}`)} />
-            ))}
+          <View key={key} style={{ marginTop: 26, gap: 12 }}>
+            <SectionHeader title="Your favourites" action="See All" onAction={go('/favorites')} />
+            <View style={{ paddingHorizontal: 20, gap: 12 }}>
+              {favouriteUpcoming.map((s) => <SessionRow key={s.id} session={s} c={c} onPress={go(`/attraction/${s.attraction.slug}`)} />)}
+            </View>
           </View>
         ) : null;
       default:
@@ -246,191 +254,194 @@ export default function HomeScreen() {
     }
   };
 
+  const bandHeight = insets.top + 270;
+
   return (
-    <View style={{ flex: 1, backgroundColor: pal.screen }}>
-    <ScrollView showsVerticalScrollIndicator={false}
-      style={{ flex: 1 }}
-      contentContainerStyle={{ paddingBottom: 36 }}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={pal.sub} />}
-    >
-      {/* Hero — admin media (image / GIF / video) or the built-in illustration */}
-      <View style={{ height: HERO_H }}>
-        {home && home.heroType !== 'none' && home.heroMediaUrl ? (
-          home.heroType === 'video' ? (
-            <Video source={{ uri: home.heroMediaUrl }} style={StyleSheet.absoluteFill} resizeMode={ResizeMode.COVER} shouldPlay isMuted isLooping />
-          ) : (
-            <Image source={{ uri: home.heroMediaUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-          )
-        ) : (
-          <HeroArt fade={pal.screen} />
-        )}
-        <View style={styles.heroOverlay}>
-          <View style={{ flex: 1 }} />
+    <View style={{ flex: 1, backgroundColor: c.screen }}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 40 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.sub} />}
+      >
+        {/* The sky band: admin media (image / GIF / video) or the built-in illustration, under the menu bar */}
+        <View style={{ height: bandHeight }}>
+          <View style={[StyleSheet.absoluteFill, styles.band]}>
+            {home && home.heroType !== 'none' && home.heroMediaUrl ? (
+              home.heroType === 'video' ? (
+                <Video source={{ uri: home.heroMediaUrl }} style={StyleSheet.absoluteFill} resizeMode={ResizeMode.COVER} shouldPlay isMuted isLooping />
+              ) : (
+                <Image source={{ uri: home.heroMediaUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+              )
+            ) : (
+              <HeroArt />
+            )}
+            <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" preserveAspectRatio="none" pointerEvents="none">
+              <Defs>
+                <LinearGradient id="bandTop" x1="0" y1="0" x2="0" y2="1">
+                  <Stop offset="0" stopColor={band.from} stopOpacity="0.9" />
+                  <Stop offset="0.5" stopColor={band.from} stopOpacity="0" />
+                </LinearGradient>
+                <LinearGradient id="bandBottom" x1="0" y1="0" x2="0" y2="1">
+                  <Stop offset="0.5" stopColor="#1a120a" stopOpacity="0" />
+                  <Stop offset="1" stopColor="#1a120a" stopOpacity="0.6" />
+                </LinearGradient>
+              </Defs>
+              <Rect x="0" y="0" width="100%" height="100%" fill="url(#bandTop)" />
+              <Rect x="0" y="0" width="100%" height="100%" fill="url(#bandBottom)" />
+            </Svg>
+          </View>
+
+          <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
+            <Touchable style={styles.topSide} onPress={go('/menu')} accessibilityRole="button" accessibilityLabel="Open menu" hitSlop={10}>
+              <Icon name="menu" color="#ffffff" size={26} />
+            </Touchable>
+            <Text accessibilityRole="header" style={styles.topTitle}>HOME</Text>
+            <Touchable style={[styles.topSide, { alignItems: 'flex-end' }]} onPress={go('/notifications')} accessibilityRole="button" accessibilityLabel="Notifications" hitSlop={10}>
+              <Icon name="bell" color="#ffffff" size={24} />
+            </Touchable>
+          </View>
+
           <Text style={styles.tagline}>{tagline}</Text>
         </View>
-      </View>
 
-      <WeatherShuttleRow pal={pal} />
-      {sectionOrder.map((key) => renderSection(key))}
-    </ScrollView>
-
-      {/* Fixed top bar over the hero (with a scrim so it stays readable) */}
-      <View style={[styles.fixedBar, { height: insets.top + 58 }]} pointerEvents="box-none">
-        <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
-          <Defs>
-            <LinearGradient id="hscrim" x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0" stopColor="#000" stopOpacity="0.4" />
-              <Stop offset="1" stopColor="#000" stopOpacity="0" />
-            </LinearGradient>
-          </Defs>
-          <Rect x="0" y="0" width="100%" height={insets.top + 58} fill="url(#hscrim)" />
-        </Svg>
-        <View style={[styles.fixedBarRow, { paddingTop: insets.top + 8 }]} pointerEvents="box-none">
-          <View>
-            {bundle?.branding?.logoUrl ? (
-              <Image source={{ uri: bundle.branding.logoUrl }} style={styles.logoImg} resizeMode="contain" />
-            ) : (
-              <>
-                <Text style={styles.wordmark}>{bundle?.branding?.appName?.toUpperCase() ?? 'KYNREN'}</Text>
-                <View style={styles.wordmarkRule} />
-              </>
-            )}
-          </View>
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <Touchable style={styles.avatar} onPress={() => router.push('/notifications')}>
-              <Text style={{ fontSize: 17 }}>🔔</Text>
-            </Touchable>
-            <Touchable style={styles.avatar} onPress={() => router.push('/profile')}>
-              <Text style={{ fontSize: 18 }}>👤</Text>
-            </Touchable>
-          </View>
+        <View style={styles.searchWrap}>
+          <SearchPill placeholder="Find everything here" onPress={go('/(tabs)/search')} />
         </View>
-      </View>
+
+        {sectionOrder.map((key) => renderSection(key))}
+      </ScrollView>
     </View>
   );
 }
 
-function SessionRow({ session, pal, onPress }: { session: Session; pal: ReturnType<typeof usePalette>; onPress: () => void }) {
+function PromoCard({ width, image, icon, title, text, action, onPress, c }: { width: number; image: string | null; icon: IconName; title: string; text: string; action: string; onPress: () => void; c: UIColors }) {
   return (
-    <Touchable style={[styles.row, { backgroundColor: pal.card, borderColor: pal.line }]} onPress={onPress}>
+    <Card style={{ width, padding: 10 }}>
+      <View style={[styles.promoImage, { backgroundColor: c.tint }]}>
+        {image ? (
+          <Image source={{ uri: image }} style={StyleSheet.absoluteFill} resizeMode="cover" accessibilityIgnoresInvertColors />
+        ) : (
+          <>
+            <GradientFill from={band.from} to={band.to} vertical />
+            <Icon name={icon} color="#ffffff" size={46} strokeWidth={1.5} />
+          </>
+        )}
+      </View>
+      <Text style={[styles.promoTitle, { color: c.link }]}>{title}</Text>
+      <Text numberOfLines={3} style={[styles.promoText, { color: c.sub }]}>{text}</Text>
+      <Button size="sm" label={action} onPress={onPress} style={{ marginTop: 12 }} />
+    </Card>
+  );
+}
+
+function InfoTile({ c, label, icon, emoji, onPress }: { c: UIColors; label: string; icon?: IconName; emoji?: string; onPress?: () => void }) {
+  return (
+    <Card onPress={onPress} style={styles.info}>
+      <View style={styles.infoIcon}>{emoji ? <Text style={{ fontSize: 22 }}>{emoji}</Text> : icon ? <Icon name={icon} color={c.link} size={22} /> : null}</View>
+      <Text style={[styles.infoText, { color: c.text }]}>{label}</Text>
+    </Card>
+  );
+}
+
+function ServiceRow({ c, title, text, onPress }: { c: UIColors; title: string; text: string; onPress: () => void }) {
+  return (
+    <Card onPress={onPress} style={styles.service}>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.rowName, { color: c.text }]}>{title}</Text>
+        <Text style={[styles.rowSub, { color: c.sub }]}>{text}</Text>
+      </View>
+      <View style={[styles.more, { backgroundColor: c.tint }]}>
+        <Text style={[styles.moreText, { color: c.link }]}>See More</Text>
+      </View>
+    </Card>
+  );
+}
+
+function SessionRow({ session, c, onPress }: { session: Session; c: UIColors; onPress: () => void }) {
+  return (
+    <Card onPress={onPress} style={styles.session}>
       <View style={[styles.cat, { backgroundColor: categoryColor[session.attraction.category] ?? theme.muted }]} />
       <View style={{ flex: 1 }}>
-        <Text style={[styles.rowName, { color: pal.text }]}>{session.attraction.name}</Text>
-        <Text style={{ color: pal.sub, fontSize: 13 }}>{fmtTime(session.revisedStart ?? session.startTime)}</Text>
+        <Text style={[styles.rowName, { color: c.text }]}>{session.attraction.name}</Text>
+        <Text style={[styles.rowSub, { color: c.sub }]}>{fmtTime(session.revisedStart ?? session.startTime)}</Text>
       </View>
       {session.status !== 'SCHEDULED' && (
         <View style={[styles.badge, { backgroundColor: statusColor[session.status] }]}>
           <Text style={styles.badgeText}>{session.status}</Text>
         </View>
       )}
-    </Touchable>
+    </Card>
   );
 }
 
-/** Stylised dusk hero: night sky, moon, hills and the Kynren keep. */
-function HeroArt({ fade }: { fade: string }) {
-  const W = 375, H = 520;
+/** Stylised golden-hour hero: sky, sun, hills and the Kynren keep. */
+function HeroArt() {
+  const W = 375, H = 300;
+  const KX = W * 0.72;
   return (
-    <Svg width="100%" height="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={StyleSheet.absoluteFill}>
+    <Svg width="100%" height="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMax slice" style={StyleSheet.absoluteFill}>
       <Defs>
         <LinearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor="#243a63" />
-          <Stop offset="0.42" stopColor="#5b2f45" />
-          <Stop offset="0.72" stopColor="#341a20" />
-          <Stop offset="1" stopColor="#120c0b" />
-        </LinearGradient>
-        {/* Dissolves the hero into the page background (no hard edge). */}
-        <LinearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={fade} stopOpacity="0" />
-          <Stop offset="0.7" stopColor={fade} stopOpacity="0.55" />
-          <Stop offset="1" stopColor={fade} stopOpacity="1" />
+          <Stop offset="0" stopColor="#2c4a5e" />
+          <Stop offset="0.55" stopColor="#d9915a" />
+          <Stop offset="1" stopColor="#f3d9a4" />
         </LinearGradient>
       </Defs>
-
       <Rect x="0" y="0" width={W} height={H} fill="url(#sky)" />
 
-      {/* Moon + glow */}
-      <Circle cx="292" cy="86" r="46" fill="#ffffff" opacity={0.06} />
-      <Circle cx="292" cy="86" r="30" fill="#f5eed6" opacity={0.95} />
+      <Circle cx="300" cy="86" r="44" fill="#fff1c7" opacity={0.3} />
+      <Circle cx="300" cy="86" r="28" fill="#fff1c7" opacity={0.95} />
 
-      {/* Stars */}
-      {STARS.map(([x, y, r], i) => (
-        <Circle key={i} cx={x} cy={y} r={r} fill="#ffffff" opacity={0.5 + (i % 3) * 0.18} />
-      ))}
+      <Path d={`M30 70 q10 -14 26 -8 q8 -12 24 -4 q16 0 16 12 z`} fill="#f7e3c2" opacity={0.75} />
+      <Path d={`M150 40 q10 -12 24 -6 q8 -10 22 -2 q14 0 14 10 z`} fill="#f7e3c2" opacity={0.6} />
 
-      {/* Distant hills */}
-      <Path d={`M0 ${H * 0.6} C 90 ${H * 0.54}, 150 ${H * 0.62}, 230 ${H * 0.58} S 340 ${H * 0.55}, ${W} ${H * 0.6} L ${W} ${H} L 0 ${H} Z`} fill="#20321f" opacity={0.85} />
-      <Path d={`M0 ${H * 0.68} C 110 ${H * 0.62}, 200 ${H * 0.72}, 300 ${H * 0.66} S ${W} ${H * 0.68}, ${W} ${H * 0.7} L ${W} ${H} L 0 ${H} Z`} fill="#182617" />
+      <Path d={`M0 ${H * 0.66} C 90 ${H * 0.58}, 150 ${H * 0.7}, 230 ${H * 0.64} S 340 ${H * 0.6}, ${W} ${H * 0.66} L ${W} ${H} L 0 ${H} Z`} fill="#4a7a52" />
+      <Path d={`M0 ${H * 0.76} C 110 ${H * 0.68}, 200 ${H * 0.8}, 300 ${H * 0.73} S ${W} ${H * 0.75}, ${W} ${H * 0.77} L ${W} ${H} L 0 ${H} Z`} fill="#2f5a3a" />
 
-      {/* The keep silhouette */}
-      <G fill="#0f0a0c">
-        <Rect x={W / 2 - 46} y={H * 0.5} width={92} height={H * 0.5} />
-        <Rect x={W / 2 - 70} y={H * 0.57} width={26} height={H * 0.43} />
-        <Rect x={W / 2 + 44} y={H * 0.57} width={26} height={H * 0.43} />
-        {/* battlements */}
-        {[-70, -60, -50, -14, -2, 10, 44, 54, 64].map((dx, i) => (
-          <Rect key={i} x={W / 2 + dx} y={H * 0.5 - 8} width={8} height={10} />
+      <G fill="#2a2118">
+        <Rect x={KX - 40} y={H * 0.5} width={80} height={H * 0.5} />
+        <Rect x={KX - 62} y={H * 0.58} width={24} height={H * 0.42} />
+        <Rect x={KX + 38} y={H * 0.58} width={24} height={H * 0.42} />
+        {[-62, -52, -42, -12, -2, 8, 38, 48, 58].map((dx, i) => (
+          <Rect key={i} x={KX + dx} y={H * 0.5 - 7} width={7} height={9} />
         ))}
-        {/* central spire */}
-        <Polygon points={`${W / 2},${H * 0.42} ${W / 2 - 16},${H * 0.5} ${W / 2 + 16},${H * 0.5}`} />
+        <Polygon points={`${KX},${H * 0.4} ${KX - 14},${H * 0.5} ${KX + 14},${H * 0.5}`} />
       </G>
-      {/* flags */}
-      <Polygon points={`${W / 2},${H * 0.42} ${W / 2},${H * 0.36} ${W / 2 + 16},${H * 0.385}`} fill={theme.brand} />
-
-      {/* Fade the hero into the page background */}
-      <Rect x="0" y={H * 0.55} width={W} height={H * 0.45} fill="url(#fade)" />
+      <Polygon points={`${KX},${H * 0.4} ${KX},${H * 0.33} ${KX + 15},${H * 0.355}`} fill="#8a1f31" />
     </Svg>
   );
 }
 
-const STARS: [number, number, number][] = [
-  [40, 70, 1.4], [80, 40, 1], [130, 90, 1.2], [180, 50, 1.5], [210, 110, 1],
-  [60, 130, 1], [150, 150, 1.3], [330, 150, 1.2], [350, 60, 1], [250, 60, 1.4],
-  [110, 190, 1], [300, 200, 1.2], [30, 200, 1.1], [200, 200, 1],
-];
-
 const styles = StyleSheet.create({
-  screen: { flex: 1 },
-  heroOverlay: { ...StyleSheet.absoluteFillObject, paddingHorizontal: 18, paddingBottom: 20 },
-  fixedBar: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20 },
-  fixedBarRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 18, paddingBottom: 10 },
-  heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  wordmark: { color: '#fff', fontSize: 24, fontWeight: '800', letterSpacing: 3 },
-  wordmarkRule: { height: 3, width: 96, backgroundColor: '#fff', borderRadius: 2, marginTop: 3, opacity: 0.9 },
-  logoImg: { height: 40, width: 170 },
-  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
-  tagline: { color: '#fff', fontSize: 34, fontWeight: '800', lineHeight: 38, textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 8 },
-  quickRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 18, marginTop: 18 },
-  quickCard: { flex: 1, borderRadius: 14, paddingVertical: 14, alignItems: 'center', gap: 4 },
-  quickIcon: { fontSize: 20 },
-  quickText: { fontSize: 12, fontWeight: '700' },
-  actions: { paddingHorizontal: 18, marginTop: -6, gap: 12 },
-  primaryBtn: { backgroundColor: theme.brand, borderRadius: 999, paddingVertical: 17, alignItems: 'center' },
-  primaryTxt: { color: '#fff', fontSize: 17, fontWeight: '800' },
-  outlineBtn: { borderWidth: 1.5, borderRadius: 999, paddingVertical: 16, alignItems: 'center' },
-  outlineTxt: { fontSize: 16, fontWeight: '800' },
-  welcomeRow: { flexDirection: 'row', gap: 12, paddingHorizontal: 18, marginTop: 26, alignItems: 'flex-start' },
-  wave: { fontSize: 26 },
-  welcomeH: { fontSize: 24, fontWeight: '800' },
-  welcomeSub: { flexDirection: 'row', gap: 8, marginTop: 4, alignItems: 'flex-start' },
-  greenDot: { width: 11, height: 11, borderRadius: 6, backgroundColor: '#3bbf6a', marginTop: 5 },
-  welcomeTxt: { flex: 1, fontSize: 15, lineHeight: 21 },
-  visitCard: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 18, marginTop: 18, borderRadius: 14, padding: 14, gap: 14 },
-  visitIcon: { width: 54, height: 54, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(143,29,33,0.12)' },
-  visitTitle: { fontSize: 18, fontWeight: '800' },
-  visitSub: { fontSize: 13, marginTop: 2, lineHeight: 18 },
-  chev: { fontSize: 26, marginLeft: 6 },
-  notice: { marginHorizontal: 18, marginTop: 18, borderRadius: 12, padding: 14, borderWidth: 1 },
-  noticeTitle: { fontWeight: '800' },
-  noticeBody: { marginTop: 4, fontSize: 13 },
-  section: { paddingHorizontal: 18, marginTop: 22, gap: 8 },
-  sectionH: { fontSize: 18, fontWeight: '800', marginBottom: 2 },
-  alert: { borderRadius: 10, padding: 12, borderLeftWidth: 5, borderWidth: 1 },
-  alertName: { fontWeight: '700' },
-  alertMeta: { fontSize: 13, marginTop: 2 },
-  row: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, padding: 12, borderWidth: 1, gap: 12 },
-  cat: { width: 6, height: 38, borderRadius: 3 },
-  rowName: { fontWeight: '700', fontSize: 15 },
-  badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
-  badgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+  band: { overflow: 'hidden', borderBottomLeftRadius: 32, borderBottomRightRadius: 32, backgroundColor: band.to },
+  topBar: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20 },
+  topSide: { width: 44, height: 44, justifyContent: 'center' },
+  topTitle: { color: '#ffffff', fontSize: 15, fontWeight: '700', letterSpacing: 3 },
+  tagline: { fontFamily: serif, position: 'absolute', left: 22, right: 22, bottom: 46, color: '#ffffff', fontSize: 32, fontWeight: '800', lineHeight: 36, textShadowColor: 'rgba(0,0,0,0.35)', textShadowRadius: 8 },
+  searchWrap: { marginTop: -27, paddingHorizontal: 20, zIndex: 3 },
+  welcome: { paddingHorizontal: 22, marginTop: 24 },
+  welcomeH: { fontFamily: serif, fontSize: 24, fontWeight: '800' },
+  welcomeSub: { flexDirection: 'row', gap: 8, marginTop: 6, alignItems: 'flex-start' },
+  dot: { width: 10, height: 10, borderRadius: 5, marginTop: 6 },
+  welcomeTxt: { flex: 1, fontSize: 14.5, lineHeight: 21 },
+  promoRow: { gap: 14, paddingHorizontal: 20, paddingBottom: 18 },
+  promoImage: { height: 120, borderRadius: 18, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  promoTitle: { fontSize: 17, fontWeight: '800', marginTop: 12, paddingHorizontal: 4 },
+  promoText: { fontSize: 12, lineHeight: 17, marginTop: 4, paddingHorizontal: 4, minHeight: 51 },
+  infoRow: { flexDirection: 'row', gap: 12, paddingHorizontal: 20, marginTop: 4 },
+  infoIcon: { height: 28, alignItems: 'center', justifyContent: 'center' },
+  info: { flex: 1, alignItems: 'center', gap: 6, paddingVertical: 16 },
+  infoText: { fontSize: 12.5, fontWeight: '700' },
+  service: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 16, paddingHorizontal: 18 },
+  more: { borderRadius: 999, paddingVertical: 8, paddingHorizontal: 16 },
+  moreText: { fontSize: 12.5, fontWeight: '700' },
+  wide: { flexDirection: 'row', alignItems: 'center', gap: 14, marginHorizontal: 20, padding: 16 },
+  round: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  rowName: { fontSize: 15.5, fontWeight: '800' },
+  rowSub: { fontSize: 13, marginTop: 2, lineHeight: 18 },
+  alert: { borderLeftWidth: 5, padding: 14 },
+  session: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14 },
+  cat: { width: 6, alignSelf: 'stretch', borderRadius: 3 },
+  badge: { borderRadius: 999, paddingVertical: 4, paddingHorizontal: 10 },
+  badgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
 });
