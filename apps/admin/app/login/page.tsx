@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api, setSession, ApiError, API_URL, type Staff } from '../../lib/api';
 
@@ -12,11 +13,12 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [showPw, setShowPw] = useState(false);
   // Shown when the dashboard bounced us here on an expired/invalid session.
-  const [notice] = useState(() =>
-    typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('expired')
-      ? 'Your session expired — please sign in again.'
-      : '',
-  );
+  const [notice] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    const q = new URLSearchParams(window.location.search);
+    if (q.get('reset')) return 'Password updated — sign in with your new password.';
+    return q.get('expired') ? 'Your session expired — please sign in again.' : '';
+  });
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -62,6 +64,7 @@ export default function LoginPage() {
         <button className="primary" style={{ width: '100%', marginTop: 18 }} disabled={loading}>
           {loading ? 'Signing in…' : 'Sign in'}
         </button>
+        <p style={{ textAlign: 'center', marginTop: 14 }}><Link href="/forgot-password">Forgot your password?</Link></p>
       </form>
     </div>
   );

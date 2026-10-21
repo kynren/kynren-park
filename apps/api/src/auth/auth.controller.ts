@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, UsePipes } from '@nestjs/common';
+import { Body, Controller, Get, Logger, Param, Patch, Post, UsePipes } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { registerSchema, loginSchema, refreshSchema } from '@kynren/shared';
@@ -11,6 +11,8 @@ import { AuthService } from './auth.service.js';
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+
   constructor(private readonly auth: AuthService) {}
 
   // Auth endpoints are the prime brute-force/credential-stuffing/account-spam
@@ -52,6 +54,24 @@ export class AuthController {
   @UsePipes(new ZodValidationPipe(loginSchema))
   staffLogin(@Body() body: LoginInput) {
     return this.auth.staffLogin(body);
+  }
+
+  // ---- Forgotten password (public) -----------------------------------------
+  // Always answers the same way, and the work happens after the answer, so the
+  // response says nothing about whether the address is a staff account.
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('staff/forgot-password')
+  forgotPassword(@Body() body: { email?: string }) {
+    void this.auth.requestStaffReset(String(body?.email ?? '')).catch((e) => this.logger.error(`Reset email failed: ${(e as Error).message}`));
+    return { ok: true };
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('staff/reset-password')
+  resetPassword(@Body() body: { token?: string; password?: string }) {
+    return this.auth.resetStaffPassword(body ?? {});
   }
 
   // ---- Email-invite acceptance (public) ------------------------------------

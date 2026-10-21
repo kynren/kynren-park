@@ -9,7 +9,34 @@ import type { RegisterInput, LoginInput } from '@kynren/shared';
 import { hashPassword, verifyPassword } from '@kynren/shared/crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
+import { MailService } from '../mail/mail.service.js';
 import type { AuthPrincipal } from '../common/decorators.js';
+
+const RESET_TTL_MS = 60 * 60_000;
+const RESET_COOLDOWN_MS = 60_000;
+
+/** Email addresses are matched without regard to case: phones capitalise the first letter. */
+const sameEmail = (email: string) => ({ equals: email.trim(), mode: 'insensitive' as const });
+
+function resetEmail(url: string) {
+  return `
+    <div style="font-family:system-ui,Segoe UI,Arial,sans-serif;max-width:520px;margin:0 auto;color:#22314a">
+      <h2 style="color:#8f1d21">Kynren — The Storied Lands</h2>
+      <p>Someone asked to reset the password for your <b>staff console</b> account.</p>
+      <p><a href="${url}" style="display:inline-block;background:#8f1d21;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:700">Choose a new password</a></p>
+      <p style="color:#8a94a6;font-size:13px">Or paste this link into your browser:<br>${url}</p>
+      <p style="color:#8a94a6;font-size:13px">The link works once and expires in 1 hour. If you didn't ask for this, ignore this email — your password hasn't changed.</p>
+    </div>`;
+}
+
+function changedEmail() {
+  return `
+    <div style="font-family:system-ui,Segoe UI,Arial,sans-serif;max-width:520px;margin:0 auto;color:#22314a">
+      <h2 style="color:#8f1d21">Kynren — The Storied Lands</h2>
+      <p>The password for your <b>staff console</b> account was just changed.</p>
+      <p style="color:#8a94a6;font-size:13px">If that was you, nothing more to do. If it wasn't, ask an administrator to look at your account straight away.</p>
+    </div>`;
+}
 
 function sha256(v: string) {
   return createHash('sha256').update(v).digest('hex');
@@ -21,6 +48,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly permissions: PermissionsService,
+    private readonly mail: MailService,
   ) {}
 
   private signAccess(payload: object) {
@@ -44,7 +72,7 @@ export class AuthService {
   }
 
   async register(input: RegisterInput) {
-    const existing = await this.prisma.user.findUnique({ where: { email: input.email } });
+    const existing = await this.prisma.user.findFirst({ where: { email: sameEmail(input.email) } });
     if (existing) throw new ConflictException('Email already registered');
     const user = await this.prisma.user.create({
       data: {
@@ -57,7 +85,7 @@ export class AuthService {
   }
 
   async login(input: LoginInput) {
-    const user = await this.prisma.user.findUnique({ where: { email: input.email } });
+    const user = await this.prisma.user.findFirst({ where: { email: sameEmail(input.email) }, orderBy: { createdAt: 'asc' } });
     if (!user?.passwordHash || !verifyPassword(input.password, user.passwordHash)) {
       throw new UnauthorizedException('Invalid credentials');
     }
@@ -88,7 +116,7 @@ export class AuthService {
   }
 
   async staffLogin(input: LoginInput) {
-    const staff = await this.prisma.staffUser.findUnique({ where: { email: input.email } });
+    const staff = await this.prisma.staffUser.findFirst({ where: { email: sameEmail(input.email) } });
     if (!staff?.active || !verifyPassword(input.password, staff.passwordHash)) {
       throw new UnauthorizedException('Invalid credentials');
     }
@@ -97,6 +125,42 @@ export class AuthService {
       { secret: process.env.JWT_ACCESS_SECRET, expiresIn: '12h' },
     );
     return { accessToken, staff: { id: staff.id, name: staff.name, email: staff.email, role: staff.role } };
+  }
+
+  // ---- Forgotten staff password --------------------------------------------
+  /**
+   * Emails a one-hour, single-use link to an active staff account. Says nothing about whether the address is one, and a
+   * second request inside a minute is ignored, so it cannot be used to find accounts or to fill somebody's inbox.
+   */
+  async requestStaffReset(rawEmail: string): Promise<void> {
+    const email = String(rawEmail ?? '').trim();
+    if (!email) return;
+    const staff = await this.prisma.staffUser.findFirst({ where: { email: sameEmail(email) } });
+    if (!staff?.active) return;
+    if (staff.resetExpiresAt && staff.resetExpiresAt.getTime() - RESET_TTL_MS + RESET_COOLDOWN_MS > Date.now()) return;
+
+    const token = randomBytes(32).toString('hex');
+    await this.prisma.staffUser.update({
+      where: { id: staff.id },
+      data: { resetTokenHash: sha256(token), resetExpiresAt: new Date(Date.now() + RESET_TTL_MS) },
+    });
+    const base = (process.env.PUBLIC_ADMIN_URL || 'https://app-park.kynren.com').replace(/\/$/, '');
+    await this.mail.send(staff.email, 'Reset your Kynren staff password', resetEmail(`${base}/reset-password?token=${token}`));
+  }
+
+  async resetStaffPassword(b: { token?: string; password?: string }) {
+    const invalid = new BadRequestException('This reset link is invalid or has expired. Request a new one.');
+    if (!b.token || typeof b.token !== 'string') throw invalid;
+    if (!b.password || b.password.length < 8) throw new BadRequestException('Password must be at least 8 characters');
+    const staff = await this.prisma.staffUser.findUnique({ where: { resetTokenHash: sha256(b.token) } });
+    if (!staff?.active || !staff.resetExpiresAt || staff.resetExpiresAt < new Date()) throw invalid;
+
+    await this.prisma.staffUser.update({
+      where: { id: staff.id },
+      data: { passwordHash: hashPassword(b.password), resetTokenHash: null, resetExpiresAt: null },
+    });
+    await this.mail.send(staff.email, 'Your Kynren staff password was changed', changedEmail());
+    return { ok: true };
   }
 
   // ---- Staff email invites --------------------------------------------------

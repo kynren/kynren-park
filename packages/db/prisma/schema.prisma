@@ -160,6 +160,10 @@ model StaffUser {
   // (opens the tokened link, sets their name + password).
   inviteToken     String?   @unique
   inviteExpiresAt DateTime?
+  // Forgotten-password link: only a hash of the emailed token is kept, and it
+  // is single-use and short-lived.
+  resetTokenHash  String?   @unique
+  resetExpiresAt  DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 }
