@@ -15,6 +15,8 @@ interface HomeScreen {
 const SECTION_LABELS: Record<string, string> = {
   actions: 'Ticket & account buttons',
   welcome: 'Welcome & opening hours',
+  info: 'Weather, shuttle & access tiles',
+  services: 'Theme park services (shows, attractions, restaurants, shops)',
   visit: 'Add visit dates card',
   announcement: 'Latest announcement',
   alerts: 'Today’s changes',
@@ -22,7 +24,7 @@ const SECTION_LABELS: Record<string, string> = {
   favourites: 'Your favourites (next show per favourited attraction)',
 };
 const DEFAULT_SECTIONS: Section[] = [
-  { key: 'actions', visible: true }, { key: 'welcome', visible: true }, { key: 'visit', visible: true },
+  { key: 'actions', visible: true }, { key: 'welcome', visible: true }, { key: 'info', visible: true }, { key: 'services', visible: true }, { key: 'visit', visible: true },
   { key: 'announcement', visible: true }, { key: 'alerts', visible: true }, { key: 'comingUp', visible: true },
   { key: 'favourites', visible: true },
 ];
@@ -57,7 +59,7 @@ function resizeToDataUrl(file: File, maxDim: number): Promise<string> {
 
 const EMPTY = {
   name: '', heroType: 'none', heroMediaUrl: '', tagline: 'An epic tale\nof England',
-  greeting: 'Welcome', greetingSub: '', primaryColor: '#8f1d21', accentColor: '#22b365',
+  greeting: 'Welcome', greetingSub: '', primaryColor: '#2f5b43', accentColor: '#8a1f31',
   sections: DEFAULT_SECTIONS as Section[],
 };
 type Form = typeof EMPTY & { id?: string };
@@ -86,7 +88,7 @@ export default function HomeDesigner() {
     setForm({
       id: h.id, name: h.name, heroType: h.heroType, heroMediaUrl: h.heroMediaUrl ?? '',
       tagline: h.tagline ?? '', greeting: h.greeting ?? '', greetingSub: h.greetingSub ?? '',
-      primaryColor: h.primaryColor ?? '#8f1d21', accentColor: h.accentColor ?? '#22b365',
+      primaryColor: h.primaryColor ?? '#2f5b43', accentColor: h.accentColor ?? '#8a1f31',
       sections: (h.sections?.length ? h.sections : DEFAULT_SECTIONS).map((s) => ({ ...s })),
     });
     setError(''); setScheduleAt('');

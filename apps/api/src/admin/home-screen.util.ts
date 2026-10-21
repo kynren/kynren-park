@@ -5,6 +5,8 @@ import type { PrismaService } from '../prisma/prisma.service.js';
 export const DEFAULT_HOME_SECTIONS = [
   { key: 'actions', visible: true },
   { key: 'welcome', visible: true },
+  { key: 'info', visible: true },
+  { key: 'services', visible: true },
   { key: 'visit', visible: true },
   { key: 'announcement', visible: true },
   { key: 'alerts', visible: true },
