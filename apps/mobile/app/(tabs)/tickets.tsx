@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { ScrollView, View, Text, TextInput, StyleSheet, Alert } from 'react-native';
 import { Touchable } from '../../components/Touchable';
+import { KeyboardAvoid } from '../../components/KeyboardAvoid';
 import { useFocusEffect, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import QRCode from 'react-native-qrcode-svg';
@@ -137,7 +138,8 @@ export default function TicketsScreen() {
   }
 
   return (
-    <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+    <KeyboardAvoid>
+    <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
       <Text style={styles.h1}>{t('tickets.title')}</Text>
 
       {/* Account */}
@@ -234,6 +236,7 @@ export default function TicketsScreen() {
         Advance Saver prices. Book online to secure your day — capacity is limited.
       </Text>
     </ScrollView>
+    </KeyboardAvoid>
   );
 }
 

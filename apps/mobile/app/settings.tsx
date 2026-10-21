@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ScrollView, View, Text, StyleSheet, TextInput, Switch, Image, Alert, Share } from 'react-native';
 import { Touchable } from '../components/Touchable';
+import { KeyboardAvoid } from '../components/KeyboardAvoid';
 import { useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -133,7 +134,8 @@ export default function SettingsScreen() {
         <View style={{ width: 42 }} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, paddingBottom: 40, gap: 22 }}>
+      <KeyboardAvoid>
+      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, paddingBottom: 40, gap: 22 }}>
         {/* Photo */}
         <View style={{ alignItems: 'center', gap: 10 }}>
           <Touchable onPress={pickPhoto} style={styles.photoWrap}>
@@ -198,6 +200,7 @@ export default function SettingsScreen() {
           </Section>
         )}
       </ScrollView>
+      </KeyboardAvoid>
     </View>
   );
 }

@@ -3,6 +3,7 @@ import { ScrollView, View, Text, TextInput, StyleSheet, ActivityIndicator } from
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Touchable } from '../components/Touchable';
+import { KeyboardAvoid } from '../components/KeyboardAvoid';
 import { useAuth } from '../lib/auth';
 import { api, type ApiError } from '../lib/api';
 import { theme } from '../lib/theme';
@@ -93,6 +94,7 @@ export default function SmeetzLinkScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: pal.screen }}>
       <Stack.Screen options={{ headerShown: false }} />
+      <KeyboardAvoid>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20, paddingTop: insets.top + 24, paddingBottom: 40, gap: 14 }}>
         <Text style={[styles.h1, { color: pal.text }]}>Find your bookings</Text>
 
@@ -163,6 +165,7 @@ export default function SmeetzLinkScreen() {
           </Touchable>
         )}
       </ScrollView>
+      </KeyboardAvoid>
     </View>
   );
 }

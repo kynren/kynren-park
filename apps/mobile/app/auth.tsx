@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { ScrollView, View, Text, TextInput, StyleSheet, ActivityIndicator } from 'react-native';
+import { useHeaderHeight } from '@react-navigation/elements';
 import { Touchable } from '../components/Touchable';
+import { KeyboardAvoid } from '../components/KeyboardAvoid';
 import { ManagedImage } from '../components/ManagedImage';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../lib/auth';
@@ -8,6 +10,7 @@ import { theme } from '../lib/theme';
 
 export default function AuthScreen() {
   const router = useRouter();
+  const headerHeight = useHeaderHeight();
   const { login, register } = useAuth();
   const [mode, setMode] = useState<'login' | 'register'>('register');
   const [name, setName] = useState('');
@@ -42,7 +45,8 @@ export default function AuthScreen() {
   }
 
   return (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+    <KeyboardAvoid offset={headerHeight}>
+    <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
       <ManagedImage slot="auth.header" style={{ height: 150, borderRadius: 16, marginBottom: 18 }} fadeColor="#ffffff" />
       <Text style={styles.h1}>{mode === 'login' ? 'Welcome back' : 'Create your account'}</Text>
       <Text style={styles.muted}>
@@ -87,11 +91,12 @@ export default function AuthScreen() {
         </Text>
       </Touchable>
     </ScrollView>
+    </KeyboardAvoid>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 20, gap: 4 },
+  content: { padding: 20, paddingBottom: 40, gap: 4 },
   h1: { fontSize: 24, fontWeight: '800', color: theme.ink },
   muted: { color: theme.muted, fontSize: 14, marginBottom: 8 },
   label: { fontSize: 13, color: theme.muted, marginTop: 14, marginBottom: 4 },
