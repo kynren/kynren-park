@@ -199,6 +199,7 @@ export default function MapScreen() {
   const [closingPin, setClosingPin] = useState<Pin | null>(null);
   const displayPin = selected ?? closingPin;
   const [search, setSearch] = useState('');
+  const [searchOpen, setSearchOpen] = useState(true); // the search results, hidden by a tap outside them
   const [nearOpen, setNearOpen] = useState(false); // the "Near you" list, opened from the icon in the search bar
   const [pendingSelect, setPendingSelect] = useState<string | null>(null);
   const [pendingSpot, setPendingSpot] = useState<string | null>(null);
@@ -1021,11 +1022,11 @@ export default function MapScreen() {
                     color={displayPin.kind === 'evening' ? '#6e1423' : displayPin.kind === 'restaurant' ? featureGradient.restaurants.from : theme.brand}
                     icon={displayPin.kind === 'restaurant' ? 'fork' : 'calendar'}
                     height={CALLOUT_H}
-                    width={108}
+                    width={96}
                   />
                   <View style={styles.calloutBody}>
                     <Text style={[styles.calloutTitle, { color: cpal.ink }]} numberOfLines={2}>{displayPin.title}</Text>
-                    <Text style={[styles.calloutSub, { color: cpal.muted }]} numberOfLines={2}>
+                    <Text style={[styles.calloutSub, { color: cpal.muted }]} numberOfLines={1}>
                       {selectedDist != null
                         ? `${fmtDist(selectedDist)} away · ~${walkMins(selectedDist)} min walk`
                         : displayPin.nextTime
@@ -1109,13 +1110,23 @@ export default function MapScreen() {
           </View>
         )}
 
+        {/* While a list is open, a tap anywhere outside it closes it */}
+        {(nearOpen || (searchOpen && search.trim().length > 0)) && (
+          <Pressable
+            style={[StyleSheet.absoluteFill, { zIndex: 71 }]}
+            onPress={() => { setNearOpen(false); setSearchOpen(false); }}
+            accessibilityLabel="Close the list"
+            accessibilityRole="button"
+          />
+        )}
+
         {/* Floating controls: menu, search and scan sit straight on the map, so nothing covers it */}
         <View style={[styles.searchWrap, { top: insets.top + 10 }]} pointerEvents="box-none">
           <View style={styles.searchLine}>
             <Touchable style={[styles.roundBtn, shadow(1, dark), { backgroundColor: c.card }]} onPress={() => router.push('/menu')} accessibilityRole="button" accessibilityLabel="Open menu" hitSlop={8}>
               <Icon name="menu" color={c.text} size={24} />
             </Touchable>
-            <SearchPill style={{ flex: 1 }} placeholder="Find attractions" value={search} onChangeText={(t) => { setSearch(t); if (t) setNearOpen(false); }} onFilter={() => { setSearch(''); setNearOpen((v) => !v); }} filterIcon="compass" filterLabel={nearOpen ? 'Hide places near you' : 'Show places near you'} />
+            <SearchPill style={{ flex: 1 }} placeholder="Find attractions" value={search} onChangeText={(t) => { setSearch(t); setSearchOpen(true); if (t) setNearOpen(false); }} onFilter={() => { setSearch(''); setNearOpen((v) => !v); }} filterIcon="compass" filterLabel={nearOpen ? 'Hide places near you' : 'Show places near you'} />
             <Touchable style={[styles.roundBtn, shadow(1, dark), { backgroundColor: c.card }]} onPress={() => router.push('/scan')} accessibilityRole="button" accessibilityLabel="Scan a QR code" hitSlop={8}>
               <Icon name="scan" color={c.text} size={22} />
             </Touchable>
@@ -1137,7 +1148,7 @@ export default function MapScreen() {
               )}
             </View>
           )}
-          {search.trim().length > 0 && (
+          {searchOpen && search.trim().length > 0 && (
             <View style={[styles.searchResults, { backgroundColor: c.card }]}>
               {searchResults.length === 0 ? (
                 <Text style={[styles.searchEmpty, { color: c.sub }]}>No matches</Text>
@@ -1320,7 +1331,7 @@ const TREES: [number, number, number][] = [
 // than redrawn crisply, which is what washed out small popup text (subtitle,
 // "Tap for details") while the bold title stayed legible. Dropping the shadow
 // removes that compositing path entirely. Android keeps its shadows.
-const CALLOUT_H = 128;
+const CALLOUT_H = 104;
 const noLiveShadow = Platform.OS === 'ios' ? { shadowOpacity: 0, shadowRadius: 0, shadowColor: 'transparent' } : {};
 
 const styles = StyleSheet.create({
@@ -1370,10 +1381,10 @@ const styles = StyleSheet.create({
   calloutArrow: { width: 0, height: 0, borderLeftWidth: 9, borderRightWidth: 9, borderTopWidth: 11, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginTop: -1 },
   calloutArrowUp: { width: 0, height: 0, borderLeftWidth: 9, borderRightWidth: 9, borderBottomWidth: 11, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginBottom: -1 },
   calloutCard: { flexDirection: 'row', alignItems: 'stretch', borderRadius: 14, overflow: 'hidden', width: 292, height: CALLOUT_H, shadowColor: '#000', shadowOpacity: 0.24, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 12, ...noLiveShadow },
-  calloutBody: { flex: 1, paddingVertical: 12, paddingLeft: 14, paddingRight: 30, justifyContent: 'center' },
+  calloutBody: { flex: 1, paddingVertical: 8, paddingLeft: 14, paddingRight: 30, justifyContent: 'center' },
   calloutTitle: { fontFamily: serif, fontWeight: '700', fontSize: 14.5, lineHeight: 18 },
   calloutSub: { fontSize: 12, lineHeight: 16, marginTop: 2 },
-  calloutLink: { fontSize: 12, fontWeight: '600', textDecorationLine: 'underline', marginTop: 8 },
+  calloutLink: { fontSize: 12, fontWeight: '600', textDecorationLine: 'underline', marginTop: 6 },
   calloutCloseBtn: { position: 'absolute', top: 6, right: 8, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
   calloutClose: { fontSize: 14, fontWeight: '700' },
   geoBanner: { position: 'absolute', left: 14, right: 66, borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'rgba(15,15,15,0.92)', paddingVertical: 12, paddingHorizontal: 16, zIndex: 65 },

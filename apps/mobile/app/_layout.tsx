@@ -138,6 +138,7 @@ function RootNav() {
         <Stack.Screen name="restaurants" options={{ headerShown: false }} />
         <Stack.Screen name="facility/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="shop/[slug]" options={{ headerShown: false }} />
+        <Stack.Screen name="ticket/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="orders" options={{ headerShown: false }} />
         <Stack.Screen name="accessibility" options={{ headerShown: false }} />
         <Stack.Screen name="shuttle" options={{ headerShown: false }} />
