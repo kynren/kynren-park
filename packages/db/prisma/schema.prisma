@@ -101,6 +101,8 @@ model User {
   locale             String              @default("en-GB")
   // Accessibility preferences kept as a flexible JSON blob.
   accessibilityPrefs Json?
+  // App preferences the guest chooses (e.g. whether Home shows shows as cards or a list), kept so they follow the guest.
+  preferences        Json?
   // Last known location, used to show who is in the park right now.
   lastLat            Float?
   lastLng            Float?

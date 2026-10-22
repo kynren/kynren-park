@@ -5,7 +5,7 @@ import { api, apiUpload, friendlyError } from '../../../../lib/api';
 import { uploadToast } from '../../../../lib/toast';
 
 interface Slot {
-  key: string; label: string; location: string; aspect: number;
+  key: string; label: string; location: string; aspect: number; group?: string;
   imageUrl: string | null; imageUrlDark: string | null;
   fit: string; position: string; fade: string; animation: string;
 }
@@ -15,7 +15,9 @@ const POSITIONS = ['top', 'center', 'bottom'];
 const FADES = [['none', 'No fade'], ['down', 'Fade at bottom'], ['up', 'Fade at top']];
 const ANIMS = [['fade', 'Fade in'], ['slide-up', 'Slide up'], ['slide-down', 'Slide down'], ['zoom', 'Zoom in'], ['none', 'None']];
 
-function resizeToDataUrl(file: File, maxDim: number): Promise<string> {
+// Pictures for page headers and backgrounds are photos, so they go out as a compact JPEG: every image set here travels inside
+// the app's offline data, and a few dozen large PNGs would make that heavy. Illustrations keep PNG (transparent edges).
+function resizeToDataUrl(file: File, maxDim: number, photo = false): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -24,8 +26,10 @@ function resizeToDataUrl(file: File, maxDim: number): Promise<string> {
         const s = Math.min(1, maxDim / Math.max(img.width, img.height));
         const w = Math.round(img.width * s), h = Math.round(img.height * s);
         const c = document.createElement('canvas'); c.width = w; c.height = h;
-        c.getContext('2d')!.drawImage(img, 0, 0, w, h);
-        resolve(c.toDataURL('image/png'));
+        const ctx = c.getContext('2d')!;
+        if (photo) { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h); }
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(photo ? c.toDataURL('image/jpeg', 0.8) : c.toDataURL('image/png'));
       };
       img.onerror = reject; img.src = reader.result as string;
     };
@@ -41,6 +45,8 @@ export default function AppImages() {
   const lightRef = useRef<HTMLInputElement>(null);
   const darkRef = useRef<HTMLInputElement>(null);
 
+  const groupNames = Array.from(new Set(slots.map((s) => s.group ?? 'Other')));
+
   const load = useCallback(() => {
     api<Slot[]>('/admin/images').then(setSlots).catch((e) => setError(friendlyError(e, 'Could not load images.')));
   }, []);
@@ -50,7 +56,8 @@ export default function AppImages() {
     const file = e.target.files?.[0]; e.target.value = '';
     if (!file || !edit) return;
     if (file.size > 8 * 1024 * 1024) { setError('Image must be under 8 MB.'); return; }
-    try { setEdit({ ...edit, [which]: await resizeToDataUrl(file, 1600) }); setError(''); }
+    const photo = edit.group === 'Header images' || edit.group === 'Page backgrounds';
+    try { setEdit({ ...edit, [which]: await resizeToDataUrl(file, photo ? 1280 : 1600, photo) }); setError(''); }
     catch { setError('Could not read that image.'); }
   }
 
@@ -70,14 +77,17 @@ export default function AppImages() {
 
   return (
     <div>
-      <p className="subtitle" style={{ marginTop: 0 }}>Swap any decorative image in the mobile app. Each slot supports a light and dark version, how it's fitted, an edge fade and an entrance animation.</p>
+      <p className="subtitle" style={{ marginTop: 0 }}>Set the pictures shown on each page of the mobile app: a <b>header</b> picture behind the title at the top of the page, and a <b>page background</b> behind the whole page. Each one supports a light and dark version, how it's fitted, an edge fade and an entrance animation. Anything left as Default keeps the app's own look.</p>
       {error && !edit && <div className="error">{error}</div>}
+      {slots.length === 0 && <p style={{ color: 'var(--muted)' }}>Loading…</p>}
 
+      {groupNames.map((group) => (
+      <div key={group} style={{ marginTop: 22 }}>
+      <h3 style={{ margin: '0 0 8px' }}>{group}</h3>
       <table className="dtable">
         <thead><tr><th></th><th>Image</th><th>Where it appears</th><th>Status</th><th></th></tr></thead>
         <tbody>
-          {slots.length === 0 && <tr><td colSpan={5} style={{ color: 'var(--muted)' }}>Loading…</td></tr>}
-          {slots.map((s) => (
+          {slots.filter((s) => (s.group ?? 'Other') === group).map((s) => (
             <tr key={s.key} style={{ cursor: 'pointer' }} onClick={() => setEdit({ ...s })}>
               <td>
                 <div style={{ width: 64, height: 44, borderRadius: 8, overflow: 'hidden', background: 'var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -92,6 +102,8 @@ export default function AppImages() {
           ))}
         </tbody>
       </table>
+      </div>
+      ))}
 
       {edit && (
         <div className="modal-back" onClick={(e) => e.target === e.currentTarget && setEdit(null)}>

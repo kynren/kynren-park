@@ -16,10 +16,33 @@ export class UsersController {
     return this.prisma.user.findUnique({
       where: { id: user.sub },
       select: {
-        id: true, email: true, name: true, locale: true, accessibilityPrefs: true,
+        id: true, email: true, name: true, locale: true, accessibilityPrefs: true, preferences: true,
         marketingConsent: true, consentedAt: true,
       },
     });
+  }
+
+  /**
+   * Merge-patch the guest's app preferences (e.g. { homeView: 'list' }). Only simple values are kept, and only a handful
+   * of keys, so it cannot be used to store anything else.
+   */
+  @Patch('preferences')
+  async updatePreferences(@CurrentUser() user: AuthPrincipal, @Body() body: Record<string, unknown>) {
+    const clean: Record<string, string | boolean | number> = {};
+    for (const [key, value] of Object.entries(body ?? {})) {
+      if (!/^[a-zA-Z]{1,32}$/.test(key)) continue;
+      if (typeof value === 'string' && value.length <= 64) clean[key] = value;
+      else if (typeof value === 'boolean' || typeof value === 'number') clean[key] = value;
+    }
+    const current = await this.prisma.user.findUnique({ where: { id: user.sub }, select: { preferences: true } });
+    const merged = { ...((current?.preferences as Record<string, unknown> | null) ?? {}), ...clean };
+    if (Object.keys(merged).length > 20) return current?.preferences ?? {};
+    const updated = await this.prisma.user.update({
+      where: { id: user.sub },
+      data: { preferences: merged as Prisma.InputJsonValue },
+      select: { preferences: true },
+    });
+    return updated.preferences;
   }
 
   /** Merge-patch the guest's accessibility preferences (a free-form JSON blob). */
@@ -55,7 +78,7 @@ export class UsersController {
       this.prisma.user.findUnique({
         where: { id: user.sub },
         select: {
-          id: true, email: true, name: true, locale: true, accessibilityPrefs: true,
+          id: true, email: true, name: true, locale: true, accessibilityPrefs: true, preferences: true,
           marketingConsent: true, consentedAt: true, createdAt: true,
         },
       }),
@@ -88,6 +111,7 @@ export class UsersController {
           name: null,
           passwordHash: null,
           accessibilityPrefs: Prisma.JsonNull,
+          preferences: Prisma.JsonNull,
           lastLat: null,
           lastLng: null,
           lastSeenAt: null,
