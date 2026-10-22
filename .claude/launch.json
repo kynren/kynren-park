@@ -23,6 +23,13 @@
       "autoPort": false
     },
     {
+      "name": "flutter-web",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--yes", "serve", "-s", "-l", "8100", "apps/mobile_flutter/build/web"],
+      "port": 8100,
+      "autoPort": false
+    },
+    {
       "name": "mobile",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev:mobile"],
