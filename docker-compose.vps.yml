@@ -70,6 +70,8 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:-}
       # Smeetz ticketing (server-side only). Production key — see .env.
+      # Push to the Flutter app's native devices (base64 of the Firebase service-account JSON); blank = off.
+      FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON:-}
       SMEETZ_API_URL: ${SMEETZ_API_URL:-https://services.test.smeetz.com}
       SMEETZ_API_KEY: ${SMEETZ_API_KEY:-}
       # Finds a guest's Smeetz orders by email via the groups app's customer index, over the internal network.

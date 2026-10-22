@@ -3,6 +3,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { Expo } from 'expo-server-sdk';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { Public, CurrentUser } from '../common/decorators.js';
+import { isExpoToken, isFcmToken } from './fcm.service.js';
 import type { AuthPrincipal } from '../common/decorators.js';
 
 /**
@@ -21,7 +22,8 @@ export class PushController {
     @Body() body: { token?: string; platform?: string },
   ) {
     const token = body?.token;
-    if (!token || !Expo.isExpoPushToken(token)) return { ok: false };
+    // The React Native app registers an Expo token, the Flutter app a native FCM token.
+    if (!token || !(Expo.isExpoPushToken(token) || (!isExpoToken(token) && isFcmToken(token)))) return { ok: false };
     const userId = user?.type === 'user' ? user.sub : null;
     await this.prisma.pushToken.upsert({
       where: { token },

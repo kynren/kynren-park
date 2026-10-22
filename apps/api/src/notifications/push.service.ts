@@ -1,20 +1,21 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Expo, ExpoPushMessage } from 'expo-server-sdk';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { FcmService, isExpoToken } from './fcm.service.js';
 
-/** Sends Expo push notifications to visitors' devices. */
+/** Sends push notifications to visitors' devices: Expo tokens through Expo, native (Flutter app) tokens through FCM. */
 @Injectable()
 export class PushService {
   private readonly logger = new Logger(PushService.name);
   private readonly expo = new Expo({ accessToken: process.env.EXPO_ACCESS_TOKEN || undefined });
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly fcm: FcmService) {}
 
   /** Health probe: Expo push has no ping, so report readiness + device count. */
   async healthCheck(): Promise<{ ok: boolean; detail: string }> {
     try {
       const n = await this.prisma.pushToken.count();
-      return { ok: true, detail: `Expo push ready · ${n} device${n === 1 ? '' : 's'} registered.` };
+      return { ok: true, detail: `Expo push ready${this.fcm.enabled ? ' · FCM on' : ' · FCM off'} · ${n} device${n === 1 ? '' : 's'} registered.` };
     } catch {
       return { ok: true, detail: 'Expo push ready.' };
     }
@@ -94,7 +95,16 @@ export class PushService {
   }
 
   private async sendToTokens(tokens: string[], title: string, body: string, data?: Record<string, unknown>) {
-    const valid = tokens.filter((t) => Expo.isExpoPushToken(t));
+    // Expo tokens (the React Native app) go through Expo; anything else is a native token (the Flutter app) for FCM.
+    const valid = tokens.filter((t) => isExpoToken(t) && Expo.isExpoPushToken(t));
+    const native = tokens.filter((t) => !isExpoToken(t));
+    if (native.length > 0) {
+      const gone = await this.fcm.send(native, title, body, data);
+      if (gone.length > 0) {
+        await this.prisma.pushToken.deleteMany({ where: { token: { in: gone } } }).catch(() => undefined);
+        this.logger.log(`Pruned ${gone.length} unregistered FCM token(s).`);
+      }
+    }
     if (valid.length === 0) return;
 
     const messages: ExpoPushMessage[] = valid.map((to) => ({
