@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { View, Text, StyleSheet, StatusBar, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CloseButton, IconBadge, TagChip, ActionPill, SectionLabel, DetailHero, ICONS, useDK, type DK } from '../../components/DetailKit';
+import { CloseButton, IconBadge, TagChip, ActionPill, SectionLabel, DetailHero, SheetTitle, ICONS, useDK, type DK } from '../../components/DetailKit';
 import { useSync } from '../../lib/sync';
 import { serif } from '../../lib/theme';
 
@@ -43,10 +43,7 @@ export default function FacilityScreen() {
         <DetailHero images={images} height={HERO_HEIGHT} />
 
         <View style={[styles.sheet, styles.sheetOverlap]}>
-          <View style={styles.titleRow}>
-            <IconBadge letter={emoji} tint={poi.color ?? undefined} />
-            <Text style={styles.title}>{poi.name}</Text>
-          </View>
+          <SheetTitle title={poi.name} />
 
           {poi.description ? <Text style={styles.desc}>{poi.description}</Text> : null}
 
@@ -76,7 +73,7 @@ const makeStyles = (dk: DK) => StyleSheet.create({
   sheet: { backgroundColor: dk.sheet, paddingHorizontal: 18, paddingTop: 20, paddingBottom: 40 },
   sheetOverlap: { marginTop: -28, borderTopLeftRadius: 28, borderTopRightRadius: 28 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  title: { fontFamily: serif, flex: 1, color: dk.ink, fontSize: 24, fontWeight: '800' },
+  title: { fontFamily: serif, flex: 1, color: dk.ink, fontSize: 21, fontWeight: '800' },
   desc: { color: dk.sub, fontSize: 14.5, lineHeight: 21, marginTop: 16 },
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
   actionRow: { flexDirection: 'row', gap: 10, marginTop: 18 },

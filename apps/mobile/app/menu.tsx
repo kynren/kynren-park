@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Stack, useRouter, type Href } from 'expo-router';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -6,6 +6,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Touchable } from '../components/Touchable';
 import { Button } from '../components/ui/Button';
 import { GradientSurface } from '../components/ui/Gradient';
+import { ManagedImage, useHasSlotImage } from '../components/ManagedImage';
+import { HeaderArt } from '../components/ui/HeaderArt';
 import { Icon, type IconName } from '../components/ui/Icon';
 import { useAuth } from '../lib/auth';
 import { useSync } from '../lib/sync';
@@ -19,7 +21,6 @@ const GROUPS: { title: string; entries: Entry[] }[] = [
     title: 'Your visit',
     entries: [
       { label: 'My tickets', icon: 'ticket', to: '/(tabs)/tickets', tab: true },
-      { label: 'Buy tickets', icon: 'ticket', to: '/book' },
       { label: 'Programme', icon: 'calendar', to: '/(tabs)/shows', tab: true },
       { label: 'My day', icon: 'star', to: '/(tabs)/plan', tab: true },
       { label: 'My orders', icon: 'fork', to: '/orders' },
@@ -38,7 +39,7 @@ const GROUPS: { title: string; entries: Entry[] }[] = [
   {
     title: 'You',
     entries: [
-      { label: 'Find my Smeetz bookings', icon: 'search', to: '/smeetz-link' },
+      { label: 'Find my bookings', icon: 'search', to: '/find-bookings' },
       { label: 'Profile', icon: 'user', to: '/profile' },
       { label: 'Language', icon: 'globe', to: '/language' },
       { label: 'Settings', icon: 'sliders', to: '/settings' },
@@ -55,6 +56,7 @@ export default function MenuScreen() {
   const { bundle } = useSync();
   const panelWidth = Math.min(340, Math.round(width * 0.86));
   const x = useSharedValue(-panelWidth);
+  const hasPicture = useHasSlotImage('header.menu');
 
   useEffect(() => {
     x.value = withTiming(0, { duration: 240, easing: Easing.out(Easing.cubic) });
@@ -63,14 +65,20 @@ export default function MenuScreen() {
   const panel = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
   const backdrop = useAnimatedStyle(() => ({ opacity: 1 + x.value / panelWidth }));
 
-  const close = (after?: () => void) => {
+  // Where to go once the drawer has slid shut. Kept in a ref, not passed through the animation callback: that callback
+  // runs on the UI thread, and a function cannot cross to the JS thread, so on a phone the destination was lost.
+  const after = useRef<(() => void) | null>(null);
+  const close = (then?: () => void) => {
+    after.current = then ?? null;
     x.value = withTiming(-panelWidth, { duration: 200, easing: Easing.in(Easing.cubic) }, (done) => {
-      if (done) runOnJS(finish)(after);
+      if (done) runOnJS(finish)();
     });
   };
-  const finish = (after?: () => void) => {
+  const finish = () => {
     router.back();
-    if (after) setTimeout(after, 0);
+    const go = after.current;
+    after.current = null;
+    if (go) setTimeout(go, 0);
   };
 
   const open = (entry: Entry) => close(() => (entry.tab ? router.navigate(entry.to) : router.push(entry.to)));
@@ -85,6 +93,14 @@ export default function MenuScreen() {
 
       <Animated.View style={[styles.panel, shadow(2, dark), { width: panelWidth, backgroundColor: c.card }, panel]}>
         <GradientSurface vertical from={band.from} to={band.to} style={[styles.top, { paddingTop: insets.top + 14 }]}>
+          {hasPicture ? (
+            <>
+              <ManagedImage slot="header.menu" style={StyleSheet.absoluteFill} fadeColor={band.to} />
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.32)' }]} pointerEvents="none" />
+            </>
+          ) : (
+            <HeaderArt />
+          )}
           <View style={styles.topRow}>
             <Text style={styles.brand}>{(bundle?.branding?.appName ?? 'Kynren').toUpperCase()}</Text>
             <Touchable onPress={() => close()} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close menu">
@@ -124,10 +140,10 @@ export default function MenuScreen() {
 
 const styles = StyleSheet.create({
   panel: { position: 'absolute', top: 0, bottom: 0, left: 0, borderTopRightRadius: 32, borderBottomRightRadius: 32, overflow: 'hidden' },
-  top: { paddingHorizontal: 22, paddingBottom: 22 },
+  top: { paddingHorizontal: 22, paddingBottom: 58 },
   topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   brand: { color: '#ffffff', fontSize: 15, fontWeight: '800', letterSpacing: 3 },
-  hello: { fontFamily: serif, color: '#ffffff', fontSize: 24, fontWeight: '800', marginTop: 18 },
+  hello: { fontFamily: serif, color: '#ffffff', fontSize: 21, fontWeight: '800', marginTop: 18 },
   groupTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 1.5, paddingHorizontal: 22, marginBottom: 4 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 22, paddingVertical: 10 },
   iconWrap: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },

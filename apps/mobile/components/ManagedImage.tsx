@@ -12,6 +12,14 @@ type Props = {
   fadeColor?: string; // colour the edge fade blends into (screen background)
 };
 
+/** Whether the admin has set a picture for this slot (for the current light/dark theme). */
+export function useHasSlotImage(slot: string): boolean {
+  const { bundle } = useSync();
+  const dark = useThemePref().scheme === 'dark';
+  const cfg = bundle?.images?.[slot];
+  return !!(dark ? cfg?.imageUrlDark || cfg?.imageUrl : cfg?.imageUrl);
+}
+
 /**
  * A decorative image the super-admin controls per "slot": swap the picture
  * (light/dark), how it's fitted/positioned, an optional edge fade, and how it

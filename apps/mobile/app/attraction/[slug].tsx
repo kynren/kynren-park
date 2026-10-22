@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { View, Text, StyleSheet, ScrollView, StatusBar } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CloseButton, IconBadge, TagChip, ActionPill, SectionLabel, DetailHero, ICONS, useDK, type DK } from '../../components/DetailKit';
+import { CloseButton, IconBadge, TagChip, ActionPill, SectionLabel, DetailHero, SheetTitle, ICONS, useDK, type DK } from '../../components/DetailKit';
 import { Touchable } from '../../components/Touchable';
 import { useSync } from '../../lib/sync';
 import { useAuth } from '../../lib/auth';
@@ -75,10 +75,7 @@ export default function AttractionDetail() {
         <DetailHero images={images} height={HERO_HEIGHT} colors={featureGradient.programme} />
 
         <View style={[styles.sheet, styles.sheetOverlap]}>
-          <View style={styles.titleRow}>
-            <IconBadge letter={attraction.name[0]?.toUpperCase() ?? 'S'} />
-            <Text style={styles.title}>{attraction.name}</Text>
-          </View>
+          <SheetTitle title={attraction.name} />
 
           {(attraction.tagline || attraction.synopsis) && (
             <Text style={styles.desc}>{attraction.tagline ? `${attraction.tagline}\n\n` : ''}{attraction.synopsis}</Text>
@@ -143,7 +140,7 @@ const makeStyles = (dk: DK) => StyleSheet.create({
   sheet: { backgroundColor: dk.sheet, paddingHorizontal: 18, paddingTop: 20, paddingBottom: 40 },
   sheetOverlap: { marginTop: -28, borderTopLeftRadius: 28, borderTopRightRadius: 28 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  title: { fontFamily: serif, flex: 1, color: dk.ink, fontSize: 24, fontWeight: '800' },
+  title: { fontFamily: serif, flex: 1, color: dk.ink, fontSize: 21, fontWeight: '800' },
   desc: { color: dk.sub, fontSize: 14.5, lineHeight: 21, marginTop: 16 },
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
   actionRow: { flexDirection: 'row', gap: 10, marginTop: 18 },

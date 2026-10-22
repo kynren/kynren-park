@@ -16,7 +16,7 @@ export default function SeenScreen() {
 
   return (
     <AttractionListScreen
-      title="I did it" label="I DID IT" slot="seen.empty"
+      page="seen" title="I did it" label="I DID IT" slot="seen.empty"
       emptyHeading="Write your story at Kynren"
       emptyBody="Shows, restaurants and activities appear here when you mark them as done."
       ids={ids}

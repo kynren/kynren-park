@@ -85,11 +85,11 @@ export default function SmeetzLinkScreen() {
   }
 
   return (
-    <Screen title="Find my bookings" colors={featureGradient.tickets} keyboard onBack={leave}>
+    <Screen page="bookings" title="Find my bookings" subtitle="Bring your tickets into the app" colors={featureGradient.tickets} keyboard onBack={leave}>
       {step === 'email' && (
         <>
           <Text style={[styles.body, { color: c.sub }]}>
-            Booked through our ticket partner Smeetz? Enter the email address you booked with. If there are bookings under it, we’ll email you a 6-digit code to add them to your account.
+            Booked your tickets online? Enter the email address you booked with. If there are bookings under it, we’ll email you a 6-digit code to add them to your account.
           </Text>
           <TextField value={email} onChangeText={setEmail} placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
           <Button full label="Send code" onPress={sendCode} loading={busy} />
@@ -142,7 +142,7 @@ export default function SmeetzLinkScreen() {
 
 const styles = StyleSheet.create({
   body: { fontSize: 15, lineHeight: 22 },
-  codeInput: { fontFamily: serif, fontSize: 26, letterSpacing: 8, textAlign: 'center', fontWeight: '700' },
+  codeInput: { fontFamily: serif, fontSize: 23, letterSpacing: 8, textAlign: 'center', fontWeight: '700' },
   link: { fontWeight: '700', fontSize: 15, textAlign: 'center', paddingVertical: 6 },
   error: { fontSize: 14, fontWeight: '600' },
 });

@@ -11,7 +11,7 @@ export default function LanguageScreen() {
   const { locale, setLocale, t } = useI18n();
   const { c } = useUI();
   return (
-    <Screen title={t('common.language')}>
+    <Screen page="language" title={t('common.language')} subtitle="Choose the language you read best">
       <Text style={[styles.muted, { color: c.sub }]}>Every translation is built into the app and works offline.</Text>
       {LOCALES.map((l) => {
         const active = locale === l.code;
@@ -30,6 +30,6 @@ export default function LanguageScreen() {
 const styles = StyleSheet.create({
   muted: { fontSize: 14, lineHeight: 20 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderWidth: 2, borderColor: 'transparent' },
-  flag: { fontFamily: serif, fontSize: 24 },
+  flag: { fontFamily: serif, fontSize: 21 },
   label: { flex: 1, fontSize: 16 },
 });

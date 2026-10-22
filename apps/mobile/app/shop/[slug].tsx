@@ -2,7 +2,8 @@ import { useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, Image, StatusBar, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CloseButton, IconBadge, TagChip, ActionPill, SectionLabel, DetailHero, ICONS, useDK, type DK } from '../../components/DetailKit';
+import { CloseButton, IconBadge, TagChip, ActionPill, SectionLabel, DetailHero, SheetTitle, ICONS, useDK, type DK } from '../../components/DetailKit';
+import { Cover } from '../../components/ui/Cover';
 import { useSync } from '../../lib/sync';
 import { poundsFromCents } from '../../lib/format';
 import { serif } from '../../lib/theme';
@@ -40,10 +41,7 @@ export default function ShopScreen() {
         <DetailHero images={images} height={HERO_HEIGHT} />
 
         <View style={[styles.sheet, styles.sheetOverlap]} onLayout={(e) => { sheetY.current = e.nativeEvent.layout.y; }}>
-        <View style={styles.titleRow}>
-          <IconBadge letter={shop.name[0]?.toUpperCase() ?? 'S'} />
-          <Text style={styles.title}>{shop.name}</Text>
-        </View>
+          <SheetTitle title={shop.name} />
 
         {shop.description ? <Text style={styles.desc}>{shop.description}</Text> : null}
 
@@ -71,9 +69,7 @@ export default function ShopScreen() {
         ) : (
           shop.items.map((it) => (
             <View key={it.id} style={styles.item}>
-              <View style={styles.thumbWrap}>
-                {it.image ? <Image source={{ uri: it.image }} style={styles.thumb} /> : <Text style={{ fontSize: 20 }}>🛍️</Text>}
-              </View>
+              <Cover image={it.image} color="#4b5d73" icon="shop" height={68} width={68} radius={16} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.itemName}>{it.name}</Text>
                 {it.description ? <Text style={styles.muted}>{it.description}</Text> : null}
@@ -97,17 +93,17 @@ const makeStyles = (dk: DK) => StyleSheet.create({
   sheet: { backgroundColor: dk.sheet, paddingHorizontal: 18, paddingTop: 20, paddingBottom: 40 },
   sheetOverlap: { marginTop: -28, borderTopLeftRadius: 28, borderTopRightRadius: 28 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  title: { fontFamily: serif, flex: 1, color: dk.ink, fontSize: 24, fontWeight: '800' },
+  title: { fontFamily: serif, flex: 1, color: dk.ink, fontSize: 21, fontWeight: '800' },
   desc: { color: dk.sub, fontSize: 14.5, lineHeight: 21, marginTop: 16 },
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
   actionRow: { flexDirection: 'row', gap: 10, marginTop: 18 },
   hoursPill: { alignSelf: 'flex-start', backgroundColor: dk.pill, borderRadius: 999, paddingVertical: 9, paddingHorizontal: 16, marginTop: 4 },
   hoursTxt: { color: dk.link, fontWeight: '700', fontSize: 13.5 },
-  item: { flexDirection: 'row', alignItems: 'center', backgroundColor: dk.chip, borderRadius: 16, padding: 12, marginBottom: 8, gap: 12 },
-  thumbWrap: { width: 52, height: 52, borderRadius: 8, backgroundColor: dk.pill, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  item: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, gap: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: dk.line },
+  thumbWrap: { width: 68, height: 68, borderRadius: 16, backgroundColor: dk.pill, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   thumb: { width: '100%', height: '100%' },
-  itemName: { fontWeight: '700', color: dk.ink, fontSize: 15 },
+  itemName: { fontWeight: '700', color: dk.ink, fontSize: 16 },
   muted: { color: dk.sub, fontSize: 13, marginTop: 2 },
   variants: { color: dk.sub, fontSize: 12, marginTop: 4 },
-  price: { color: dk.ink, fontWeight: '800', fontSize: 15 },
+  price: { fontFamily: serif, color: dk.ink, fontWeight: '700', fontSize: 15 },
 });

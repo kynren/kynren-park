@@ -94,7 +94,7 @@ export default function PlanScreen() {
   }, [plan]);
 
   return (
-    <Screen title={t('plan.title')} colors={featureGradient.programme} padded={false} contentStyle={styles.body}>
+    <Screen page="plan" title={t('plan.title')} subtitle="Build a walkable, clash-free day" colors={featureGradient.programme} padded={false} contentStyle={styles.body}>
       <Text style={[styles.muted, { color: c.sub }]}>
         Pick the shows you don’t want to miss and we’ll fit them into a walkable, clash-free timetable.
       </Text>
@@ -225,7 +225,7 @@ function Summary({ n, label, small }: { n: number | string; label: string; small
 
 const styles = StyleSheet.create({
   body: { paddingHorizontal: 20, paddingTop: 20, gap: 18 },
-  h2: { fontFamily: serif, fontSize: 19, fontWeight: '800', marginBottom: 12 },
+  h2: { fontFamily: serif, fontSize: 16.5, fontWeight: '800', marginBottom: 12 },
   muted: { fontSize: 13.5, lineHeight: 19, marginTop: 4 },
   pickHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 10 },
   pickHeaderLabel: { fontSize: 12, fontWeight: '800', letterSpacing: 1.2 },
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
   checkBox: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   summary: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, marginBottom: 18 },
   summaryDivider: { width: 1, height: 28 },
-  summaryNum: { fontFamily: serif, fontSize: 19, fontWeight: '800' },
+  summaryNum: { fontFamily: serif, fontSize: 16.5, fontWeight: '800' },
   summaryLabel: { fontSize: 11, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.4 },
   emptyPlan: { padding: 18 },
   emptyTitle: { fontWeight: '800', fontSize: 15.5 },

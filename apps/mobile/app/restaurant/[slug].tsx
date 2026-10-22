@@ -2,7 +2,7 @@ import { useRef, useState, useMemo } from 'react';
 import { View, Text, StyleSheet, StatusBar, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CloseButton, IconBadge, TagChip, ActionPill, SectionLabel, DetailHero, ICONS, useDK, type DK } from '../../components/DetailKit';
+import { CloseButton, IconBadge, TagChip, ActionPill, SectionLabel, DetailHero, SheetTitle, ICONS, useDK, type DK } from '../../components/DetailKit';
 import { Touchable } from '../../components/Touchable';
 import { useSync } from '../../lib/sync';
 import { useAuth } from '../../lib/auth';
@@ -82,11 +82,8 @@ export default function RestaurantScreen() {
       <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
         <DetailHero images={images} height={HERO_HEIGHT} colors={featureGradient.restaurants} />
 
-        <View style={[styles.sheet, styles.sheetOverlap]} onLayout={(e) => { sheetY.current = e.nativeEvent.layout.y; }}>
-          <View style={styles.titleRow}>
-            <IconBadge letter={restaurant.name[0]?.toUpperCase() ?? 'R'} />
-            <Text style={styles.title}>{restaurant.name}</Text>
-          </View>
+        <View style={[styles.sheet, styles.sheetOverlap, count > 0 && { paddingBottom: 120 }]} onLayout={(e) => { sheetY.current = e.nativeEvent.layout.y; }}>
+          <SheetTitle title={restaurant.name} />
 
           {restaurant.description ? <Text style={styles.desc}>{restaurant.description}</Text> : null}
 
@@ -112,31 +109,36 @@ export default function RestaurantScreen() {
           {restaurant.menuItems.length === 0 ? (
             <Text style={styles.muted}>Menu coming soon.</Text>
           ) : (
-            restaurant.menuItems.map((m) => (
-              <View key={m.id} style={styles.item}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.itemName}>{m.name}</Text>
-                  {m.description && <Text style={styles.muted}>{m.description}</Text>}
-                  {m.dietaryTags.length > 0 && (
-                    <View style={styles.dietRow}>
-                      {m.dietaryTags.map((t) => (
-                        <Text key={t} style={styles.diet}>{t}</Text>
-                      ))}
-                    </View>
-                  )}
-                </View>
-                <View style={{ alignItems: 'flex-end', gap: 8 }}>
-                  <Text style={styles.price}>{poundsFromCents(m.priceCents)}</Text>
-                  {canOrder && (
+            restaurant.menuItems.map((m, i) => {
+              const n = qty[m.id] ?? 0;
+              return (
+                <View key={m.id} style={[styles.item, i === restaurant.menuItems.length - 1 && { borderBottomWidth: 0 }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.itemName}>{m.name}</Text>
+                    {m.description ? <Text style={styles.itemDesc}>{m.description}</Text> : null}
+                    <Text style={styles.price}>{poundsFromCents(m.priceCents)}</Text>
+                    {m.dietaryTags.length > 0 && (
+                      <View style={styles.dietRow}>
+                        {m.dietaryTags.map((t) => (
+                          <Text key={t} style={styles.diet}>{t}</Text>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                  {canOrder && (n === 0 ? (
+                    <Touchable style={styles.addBtn} onPress={() => bump(m.id, 1)} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Add ${m.name}`}>
+                      <Text style={styles.addTxt}>+</Text>
+                    </Touchable>
+                  ) : (
                     <View style={styles.stepper}>
-                      <Touchable style={styles.stepBtn} onPress={() => bump(m.id, -1)} hitSlop={6}><Text style={styles.stepTxt}>−</Text></Touchable>
-                      <Text style={styles.stepQty}>{qty[m.id] ?? 0}</Text>
-                      <Touchable style={styles.stepBtn} onPress={() => bump(m.id, 1)} hitSlop={6}><Text style={styles.stepTxt}>+</Text></Touchable>
+                      <Touchable style={styles.stepBtn} onPress={() => bump(m.id, -1)} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Remove one ${m.name}`}><Text style={styles.stepTxt}>−</Text></Touchable>
+                      <Text style={styles.stepQty}>{n}</Text>
+                      <Touchable style={[styles.stepBtn, styles.stepBtnOn]} onPress={() => bump(m.id, 1)} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Add another ${m.name}`}><Text style={[styles.stepTxt, { color: '#ffffff' }]}>+</Text></Touchable>
                     </View>
-                  )}
+                  ))}
                 </View>
-              </View>
-            ))
+              );
+            })
           )}
 
           {canOrder ? (
@@ -156,19 +158,27 @@ export default function RestaurantScreen() {
                   </Touchable>
                 ))}
               </View>
-              {count > 0 && (
-                <Touchable style={styles.orderCta} onPress={placeOrder} disabled={submitting}>
-                  {submitting
-                    ? <ActivityIndicator color="#fff" />
-                    : <Text style={styles.orderCtaTxt}>{user ? `Order ahead — ${poundsFromCents(total)}` : `Sign in to order — ${poundsFromCents(total)}`}</Text>}
-                </Touchable>
-              )}
             </>
           ) : (
             <Text style={styles.note}>Order ahead isn’t available here — pay at the outlet.</Text>
           )}
         </View>
       </ScrollView>
+      {canOrder && count > 0 && (
+        <View style={[styles.basketWrap, { bottom: insets.bottom + 12 }]} pointerEvents="box-none">
+          <Touchable style={styles.basket} onPress={placeOrder} disabled={submitting} accessibilityRole="button" accessibilityLabel={user ? 'Order ahead' : 'Sign in to order'}>
+            {submitting ? (
+              <ActivityIndicator color="#ffffff" />
+            ) : (
+              <>
+                <View style={styles.basketCount}><Text style={styles.basketCountTxt}>{count}</Text></View>
+                <Text style={styles.basketTxt}>{user ? 'Order ahead' : 'Sign in to order'}</Text>
+                <Text style={styles.basketPrice}>{poundsFromCents(total)}</Text>
+              </>
+            )}
+          </Touchable>
+        </View>
+      )}
     </View>
   );
 }
@@ -179,28 +189,36 @@ const makeStyles = (dk: DK) => StyleSheet.create({
   sheet: { backgroundColor: dk.sheet, paddingHorizontal: 18, paddingTop: 20, paddingBottom: 40 },
   sheetOverlap: { marginTop: -28, borderTopLeftRadius: 28, borderTopRightRadius: 28 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  title: { fontFamily: serif, flex: 1, color: dk.ink, fontSize: 24, fontWeight: '800' },
+  title: { fontFamily: serif, flex: 1, color: dk.ink, fontSize: 21, fontWeight: '800' },
   desc: { color: dk.sub, fontSize: 14.5, lineHeight: 21, marginTop: 16 },
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
   actionRow: { flexDirection: 'row', gap: 10, marginTop: 18 },
   hoursPill: { alignSelf: 'flex-start', backgroundColor: dk.pill, borderRadius: 999, paddingVertical: 9, paddingHorizontal: 16, marginTop: 4 },
   hoursTxt: { color: dk.link, fontWeight: '700', fontSize: 13.5 },
-  item: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: dk.chip, borderRadius: 16, padding: 14, marginBottom: 8, gap: 12 },
-  itemName: { fontWeight: '700', color: dk.ink, fontSize: 15 },
+  item: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, gap: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: dk.line },
+  itemDesc: { color: dk.sub, fontSize: 13.5, lineHeight: 19, marginTop: 3 },
+  itemName: { fontWeight: '700', color: dk.ink, fontSize: 16 },
   muted: { color: dk.sub, fontSize: 13, marginTop: 2 },
   dietRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' },
   diet: { fontSize: 11, fontWeight: '700', color: theme.ok, backgroundColor: dk.chip, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, overflow: 'hidden', textTransform: 'uppercase' },
-  price: { color: dk.ink, fontWeight: '800', fontSize: 15 },
+  price: { fontFamily: serif, color: dk.ink, fontWeight: '700', fontSize: 16, marginTop: 6 },
   note: { color: dk.sub, fontSize: 12, textAlign: 'center', marginTop: 20 },
+  addBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: dk.primary, alignItems: 'center', justifyContent: 'center' },
+  addTxt: { color: '#ffffff', fontSize: 24, fontWeight: '500', lineHeight: 27 },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  stepBtn: { width: 26, height: 26, borderRadius: 13, backgroundColor: dk.pill, alignItems: 'center', justifyContent: 'center' },
+  stepBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: dk.pill, alignItems: 'center', justifyContent: 'center' },
+  stepBtnOn: { backgroundColor: dk.primary },
   stepTxt: { color: dk.link, fontSize: 16, fontWeight: '700' },
-  stepQty: { color: dk.ink, fontSize: 14, fontWeight: '700', minWidth: 14, textAlign: 'center' },
+  stepQty: { color: dk.ink, fontSize: 16, fontWeight: '800', minWidth: 18, textAlign: 'center' },
   slotRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
   slotChip: { backgroundColor: dk.chip, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 14 },
   slotChipOn: { backgroundColor: dk.primary },
   slotChipTxt: { color: dk.ink, fontWeight: '700', fontSize: 13 },
   slotChipTxtOn: { color: '#fff' },
-  orderCta: { backgroundColor: dk.primary, borderRadius: 999, paddingVertical: 15, alignItems: 'center', marginTop: 16 },
-  orderCtaTxt: { color: '#fff', fontWeight: '800', fontSize: 15 },
+  basketWrap: { position: 'absolute', left: 16, right: 16 },
+  basket: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: dk.primary, borderRadius: 18, paddingVertical: 14, paddingHorizontal: 16, shadowColor: '#000', shadowOpacity: 0.28, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 10 },
+  basketCount: { minWidth: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
+  basketCountTxt: { color: '#ffffff', fontWeight: '800', fontSize: 14 },
+  basketTxt: { flex: 1, color: '#ffffff', fontWeight: '800', fontSize: 16 },
+  basketPrice: { fontFamily: serif, color: '#ffffff', fontWeight: '700', fontSize: 16 },
 });

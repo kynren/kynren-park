@@ -44,7 +44,7 @@ export default function AccessibilityScreen() {
   const facilities = (bundle?.pois ?? []).filter((p) => p.type === 'ACCESSIBILITY');
 
   return (
-    <Screen title="Accessibility">
+    <Screen page="accessibility" title="Accessibility" subtitle="Your preferences and step-free information">
       {user ? (
         <Card style={styles.card}>
           <Text style={[styles.cardTitle, { color: c.text }]}>My preferences</Text>

@@ -34,7 +34,7 @@ export default function AuthScreen() {
       else await register(email.trim(), password, name.trim() || undefined);
       if (mode === 'register') {
         // New accounts are offered their Smeetz bookings straight away.
-        router.replace({ pathname: '/smeetz-link', params: { email: email.trim(), setup: '1' } });
+        router.replace({ pathname: '/find-bookings', params: { email: email.trim(), setup: '1' } });
         return;
       }
       if (router.canGoBack()) router.back();
@@ -47,11 +47,10 @@ export default function AuthScreen() {
   }
 
   return (
-    <Screen title={mode === 'login' ? 'Sign in' : 'Create account'} keyboard>
+    <Screen page="auth" title={mode === 'login' ? 'Sign in' : 'Create account'} subtitle={mode === 'login' ? 'Welcome back to the park' : 'Keep your tickets and plans in one place'} keyboard>
       <ManagedImage slot="auth.header" style={{ height: 150, borderRadius: 20 }} fadeColor={c.screen} />
-      <Text style={[styles.h1, { color: c.text }]}>{mode === 'login' ? 'Welcome back' : 'Create your account'}</Text>
       <Text style={[styles.muted, { color: c.sub }]}>
-        {mode === 'login' ? 'Sign in to book tickets and save your day.' : 'So we can hold your tickets and remind you before each show.'}
+        {mode === 'login' ? 'Sign in to see your tickets and save your day.' : 'So we can hold your tickets and remind you before each show.'}
       </Text>
 
       {mode === 'register' && <TextField label="Name (optional)" value={name} onChangeText={setName} placeholder="Your name" autoCapitalize="words" />}
@@ -83,8 +82,8 @@ export default function AuthScreen() {
 }
 
 const styles = StyleSheet.create({
-  h1: { fontFamily: serif, fontSize: 24, fontWeight: '800' },
-  muted: { fontSize: 14, lineHeight: 20, marginTop: -6 },
+  h1: { fontFamily: serif, fontSize: 21, fontWeight: '800' },
+  muted: { fontSize: 14.5, lineHeight: 21 },
   toggle: { fontWeight: '700', fontSize: 13 },
   error: { fontSize: 13.5, fontWeight: '600' },
   switch: { textAlign: 'center', fontWeight: '700', paddingVertical: 8 },

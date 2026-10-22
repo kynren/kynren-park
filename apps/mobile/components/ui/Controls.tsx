@@ -70,16 +70,19 @@ export function Chip({ label, active = false, onPress }: { label: string; active
 }
 
 /** "Theme Park Services … See All": a bold title with a quiet action on the right. */
-export function SectionHeader({ title, action, onAction }: { title: string; action?: string; onAction?: () => void }) {
+export function SectionHeader({ title, action, onAction, right }: { title: string; action?: string; onAction?: () => void; right?: ReactNode }) {
   const { c } = useUI();
   return (
     <View style={styles.sectionRow}>
       <Text accessibilityRole="header" style={[styles.sectionTitle, { color: c.text }]}>{title}</Text>
-      {action && (
-        <Touchable onPress={onAction} hitSlop={10}>
-          <Text style={[styles.sectionAction, { color: c.sub }]}>{action}</Text>
-        </Touchable>
-      )}
+      <View style={styles.sectionEnd}>
+        {right}
+        {action && (
+          <Touchable onPress={onAction} hitSlop={10}>
+            <Text style={[styles.sectionAction, { color: c.sub }]}>{action}</Text>
+          </Touchable>
+        )}
+      </View>
     </View>
   );
 }
@@ -107,7 +110,7 @@ export function TextField({ label, trailing, style, ...input }: { label?: string
 export function Card({ children, style, onPress }: { children?: ReactNode; style?: StyleProp<ViewStyle>; onPress?: () => void }) {
   const { c, dark } = useUI();
   const box = [styles.card, shadow(1, dark), { backgroundColor: c.card }, style];
-  return onPress ? <Touchable onPress={onPress} style={box}>{children}</Touchable> : <View style={box}>{children}</View>;
+  return onPress ? <Touchable onPress={onPress} scaleTo={1.02} style={box}>{children}</Touchable> : <View style={box}>{children}</View>;
 }
 
 const styles = StyleSheet.create({
@@ -115,8 +118,9 @@ const styles = StyleSheet.create({
   input: { flex: 1, fontSize: 15, paddingVertical: 0 },
   chip: { borderRadius: radius.chip, paddingVertical: 9, paddingHorizontal: 18, alignSelf: 'flex-start' },
   chipText: { fontSize: 13, fontWeight: '700' },
-  sectionRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingHorizontal: 20 },
-  sectionTitle: { fontFamily: serif, fontSize: 19, fontWeight: '800' },
+  sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20 },
+  sectionEnd: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  sectionTitle: { fontFamily: serif, fontSize: 16.5, fontWeight: '800' },
   sectionAction: { fontSize: 13, fontWeight: '600' },
   card: { borderRadius: radius.card, overflow: 'hidden' },
   fieldLabel: { fontSize: 13, fontWeight: '600', marginBottom: 6 },

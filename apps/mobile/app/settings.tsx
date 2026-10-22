@@ -118,7 +118,7 @@ export default function SettingsScreen() {
   const initials = `${p.firstName?.[0] ?? ''}${p.lastName?.[0] ?? ''}`.toUpperCase();
 
   return (
-    <Screen title="Account" keyboard contentStyle={{ gap: 24 }}>
+    <Screen page="settings" title="Account" subtitle="Your details, access needs and appearance" keyboard contentStyle={{ gap: 24 }}>
       {/* Photo */}
       <View style={{ alignItems: 'center', gap: 10 }}>
         <Touchable onPress={pickPhoto} style={styles.photoWrap} accessibilityRole="button" accessibilityLabel="Change profile photo">
@@ -210,7 +210,7 @@ function Toggle({ label, value, onChange }: { label: string; value: boolean; onC
 const styles = StyleSheet.create({
   photoWrap: { width: 104, height: 104 },
   photo: { width: 104, height: 104, borderRadius: 52 },
-  photoInitials: { fontFamily: serif, color: '#ffffff', fontSize: 34, fontWeight: '800' },
+  photoInitials: { fontFamily: serif, color: '#ffffff', fontSize: 30, fontWeight: '800' },
   photoEdit: { position: 'absolute', right: 2, bottom: 2, width: 32, height: 32, borderRadius: 16, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   changePhoto: { fontWeight: '700', fontSize: 14 },
   sectionH: { fontSize: 13, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.2 },

@@ -130,10 +130,9 @@ function RootNav() {
         }}
       >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="menu" options={{ headerShown: false, presentation: 'transparentModal', animation: 'none' }} />
+        <Stack.Screen name="menu" options={{ headerShown: false, presentation: 'transparentModal', animation: 'none', contentStyle: { backgroundColor: 'transparent' } }} />
         <Stack.Screen name="attraction/[slug]" options={{ headerShown: false }} />
         <Stack.Screen name="auth" options={{ headerShown: false, presentation: 'modal' }} />
-        <Stack.Screen name="book" options={{ headerShown: false, presentation: 'modal' }} />
         <Stack.Screen name="notifications" options={{ headerShown: false }} />
         <Stack.Screen name="restaurant/[slug]" options={{ headerShown: false }} />
         <Stack.Screen name="restaurants" options={{ headerShown: false }} />
@@ -142,7 +141,7 @@ function RootNav() {
         <Stack.Screen name="orders" options={{ headerShown: false }} />
         <Stack.Screen name="accessibility" options={{ headerShown: false }} />
         <Stack.Screen name="shuttle" options={{ headerShown: false }} />
-        <Stack.Screen name="smeetz-link" options={{ headerShown: false }} />
+        <Stack.Screen name="find-bookings" options={{ headerShown: false }} />
         <Stack.Screen name="settings" options={{ headerShown: false }} />
         <Stack.Screen name="profile" options={{ headerShown: false }} />
         <Stack.Screen name="favorites" options={{ headerShown: false }} />

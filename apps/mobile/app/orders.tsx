@@ -76,7 +76,7 @@ export default function OrdersScreen() {
   }
 
   return (
-    <Screen title="My orders" colors={featureGradient.restaurants} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+    <Screen page="orders" title="My orders" subtitle="Follow your food from kitchen to collection" colors={featureGradient.restaurants} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
       {orders.length === 0 ? (
         <Text style={[styles.muted, { color: c.sub }]}>No orders yet. Order ahead from the Restaurants tab and track it here.</Text>
       ) : (

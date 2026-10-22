@@ -1,3 +1,4 @@
+import { PageBackdrop } from '../../components/ui/PageBackdrop';
 import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, View, Text, StyleSheet, Image, Dimensions, type LayoutChangeEvent } from 'react-native';
 import { Touchable } from '../../components/Touchable';
@@ -5,10 +6,12 @@ import { useRouter } from 'expo-router';
 import { useSync, type Attraction, type Session } from '../../lib/sync';
 import { useUnreadNotifications } from '../../lib/notifications';
 import { fmtTime, ukNow, ukTodayStr } from '../../lib/format';
-import { serif, theme, categoryColor } from '../../lib/theme';
+import { serif, theme, categoryColor, featureGradient } from '../../lib/theme';
 import { SkeletonRows } from '../../components/Shimmer';
 import { Card } from '../../components/ui/Controls';
 import { ScreenHeader } from '../../components/ui/Header';
+import { Cover } from '../../components/ui/Cover';
+import { Reveal } from '../../components/ui/Reveal';
 import { Icon } from '../../components/ui/Icon';
 import { useUI, type UIColors } from '../../lib/ui';
 
@@ -114,11 +117,14 @@ export default function ProgramScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: c.screen }]}>
-      <ScreenHeader
+      <PageBackdrop page="programme" />
+      <ScreenHeader page="programme"
         title="Programme"
+        subtitle="Every show today and when it starts"
+        colors={featureGradient.programme}
         right={
           <Touchable onPress={() => router.push('/notifications')} hitSlop={10} accessibilityRole="button" accessibilityLabel="Notifications">
-            <Icon name="bell" color={c.text} size={24} />
+            <Icon name="bell" color="#ffffff" size={24} />
             {unread > 0 && (
               <View style={[styles.badge, { borderColor: c.screen }]}>
                 <Text style={styles.badgeTxt}>{unread > 9 ? '9+' : unread}</Text>
@@ -163,9 +169,9 @@ export default function ProgramScreen() {
             )}
           </View>
         ) : null}
-        {bundle && rows.map((r) => (
+        {bundle && rows.map((r, i) => (
+          <Reveal key={r.a.id} index={i}>
           <ProgramRow
-            key={r.a.id}
             attraction={r.a}
             badge={r.badge}
             sessions={byAttraction.get(r.a.id) ?? []}
@@ -176,6 +182,7 @@ export default function ProgramScreen() {
             onPress={() => router.push(`/attraction/${r.a.slug}`)}
             onMap={() => router.push(`/map?focus=${r.a.id}`)}
           />
+          </Reveal>
         ))}
       </ScrollView>
     </View>
@@ -206,40 +213,28 @@ function ProgramRow({
 
   return (
     <Card style={styles.rowCard}>
-      <Touchable style={styles.rowHead} onPress={onPress}>
-        <View style={styles.thumbWrap}>
-          {attraction.heroImage ? (
-            <Image source={{ uri: attraction.heroImage }} style={styles.thumb} />
-          ) : (
-            <View style={[styles.thumb, { backgroundColor: categoryColor[attraction.category] ?? theme.muted }]} />
-          )}
-          <View style={[styles.pinBadge, { backgroundColor: c.primary, borderColor: c.card }]}>
-            <Text style={styles.pinBadgeTxt}>{badge}</Text>
-          </View>
+      <Touchable onPress={onPress} scaleTo={1.04} accessibilityRole="button" accessibilityLabel={attraction.name}>
+        <Cover image={attraction.heroImage} color={categoryColor[attraction.category] ?? theme.brand} icon="calendar" height={156} />
+      </Touchable>
+      <View style={styles.rowHead2}>
+        <View style={[styles.numChip, { backgroundColor: c.primary }]}>
+          <Text style={styles.pinBadgeTxt}>{badge}</Text>
         </View>
-
-        <View style={{ flex: 1 }}>
+        <Touchable style={{ flex: 1 }} onPress={onPress} accessibilityRole="button" accessibilityLabel={attraction.name}>
           <View style={styles.titleRow}>
-            <Text style={[styles.title, { color: c.text }]} numberOfLines={1}>{attraction.name}</Text>
+            <Text style={[styles.headTitle, { color: c.text }]} numberOfLines={2}>{attraction.name}</Text>
             {isNew && <Text style={styles.newBadge}>NEW</Text>}
           </View>
-          <View style={styles.subRow}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-              <Icon name="calendar" color={c.sub} size={14} />
-              <Text style={[styles.sub, { color: c.sub }]}>{attraction.durationMins} mins</Text>
-            </View>
-            <View style={[styles.countChip, { backgroundColor: c.tint }]}>
-              <Text style={[styles.countTxt, { color: c.link }]}>{sessions.length} {sessions.length === 1 ? 'time' : 'times'}</Text>
-            </View>
-          </View>
-          {status && <Text style={[styles.statusTxt, { color: status.color }]}>{status.label}</Text>}
-        </View>
+          <Text style={[styles.headMeta, { color: c.sub }]}>{attraction.durationMins} mins · {sessions.length} {sessions.length === 1 ? 'time' : 'times'}</Text>
+          {status && <Text style={[styles.headStatus, { color: status.color }]}>{status.label}</Text>}
+        </Touchable>
         <Touchable onPress={onMap} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Show ${attraction.name} on the map`} style={[styles.mapBtn, { backgroundColor: c.tint }]}>
           <Icon name="pin" color={c.link} size={19} />
         </Touchable>
-      </Touchable>
+      </View>
 
       {/* Timeline track — horizontally scrollable; the show icon above stays put. */}
+      <View style={styles.trackWrap}>
       <View style={styles.trackRow}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} scrollEnabled={contentW > trackW} contentContainerStyle={{ width: contentW, height: 40 }}>
           {continuous ? (
@@ -271,6 +266,7 @@ function ProgramRow({
           )}
         </ScrollView>
       </View>
+      </View>
     </Card>
   );
 }
@@ -279,7 +275,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   badge: { position: 'absolute', top: -4, right: -4, minWidth: 16, height: 16, borderRadius: 8, backgroundColor: '#d9453d', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3, borderWidth: 1.5 },
   badgeTxt: { color: '#fff', fontSize: 9, fontWeight: '800' },
-  rulerCard: { marginHorizontal: EDGE, marginTop: 4, padding: CARD_PAD },
+  rulerCard: { marginHorizontal: EDGE, marginTop: 20, padding: CARD_PAD },
   rulerHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   dateTxt: { fontSize: 15, fontWeight: '800' },
   rulerTrack: { height: RULER_H, position: 'relative' },
@@ -288,8 +284,21 @@ const styles = StyleSheet.create({
   tickMark: { width: 1, height: 8, marginTop: 14 },
   tickTxt: { fontSize: 11, marginTop: 2 },
   emptyWrap: { minHeight: 380, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40 },
-  emptyBig: { fontFamily: serif, textAlign: 'center', fontSize: 19, fontWeight: '800', lineHeight: 26 },
-  rowCard: { marginHorizontal: EDGE, padding: CARD_PAD },
+  emptyBig: { fontFamily: serif, textAlign: 'center', fontSize: 16.5, fontWeight: '800', lineHeight: 23 },
+  rowCard: { marginHorizontal: EDGE, padding: 0 },
+  rowHead2: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: CARD_PAD, paddingTop: 12 },
+  numChip: { minWidth: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  headTitle: { fontFamily: serif, fontSize: 17, fontWeight: '700', flexShrink: 1 },
+  headMeta: { fontSize: 12.5, marginTop: 2 },
+  headStatus: { fontSize: 12.5, fontWeight: '800', marginTop: 3 },
+  trackWrap: { paddingHorizontal: CARD_PAD, paddingBottom: CARD_PAD },
+  coverTop: { position: 'absolute', top: 12, left: 12, right: 60, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  coverBottom: { position: 'absolute', left: 14, right: 14, bottom: 12 },
+  coverTitle: { fontFamily: serif, color: '#ffffff', fontSize: 20, fontWeight: '700', lineHeight: 25, textShadowColor: 'rgba(0,0,0,0.4)', textShadowRadius: 6 },
+  coverMeta: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
+  coverSub: { color: 'rgba(255,255,255,0.9)', fontSize: 13.5, fontWeight: '600' },
+  statusChip: { color: '#ffffff', fontSize: 11.5, fontWeight: '800', paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999, overflow: 'hidden' },
+  coverMap: { position: 'absolute', top: 10, right: 12, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.38)', alignItems: 'center', justifyContent: 'center' },
   rowHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   thumbWrap: { width: 56, height: 56 },
   thumb: { width: 56, height: 56, borderRadius: 18, backgroundColor: '#333' },
@@ -304,7 +313,7 @@ const styles = StyleSheet.create({
   mapBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   countChip: { flexDirection: 'row', alignItems: 'center', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4 },
   countTxt: { fontSize: 12, fontWeight: '700' },
-  trackRow: { height: 40, marginTop: 10, position: 'relative' },
+  trackRow: { height: 40, marginTop: 14, position: 'relative' },
   timeLbl: { fontSize: 12, fontWeight: '700', marginBottom: 5 },
   lozenge: { height: 11, borderRadius: 6 },
 });

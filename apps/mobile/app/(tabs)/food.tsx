@@ -1,3 +1,4 @@
+import { PageBackdrop } from '../../components/ui/PageBackdrop';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,6 +8,7 @@ import { Card, SearchPill, SectionHeader } from '../../components/ui/Controls';
 import { Icon, type IconName } from '../../components/ui/Icon';
 import { RestaurantCard, useRestaurantFavs } from '../../components/ui/RestaurantCard';
 import { ScreenHeader } from '../../components/ui/Header';
+import { Reveal } from '../../components/ui/Reveal';
 import { useSync } from '../../lib/sync';
 import { featureGradient } from '../../lib/theme';
 import { useUI } from '../../lib/ui';
@@ -28,8 +30,9 @@ export default function RestaurantsTab() {
 
   return (
     <View style={[styles.screen, { backgroundColor: c.screen }]}>
+      <PageBackdrop page="restaurants" />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
-        <ScreenHeader title="Restaurants" colors={featureGradient.restaurants} overlap={27}>
+        <ScreenHeader page="restaurants" title="Restaurants" colors={featureGradient.restaurants} subtitle="Menus, opening hours and order ahead">
           <SearchPill placeholder="Find a restaurant or a dish" onPress={() => router.navigate('/(tabs)/search?filter=food')} />
         </ScreenHeader>
 
@@ -59,8 +62,10 @@ export default function RestaurantsTab() {
         </View>
         <View style={styles.list}>
           {restaurants.length === 0 && <Text style={[styles.empty, { color: c.sub }]}>Loading restaurants…</Text>}
-          {restaurants.map((r) => (
-            <RestaurantCard key={r.id} r={r} faved={favs.has(r.id)} onFav={() => toggle(r.id)} />
+          {restaurants.map((r, i) => (
+            <Reveal key={r.id} index={i}>
+              <RestaurantCard r={r} faved={favs.has(r.id)} onFav={() => toggle(r.id)} />
+            </Reveal>
           ))}
         </View>
       </ScrollView>

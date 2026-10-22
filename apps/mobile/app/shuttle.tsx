@@ -28,7 +28,7 @@ export default function ShuttleScreen() {
   }, []);
 
   return (
-    <Screen title="Shuttle">
+    <Screen page="shuttle" title="Shuttle" subtitle="Timetable and stops">
       <Text style={[styles.note, { color: c.sub }]}>
         Scheduled departure times below — this is a fixed timetable, not live GPS tracking.
       </Text>

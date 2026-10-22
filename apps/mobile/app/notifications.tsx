@@ -88,7 +88,7 @@ export default function NotificationsScreen() {
   ].sort((x, y) => y.at - x.at);
 
   return (
-    <Screen title="Notifications" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+    <Screen page="notifications" title="Notifications" subtitle="Park announcements and your reminders" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
       {items.length === 0 ? (
         <Text style={[styles.muted, { color: c.sub }]}>No notifications yet. Park announcements and your show reminders will appear here.</Text>
       ) : (

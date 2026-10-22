@@ -1,11 +1,15 @@
+import { PageBackdrop } from '../../components/ui/PageBackdrop';
 import { useMemo, useState } from 'react';
-import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { Touchable } from '../../components/Touchable';
 import { Card, Chip, SearchPill, SectionHeader } from '../../components/ui/Controls';
+import { Cover } from '../../components/ui/Cover';
+import { Reveal } from '../../components/ui/Reveal';
 import { ScreenHeader } from '../../components/ui/Header';
 import { Icon, type IconName } from '../../components/ui/Icon';
 import { useSync } from '../../lib/sync';
+import { featureGradient, serif } from '../../lib/theme';
 import { useUI } from '../../lib/ui';
 
 type Kind = 'show' | 'food' | 'shop' | 'facility';
@@ -20,7 +24,10 @@ const FILTERS: { id: 'all' | Kind; label: string }[] = [
 ];
 
 const KIND_ICON: Record<Kind, IconName> = { show: 'calendar', food: 'fork', shop: 'shop', facility: 'pin' };
+const TILE_TITLE: Record<Kind, string> = { show: 'Shows', food: 'Food & drink', shop: 'Shops', facility: 'Facilities' };
 const KIND_TITLE: Record<Kind, string> = { show: 'Shows & attractions', food: 'Food & drink', shop: 'Shops', facility: 'Facilities' };
+
+const KIND_COLOR: Record<Kind, string> = { show: featureGradient.programme.from, food: featureGradient.restaurants.from, shop: '#2f5b43', facility: '#4b5d73' };
 
 const FACILITY_LABEL: Record<string, string> = {
   RESTROOM: 'Toilets', FIRST_AID: 'First aid', PARKING: 'Parking', ACCESSIBILITY: 'Accessibility',
@@ -28,7 +35,6 @@ const FACILITY_LABEL: Record<string, string> = {
 };
 
 const QUICK: { label: string; hint: string; icon: IconName; to: Href }[] = [
-  { label: 'Buy tickets', hint: 'Book your visit', icon: 'ticket', to: '/book' },
   { label: 'Programme', hint: 'What is on, and when', icon: 'calendar', to: '/(tabs)/shows' },
   { label: 'My tickets', hint: 'Your QR codes', icon: 'ticket', to: '/(tabs)/tickets' },
   { label: 'Shuttle', hint: 'Timetable and stops', icon: 'bus', to: '/shuttle' },
@@ -73,11 +79,18 @@ export default function SearchScreen() {
     return all.filter((r) => (filter === 'all' || r.kind === filter) && words.every((w) => r.haystack.toLowerCase().includes(w)));
   }, [all, q, filter, browsing]);
 
+  // A real photo for each category tile, and how much is in it.
+  const tiles = (['show', 'food', 'shop', 'facility'] as Kind[]).map((kind) => {
+    const items = all.filter((r) => r.kind === kind);
+    return { kind, count: items.length, image: items.find((r) => r.image)?.image ?? null };
+  });
+
   const grouped = (['show', 'food', 'shop', 'facility'] as Kind[]).map((kind) => ({ kind, items: results.filter((r) => r.kind === kind) })).filter((g) => g.items.length);
 
   return (
     <View style={[styles.screen, { backgroundColor: c.screen }]}>
-      <ScreenHeader title="Search">
+      <PageBackdrop page="search" />
+      <ScreenHeader page="search" title="Search" subtitle="Shows, food, shops and facilities">
         <SearchPill placeholder="Find everything here" value={query} onChangeText={setQuery} />
       </ScreenHeader>
 
@@ -89,7 +102,17 @@ export default function SearchScreen() {
         </ScrollView>
 
         {browsing ? (
-          <View style={{ marginTop: 8, gap: 12 }}>
+          <View style={{ marginTop: 4, gap: 12 }}>
+            <SectionHeader title="Browse the park" />
+            <View style={styles.tileGrid}>
+              {tiles.map((t) => (
+                <Touchable key={t.kind} style={styles.tile} scaleTo={1.04} onPress={() => setFilter(t.kind)} accessibilityRole="button" accessibilityLabel={`${KIND_TITLE[t.kind]}, ${t.count}`}>
+                  <Cover image={t.image} color={KIND_COLOR[t.kind]} icon={KIND_ICON[t.kind]} height={112} radius={18} />
+                  <Text style={[styles.tileTitle, { color: c.text }]} numberOfLines={1}>{TILE_TITLE[t.kind]}</Text>
+                  <Text style={[styles.tileCount, { color: c.sub }]}>{t.count} {t.count === 1 ? 'place' : 'places'}</Text>
+                </Touchable>
+              ))}
+            </View>
             <SectionHeader title="Quick links" />
             <View style={{ paddingHorizontal: 20, gap: 12 }}>
               {QUICK.map((item) => (
@@ -117,21 +140,17 @@ export default function SearchScreen() {
             <View key={g.kind} style={{ marginTop: 14, gap: 10 }}>
               <SectionHeader title={KIND_TITLE[g.kind]} />
               <View style={{ paddingHorizontal: 20, gap: 12 }}>
-                {g.items.map((r) => (
-                  <Card key={r.key} onPress={() => router.push(r.to)} style={styles.quick}>
-                    {r.image ? (
-                      <Image source={{ uri: r.image }} style={styles.thumb} resizeMode="cover" accessibilityIgnoresInvertColors />
-                    ) : (
-                      <View style={[styles.thumb, { backgroundColor: c.tint, alignItems: 'center', justifyContent: 'center' }]}>
-                        <Icon name={KIND_ICON[r.kind]} color={c.link} size={22} />
-                      </View>
-                    )}
+                {g.items.map((r, i) => (
+                  <Reveal key={r.key} index={i}>
+                  <Card onPress={() => router.push(r.to)} style={styles.quick}>
+                    <Cover image={r.image} color={KIND_COLOR[r.kind]} icon={KIND_ICON[r.kind]} height={64} width={64} radius={16} />
                     <View style={{ flex: 1 }}>
                       <Text numberOfLines={1} style={[styles.rowTitle, { color: c.text }]}>{r.title}</Text>
                       <Text numberOfLines={1} style={[styles.rowSub, { color: c.sub }]}>{r.subtitle}</Text>
                     </View>
                     <Icon name="chevron" color={c.placeholder} size={18} />
                   </Card>
+                  </Reveal>
                 ))}
               </View>
             </View>
@@ -147,7 +166,11 @@ const styles = StyleSheet.create({
   chips: { gap: 10, paddingHorizontal: 20, paddingVertical: 14 },
   quick: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14 },
   quickIcon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  thumb: { width: 56, height: 56, borderRadius: 16 },
+  tileGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingHorizontal: 20 },
+  tile: { width: '47.8%', flexGrow: 1 },
+  tileText: { position: 'absolute', left: 12, right: 12, bottom: 10 },
+  tileTitle: { fontFamily: serif, color: '#ffffff', fontSize: 16.5, fontWeight: '700', textShadowColor: 'rgba(0,0,0,0.4)', textShadowRadius: 4 },
+  tileCount: { color: 'rgba(255,255,255,0.88)', fontSize: 12, fontWeight: '600', marginTop: 1 },
   rowTitle: { fontSize: 15, fontWeight: '700' },
   rowSub: { fontSize: 12.5, marginTop: 2 },
   empty: { alignItems: 'center', paddingTop: 56, paddingHorizontal: 40 },

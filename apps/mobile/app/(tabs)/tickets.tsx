@@ -1,3 +1,4 @@
+import { PageBackdrop } from '../../components/ui/PageBackdrop';
 import { useCallback, useState, type ReactNode } from 'react';
 import { ScrollView, View, Text, TextInput, StyleSheet, Alert } from 'react-native';
 import { KeyboardAvoid } from '../../components/KeyboardAvoid';
@@ -103,7 +104,7 @@ function SmeetzOrderCard({ o }: { o: SmeetzLinkedOrder }) {
   return (
     <View style={{ gap: 16 }}>
       <Card style={styles.orderHead}>
-        <Text style={[styles.orderTitle, { color: c.text }]}>Smeetz booking</Text>
+        <Text style={[styles.orderTitle, { color: c.text }]}>Booking</Text>
         <Text style={[styles.muted, { color: c.sub }]}>
           {o.reference}
           {order?.placedAt ? ` · booked ${day(order.placedAt)}` : ''}
@@ -172,8 +173,9 @@ export default function TicketsScreen() {
   return (
     <KeyboardAvoid>
       <View style={[styles.screen, { backgroundColor: c.screen }]}>
+      <PageBackdrop page="tickets" />
         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }}>
-          <ScreenHeader title={t('tickets.title')} colors={featureGradient.tickets} />
+          <ScreenHeader page="tickets" title={t('tickets.title')} subtitle="Your QR passes, ready at the gate" colors={featureGradient.tickets} />
 
           <View style={styles.pad}>
             {/* Account */}
@@ -189,8 +191,6 @@ export default function TicketsScreen() {
               </Touchable>
             </Card>
 
-            <Button full label={t('tickets.book')} icon="ticket" onPress={() => router.push(user ? '/book' : '/auth')} style={{ marginTop: 14 }} />
-
             {/* Tickets on this device */}
             {tickets.length === 0 ? (
               <Card style={styles.empty}>
@@ -199,7 +199,7 @@ export default function TicketsScreen() {
                 </View>
                 <Text style={[styles.emptyTitle, { color: c.text }]}>No tickets on this device yet</Text>
                 <Text style={[styles.muted, { color: c.sub, textAlign: 'center' }]}>
-                  Once you book, your tickets appear here as scannable QR codes that work even with no signal — so entry is never blocked by patchy Wi-Fi.
+                  Once your bookings are added, your tickets appear here as scannable QR codes that work even with no signal — so entry is never blocked by patchy Wi-Fi.
                 </Text>
               </Card>
             ) : (
@@ -218,52 +218,38 @@ export default function TicketsScreen() {
             )}
           </View>
 
+          {user && smeetzOrders.length > 0 && (
+            <View style={{ marginTop: 28 }}>
+              <SectionHeader title="Your bookings" />
+              <View style={[styles.pad, { marginTop: 12, gap: 20 }]}>
+                {smeetzOrders.map((o) => (
+                  <SmeetzOrderCard key={o.reference} o={o} />
+                ))}
+              </View>
+            </View>
+          )}
+
           {user && (
             <View style={{ marginTop: 28 }}>
-              <SectionHeader title="Booked via Smeetz?" />
+              <SectionHeader title="Already booked?" />
               <View style={[styles.pad, { marginTop: 12 }]}>
-                <Button full variant="soft" label="Find my bookings by email" icon="search" onPress={() => router.push('/smeetz-link')} />
+                <Button full variant="soft" label="Find my bookings by email" icon="search" onPress={() => router.push('/find-bookings')} />
                 <Text style={[styles.muted, { color: c.sub, marginTop: 14, marginBottom: 8 }]}>Or enter a booking reference:</Text>
                 <View style={styles.linkRow}>
                   <TextInput
                     style={[styles.input, { flex: 1, backgroundColor: c.card, color: c.text, borderColor: c.line }]}
                     value={linkRef}
                     onChangeText={setLinkRef}
-                    placeholder="Your Smeetz order reference"
+                    placeholder="Your booking reference"
                     placeholderTextColor={c.placeholder}
                     autoCapitalize="characters"
                     autoCorrect={false}
                   />
                   <Button label="Link" size="sm" loading={linking} onPress={linkSmeetzOrder} />
                 </View>
-                {smeetzOrders.length > 0 && (
-                  <View style={{ gap: 20, marginTop: 20 }}>
-                    {smeetzOrders.map((o) => (
-                      <SmeetzOrderCard key={o.reference} o={o} />
-                    ))}
-                  </View>
-                )}
               </View>
             </View>
           )}
-
-          <View style={{ marginTop: 28 }}>
-            <SectionHeader title={t('tickets.prices')} />
-            <View style={[styles.pad, { marginTop: 12, gap: 10 }]}>
-              {(bundle?.ticketTypes ?? []).map((tt) => (
-                <Card key={tt.id} style={styles.priceRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.priceName, { color: c.text }]}>{tt.name}</Text>
-                    {tt.description ? <Text style={[styles.muted, { color: c.sub }]}>{tt.description}</Text> : null}
-                  </View>
-                  <Text style={[styles.price, { color: c.link }]}>{poundsFromCents(tt.priceCents)}</Text>
-                </Card>
-              ))}
-              <Text style={[styles.muted, { color: c.sub, marginTop: 6, textAlign: 'center' }]}>
-                Advance Saver prices. Book online to secure your day — capacity is limited.
-              </Text>
-            </View>
-          </View>
         </ScrollView>
       </View>
     </KeyboardAvoid>
@@ -274,7 +260,7 @@ const NOTCH = 24;
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  pad: { paddingHorizontal: 20, marginTop: 8 },
+  pad: { paddingHorizontal: 20, marginTop: 20 },
   muted: { fontSize: 13, marginTop: 4, lineHeight: 18 },
   account: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
   avatar: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
@@ -286,7 +272,7 @@ const styles = StyleSheet.create({
   pass: { borderRadius: 24, overflow: 'hidden' },
   passTop: { paddingHorizontal: 22, paddingVertical: 20 },
   passLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 2.5, marginBottom: 6 },
-  passTitle: { fontFamily: serif, fontSize: 21, fontWeight: '700' },
+  passTitle: { fontFamily: serif, fontSize: 18.5, fontWeight: '700' },
   passSub: { fontSize: 13.5, marginTop: 4 },
   passRule: { height: 2, width: 44, borderRadius: 1, marginTop: 14 },
   tear: { height: NOTCH, justifyContent: 'center' },

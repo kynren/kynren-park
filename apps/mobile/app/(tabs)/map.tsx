@@ -9,10 +9,12 @@ import { useLocation } from '../../lib/location';
 import { useSync } from '../../lib/sync';
 import { useFavoriteIds } from '../../lib/favorites';
 import { fmtTime, ukNow, ukTodayStr } from '../../lib/format';
-import { serif, band, theme } from '../../lib/theme';
+import { serif, band, featureGradient, theme } from '../../lib/theme';
 import { useThemePref } from '../../lib/theme-context';
 import { Touchable } from '../../components/Touchable';
 import { GradientFill } from '../../components/ui/Gradient';
+import { Cover } from '../../components/ui/Cover';
+import { HeaderArt } from '../../components/ui/HeaderArt';
 import { SearchPill } from '../../components/ui/Controls';
 import { Icon } from '../../components/ui/Icon';
 import { selection } from '../../lib/haptics';
@@ -703,14 +705,17 @@ export default function MapScreen() {
     return (
       <Reanimated.View key={pin.id} style={[styles.markerAnchor, { left: pin.x, top: pin.y }, isSel && { zIndex: 20 }, invScaleMarker]} pointerEvents="box-none">
         <AnimatedPressable style={styles.pinWrap} onPress={() => { selection(); selX.value = pin.x; selY.value = pin.y; setSelected(pin); }}>
-          <View style={[styles.pinHead, { borderColor: tint }, isSel && styles.pinSel]}>
-            {pin.image
-              ? <Image source={{ uri: pin.image }} style={styles.pinImg} />
-              : glyph
-                ? <Text style={styles.pinEmoji}>{glyph}</Text>
-                : <Text style={[styles.pinNum, { color: tint }]}>{pin.number}</Text>}
+          <View style={[styles.shield, isSel && styles.pinSel]}>
+            <Svg width={38} height={46} viewBox="0 0 38 46" style={StyleSheet.absoluteFill}>
+              <Path d="M19 1.5 L34.5 6.8 V22 C34.5 32.5 27 40.5 19 44.5 C11 40.5 3.5 32.5 3.5 22 V6.8 Z" fill={tint} stroke="#ffffff" strokeWidth={2.4} strokeLinejoin="round" />
+            </Svg>
+            <View style={styles.shieldGlyph}>
+              {pin.kind === 'restaurant' ? <Icon name="fork" color="#ffffff" size={19} strokeWidth={2} />
+                : pin.kind === 'evening' ? <Icon name="star" color="#ffffff" size={19} strokeWidth={2} filled />
+                  : pin.kind === 'facility' ? <Text style={styles.pinEmoji}>{glyph}</Text>
+                    : <Text style={styles.pinNum}>{pin.number}</Text>}
+            </View>
           </View>
-          <View style={[styles.pinTail, { borderTopColor: tint }]} />
           {pin.nextTime && (pin.kind === 'show' || pin.kind === 'evening') && (
             <View style={styles.pinTime}><Text style={styles.pinTimeTxt} numberOfLines={1}>{fmtTime(pin.nextTime)}</Text></View>
           )}
@@ -1011,25 +1016,23 @@ export default function MapScreen() {
               <Reanimated.View style={[flipDown ? styles.calloutFloatDown : styles.calloutFloat, popupCardStyle]} pointerEvents="box-none">
                 {flipDown && <View style={[styles.calloutArrowUp, { borderBottomColor: cpal.card }]} />}
                 <Touchable style={[styles.calloutCard, { backgroundColor: cpal.card }]} onPress={openDetail}>
-                  {displayPin.image ? (
-                    <Image source={{ uri: displayPin.image }} style={styles.calloutThumb} />
-                  ) : (
-                    <View style={[styles.calloutThumb, styles.calloutThumbFallback, displayPin.kind === 'evening' && { backgroundColor: '#6e1423' }]}>
-                      <Text style={{ fontSize: 26 }}>{displayPin.emoji ?? '🎭'}</Text>
-                    </View>
-                  )}
-                  <View style={{ flex: 1 }}>
+                  <Cover
+                    image={displayPin.image}
+                    color={displayPin.kind === 'evening' ? '#6e1423' : displayPin.kind === 'restaurant' ? featureGradient.restaurants.from : theme.brand}
+                    icon={displayPin.kind === 'restaurant' ? 'fork' : 'calendar'}
+                    height={CALLOUT_H}
+                    width={108}
+                  />
+                  <View style={styles.calloutBody}>
                     <Text style={[styles.calloutTitle, { color: cpal.ink }]} numberOfLines={2}>{displayPin.title}</Text>
-                    <Text style={[styles.calloutSub, { color: cpal.muted }]} numberOfLines={1}>{displayPin.subtitle ?? displayPin.zone ?? 'Kynren — The Storied Lands'}</Text>
-                    <Text style={[styles.calloutStatus, { color: cpal.ink }]} numberOfLines={1}>
+                    <Text style={[styles.calloutSub, { color: cpal.muted }]} numberOfLines={2}>
                       {selectedDist != null
                         ? `${fmtDist(selectedDist)} away · ~${walkMins(selectedDist)} min walk`
                         : displayPin.nextTime
                           ? `Next show ${fmtTime(displayPin.nextTime)}`
-                          : displayPin.kind === 'restaurant'
-                            ? 'Tap for menu & times'
-                            : 'Tap for details'}
+                          : displayPin.subtitle ?? displayPin.zone ?? 'Kynren — The Storied Lands'}
                     </Text>
+                    <Text style={[styles.calloutLink, { color: cpal.ink }]}>{displayPin.kind === 'restaurant' ? 'See the menu' : 'More information'}</Text>
                   </View>
                   <Pressable hitSlop={10} onPress={dismissPopup} style={styles.calloutCloseBtn}>
                     <Text style={[styles.calloutClose, { color: cpal.muted }]}>✕</Text>
@@ -1092,7 +1095,7 @@ export default function MapScreen() {
 
         {/* Location banner — the app needs GPS to show your position & distances */}
         {!locationReal && !bannerDismissed && (
-          <View style={[styles.geoBanner, { top: insets.top + 120 }]}>
+          <View style={[styles.geoBanner, { top: insets.top + 78 }]}>
             <Text style={styles.geoIcon}>📱</Text>
             <Text style={styles.geoTxt}>
               {gps ? 'You seem to be outside the park' : 'Turn on location to see where you are and how far things are'}
@@ -1110,24 +1113,17 @@ export default function MapScreen() {
           </View>
         )}
 
-        {/* Header: the sky band with the menu button and title, and the search pill resting on its lower edge */}
-        <View style={[styles.topBand, { height: insets.top + 80 }]} pointerEvents="box-none">
-          <View style={[StyleSheet.absoluteFill, styles.topBandBg]} pointerEvents="none">
-            <GradientFill from={band.from} to={band.to} vertical />
-          </View>
-          <View style={[styles.topRow, { paddingTop: insets.top + 8 }]} pointerEvents="box-none">
-            <Touchable style={styles.topSide} onPress={() => router.push('/menu')} accessibilityRole="button" accessibilityLabel="Open menu" hitSlop={10}>
-              <Icon name="menu" color="#ffffff" size={26} />
+        {/* Floating controls: menu, search and scan sit straight on the map, so nothing covers it */}
+        <View style={[styles.searchWrap, { top: insets.top + 10 }]} pointerEvents="box-none">
+          <View style={styles.searchLine}>
+            <Touchable style={[styles.roundBtn, shadow(1, dark), { backgroundColor: c.card }]} onPress={() => router.push('/menu')} accessibilityRole="button" accessibilityLabel="Open menu" hitSlop={8}>
+              <Icon name="menu" color={c.text} size={24} />
             </Touchable>
-            <Text accessibilityRole="header" style={styles.topTitle}>MAP</Text>
-            <Touchable style={[styles.topSide, { alignItems: 'flex-end' }]} onPress={() => router.push('/scan')} accessibilityRole="button" accessibilityLabel="Scan a QR code" hitSlop={10}>
-              <Icon name="scan" color="#ffffff" size={24} />
+            <SearchPill style={{ flex: 1 }} placeholder="Find attractions" value={search} onChangeText={setSearch} />
+            <Touchable style={[styles.roundBtn, shadow(1, dark), { backgroundColor: c.card }]} onPress={() => router.push('/scan')} accessibilityRole="button" accessibilityLabel="Scan a QR code" hitSlop={8}>
+              <Icon name="scan" color={c.text} size={22} />
             </Touchable>
           </View>
-        </View>
-
-        <View style={[styles.searchWrap, { top: insets.top + 53 }]} pointerEvents="box-none">
-          <SearchPill placeholder="Find attractions" value={search} onChangeText={setSearch} />
           {search.trim().length > 0 && (
             <View style={[styles.searchResults, { backgroundColor: c.card }]}>
               {searchResults.length === 0 ? (
@@ -1145,7 +1141,7 @@ export default function MapScreen() {
         </View>
 
         {/* Zoom + locate controls */}
-        <View style={[styles.ctrlCol, { top: insets.top + 124 }]}>
+        <View style={[styles.ctrlCol, { top: insets.top + 150 }]}>
           {/* Compass — only shown once the map has been turned; tap to snap back
               to north-up, like Google/Apple Maps. */}
           {ROTATE_SUPPORTED && rotated && (
@@ -1169,7 +1165,7 @@ export default function MapScreen() {
 
         {/* Find on Map isolation: a chip to bring every pin back. */}
         {soloId && (
-          <View style={[styles.showAllWrap, { top: insets.top + 120 }]} pointerEvents="box-none">
+          <View style={[styles.showAllWrap, { top: insets.top + 78 }]} pointerEvents="box-none">
             <Touchable style={styles.showAllChip} onPress={() => { setSoloId(null); dismissPopup(); }}>
               <Text style={styles.showAllTxt}>← Show all pins</Text>
             </Touchable>
@@ -1178,7 +1174,7 @@ export default function MapScreen() {
 
         {/* "Tap the map to explore" hint, until the guest opens something */}
         {!selected && !soloId && !hintDismissed && (
-          <View style={[styles.hintWrap, { top: insets.top + 120 }]} pointerEvents="box-none">
+          <View style={[styles.hintWrap, { top: insets.top + 78 }]} pointerEvents="box-none">
             <Touchable style={styles.hintChip} onPress={() => setHintDismissed(true)}>
               <Text style={styles.hintChipTxt}>TAP THE MAP TO EXPLORE</Text>
             </Touchable>
@@ -1227,13 +1223,7 @@ export default function MapScreen() {
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.nearRow}>
                   {nearby.map((n) => (
                     <Touchable key={`${n.kind}:${n.id}`} style={[styles.nearCard, { backgroundColor: c.screen }]} onPress={() => goToResult({ id: n.id, kind: n.kind })} accessibilityRole="button" accessibilityLabel={`${n.title}${n.dist != null ? `, ${fmtDist(n.dist)} away` : ''}`}>
-                      {n.image ? (
-                        <Image source={{ uri: n.image }} style={styles.nearImg} resizeMode="cover" />
-                      ) : (
-                        <View style={[styles.nearImg, { backgroundColor: c.tint, alignItems: 'center', justifyContent: 'center' }]}>
-                          <Icon name={n.kind === 'restaurants' ? 'fork' : 'calendar'} color={c.link} size={26} />
-                        </View>
-                      )}
+                      <Cover image={n.image} color={n.kind === 'restaurants' ? featureGradient.restaurants.from : featureGradient.programme.from} icon={n.kind === 'restaurants' ? 'fork' : 'calendar'} height={84} radius={14} />
                       <Text numberOfLines={1} style={[styles.nearName, { color: c.link }]}>{n.title}</Text>
                       <View style={styles.nearMeta}>
                         <Icon name="pin" color={c.sub} size={13} />
@@ -1345,6 +1335,7 @@ const TREES: [number, number, number][] = [
 // than redrawn crisply, which is what washed out small popup text (subtitle,
 // "Tap for details") while the bold title stayed legible. Dropping the shadow
 // removes that compositing path entirely. Android keeps its shadows.
+const CALLOUT_H = 128;
 const noLiveShadow = Platform.OS === 'ios' ? { shadowOpacity: 0, shadowRadius: 0, shadowColor: 'transparent' } : {};
 
 const styles = StyleSheet.create({
@@ -1355,12 +1346,14 @@ const styles = StyleSheet.create({
   // invScaleMarker above for why every marker (pin/cluster/area) anchors its
   // counter-scale/rotate here instead of pivoting a real-sized box by hand.
   markerAnchor: { position: 'absolute', width: 0, height: 0 },
-  pinWrap: { position: 'absolute', left: -30, top: -46, alignItems: 'center', width: 60 },
+  pinWrap: { position: 'absolute', left: -30, top: -44, alignItems: 'center', width: 60 },
+  shield: { width: 38, height: 46, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3, shadowOffset: { width: 0, height: 2 }, elevation: 5, ...noLiveShadow },
+  shieldGlyph: { position: 'absolute', left: 0, right: 0, top: 6, height: 26, alignItems: 'center', justifyContent: 'center' },
   pinHead: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#fff', overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3, shadowOffset: { width: 0, height: 2 }, elevation: 5, ...noLiveShadow },
   pinImg: { width: '100%', height: '100%' },
   pinSel: { transform: [{ scale: 1.2 }] },
-  pinNum: { color: theme.ink, fontWeight: '800', fontSize: 15 },
-  pinEmoji: { fontSize: 16 },
+  pinNum: { color: '#ffffff', fontWeight: '800', fontSize: 16 },
+  pinEmoji: { fontSize: 15 },
   pinTail: { width: 0, height: 0, borderLeftWidth: 7, borderRightWidth: 7, borderTopWidth: 11, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: theme.brand, marginTop: -3 },
   pinTime: { marginTop: 1, backgroundColor: '#e8861a', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 2, shadowOffset: { width: 0, height: 1 }, elevation: 3, ...noLiveShadow },
   pinTimeTxt: { color: '#ffffff', fontWeight: '800', fontSize: 11 },
@@ -1387,16 +1380,15 @@ const styles = StyleSheet.create({
   // The card floats above the (zero-size) pin anchor; a little arrow points
   // down at the pin. Drawn above every other marker/beacon in the canvas.
   calloutWrap: { zIndex: 30 },
-  calloutFloat: { position: 'absolute', left: -128, bottom: 50, width: 256, alignItems: 'center' },
-  calloutFloatDown: { position: 'absolute', left: -128, top: 50, width: 256, alignItems: 'center' },
+  calloutFloat: { position: 'absolute', left: -146, bottom: 50, width: 292, alignItems: 'center' },
+  calloutFloatDown: { position: 'absolute', left: -146, top: 50, width: 292, alignItems: 'center' },
   calloutArrow: { width: 0, height: 0, borderLeftWidth: 9, borderRightWidth: 9, borderTopWidth: 11, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginTop: -1 },
   calloutArrowUp: { width: 0, height: 0, borderLeftWidth: 9, borderRightWidth: 9, borderBottomWidth: 11, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginBottom: -1 },
-  calloutCard: { flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 16, paddingVertical: 12, paddingLeft: 12, paddingRight: 26, width: 256, shadowColor: '#000', shadowOpacity: 0.24, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 12, ...noLiveShadow },
-  calloutThumb: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#e7e2da' },
-  calloutThumbFallback: { alignItems: 'center', justifyContent: 'center', backgroundColor: theme.brand },
-  calloutTitle: { fontWeight: '800', fontSize: 17, lineHeight: 21, letterSpacing: -0.2 },
-  calloutSub: { fontSize: 13, fontWeight: '700', marginTop: 2 },
-  calloutStatus: { fontSize: 13, fontWeight: '700', marginTop: 3 },
+  calloutCard: { flexDirection: 'row', alignItems: 'stretch', borderRadius: 14, overflow: 'hidden', width: 292, height: CALLOUT_H, shadowColor: '#000', shadowOpacity: 0.24, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 12, ...noLiveShadow },
+  calloutBody: { flex: 1, paddingVertical: 12, paddingLeft: 14, paddingRight: 30, justifyContent: 'center' },
+  calloutTitle: { fontFamily: serif, fontWeight: '700', fontSize: 14.5, lineHeight: 18 },
+  calloutSub: { fontSize: 12, lineHeight: 16, marginTop: 2 },
+  calloutLink: { fontSize: 12, fontWeight: '600', textDecorationLine: 'underline', marginTop: 8 },
   calloutCloseBtn: { position: 'absolute', top: 6, right: 8, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
   calloutClose: { fontSize: 14, fontWeight: '700' },
   geoBanner: { position: 'absolute', left: 14, right: 66, borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'rgba(15,15,15,0.92)', paddingVertical: 12, paddingHorizontal: 16, zIndex: 65 },
@@ -1405,31 +1397,28 @@ const styles = StyleSheet.create({
   geoClose: { color: '#f0a8a8', fontSize: 16, fontWeight: '700' },
   hint: { position: 'absolute', bottom: 300, left: 24, right: 24, backgroundColor: 'rgba(255,255,255,0.97)', borderRadius: 12, padding: 14, zIndex: 80, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 10 },
   hintText: { textAlign: 'center', color: theme.ink, fontWeight: '600', fontSize: 13 },
-  searchWrap: { position: 'absolute', left: 16, right: 16, zIndex: 72 },
-  searchResults: { borderRadius: 20, marginTop: 8, overflow: 'hidden', shadowColor: '#1f3c78', shadowOpacity: 0.16, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
+  searchWrap: { position: 'absolute', left: 12, right: 12, zIndex: 72 },
+  searchResults: { borderRadius: 20, marginTop: 8, overflow: 'hidden', shadowColor: '#3b2a14', shadowOpacity: 0.16, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
   searchRow: { paddingHorizontal: 18, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
   searchName: { fontSize: 14, fontWeight: '700' },
   searchSub: { fontSize: 12, marginTop: 1, textTransform: 'capitalize' },
   searchEmpty: { padding: 16, fontSize: 13 },
   ctrlCol: { position: 'absolute', right: 16, gap: 10, zIndex: 50 },
   ctrlBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  ctrlTxt: { fontFamily: serif, fontSize: 20, fontWeight: '700' },
+  ctrlTxt: { fontFamily: serif, fontSize: 17.5, fontWeight: '700' },
   pills: { flexGrow: 0, marginBottom: 12 },
   pillsContent: { flexDirection: 'row', gap: 8, paddingHorizontal: 12, alignItems: 'center', flexGrow: 1, justifyContent: 'center' },
   pill: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingVertical: 11, paddingHorizontal: 16 },
   pillEmoji: { fontSize: 15 },
   pillLabel: { fontWeight: '800', fontSize: 13 },
-  topBand: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 70 },
-  topBandBg: { overflow: 'hidden', borderBottomLeftRadius: 32, borderBottomRightRadius: 32 },
-  topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20 },
-  topSide: { width: 44, height: 44, justifyContent: 'center' },
-  topTitle: { color: '#ffffff', fontSize: 15, fontWeight: '700', letterSpacing: 3 },
+  searchLine: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  roundBtn: { width: 54, height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center' },
   bottomStack: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 40 },
   sheet: { borderTopLeftRadius: 30, borderTopRightRadius: 30, paddingBottom: 14 },
   sheetHead: { paddingTop: 10, paddingHorizontal: 20, paddingBottom: 8 },
   grab: { alignSelf: 'center', width: 44, height: 4, borderRadius: 2, marginBottom: 12 },
   sheetTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sheetTitle: { fontFamily: serif, fontSize: 19, fontWeight: '800' },
+  sheetTitle: { fontFamily: serif, fontSize: 16.5, fontWeight: '800' },
   nearRow: { gap: 12, paddingHorizontal: 20, paddingBottom: 6 },
   nearCard: { width: 152, borderRadius: 20, padding: 8 },
   nearImg: { width: '100%', height: 84, borderRadius: 14 },

@@ -4,10 +4,10 @@ import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Touchable } from '../Touchable';
 import { Button } from './Button';
-import { GradientFill } from './Gradient';
+import { Cover } from './Cover';
 import { Icon } from './Icon';
 import { shadow, useUI } from '../../lib/ui';
-import { featureGradient } from '../../lib/theme';
+import { featureGradient, serif } from '../../lib/theme';
 import type { Restaurant } from '../../lib/sync';
 
 const FAVS_KEY = 'kynren_fav_restaurants';
@@ -40,34 +40,25 @@ export function RestaurantCard({ r, faved, onFav }: { r: Restaurant; faved: bool
 
   return (
     <View style={[styles.card, shadow(1, dark), { backgroundColor: c.card }]}>
-      <Touchable onPress={open} accessibilityRole="button" accessibilityLabel={r.name}>
-        <View style={styles.photo}>
-          {r.heroImage ? (
-            <Image source={{ uri: r.heroImage }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-          ) : (
-            <>
-              <GradientFill from={featureGradient.restaurants.from} to={featureGradient.restaurants.to} />
-              <View style={styles.photoIcon}>
-                <Icon name="fork" color="#ffffff" size={40} strokeWidth={1.6} />
-              </View>
-            </>
-          )}
-        </View>
-      </Touchable>
-      <Touchable onPress={onFav} hitSlop={10} accessibilityRole="button" accessibilityLabel={faved ? 'Remove from favourites' : 'Add to favourites'} style={[styles.heart, { backgroundColor: c.card }]}>
-        <Icon name="heart" color={faved ? c.accent : c.sub} filled={faved} size={20} />
+      <Touchable onPress={open} scaleTo={1.04} accessibilityRole="button" accessibilityLabel={r.name}>
+        <Cover image={r.heroImage} color={featureGradient.restaurants.from} icon="fork" height={176} />
       </Touchable>
       <View style={styles.body}>
-        <Text style={[styles.name, { color: c.text }]} numberOfLines={2}>{r.name}</Text>
+        <Text style={[styles.nameTxt, { color: c.text }]} numberOfLines={2}>{r.name}</Text>
         {(r.cuisine || r.openingHours) && (
-          <Text style={[styles.sub, { color: c.sub }]} numberOfLines={2}>{[r.cuisine, r.openingHours].filter(Boolean).join(' · ')}</Text>
+          <Text style={[styles.subTxt, { color: c.sub }]} numberOfLines={2}>{[r.cuisine, r.openingHours].filter(Boolean).join(' · ')}</Text>
         )}
         <View style={styles.actions}>
           <Button size="sm" variant="soft" label="See menu" onPress={open} />
           {canOrder && <Button size="sm" label="Order now" onPress={open} />}
-          <Touchable onPress={() => router.push(`/map?focus=${r.id}`)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Show ${r.name} on the map`} style={[styles.go, { backgroundColor: c.tint }]}>
-            <Icon name="pin" color={c.link} size={19} />
-          </Touchable>
+          <View style={styles.tools}>
+            <Touchable onPress={onFav} hitSlop={8} accessibilityRole="button" accessibilityLabel={faved ? 'Remove from favourites' : 'Add to favourites'} style={[styles.go, { backgroundColor: c.tint }]}>
+              <Icon name="heart" color={faved ? c.accent : c.link} filled={faved} size={19} />
+            </Touchable>
+            <Touchable onPress={() => router.push(`/map?focus=${r.id}`)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Show ${r.name} on the map`} style={[styles.go, { backgroundColor: c.tint }]}>
+              <Icon name="pin" color={c.link} size={19} />
+            </Touchable>
+          </View>
         </View>
       </View>
     </View>
@@ -76,12 +67,16 @@ export function RestaurantCard({ r, faved, onFav }: { r: Restaurant; faved: bool
 
 const styles = StyleSheet.create({
   card: { borderRadius: 20, overflow: 'hidden' },
-  photo: { height: 132, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  photoIcon: { opacity: 0.9 },
+  coverText: { position: 'absolute', left: 16, right: 56, bottom: 12 },
+  coverName: { fontFamily: serif, color: '#ffffff', fontSize: 21, fontWeight: '700', lineHeight: 26, textShadowColor: 'rgba(0,0,0,0.4)', textShadowRadius: 6 },
+  coverSub: { color: 'rgba(255,255,255,0.9)', fontSize: 13.5, fontWeight: '600', marginTop: 2 },
   heart: { position: 'absolute', top: 12, right: 12, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   body: { padding: 16, gap: 4 },
   name: { fontSize: 18, fontWeight: '800' },
   sub: { fontSize: 13.5, lineHeight: 19 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 },
-  go: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', marginLeft: 'auto' },
+  go: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  tools: { flexDirection: 'row', gap: 8, marginLeft: 'auto' },
+  nameTxt: { fontFamily: serif, fontSize: 19, fontWeight: '700', lineHeight: 24 },
+  subTxt: { fontSize: 13.5, lineHeight: 19, marginTop: 2 },
 });

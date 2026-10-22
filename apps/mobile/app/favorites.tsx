@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { ManagedImage } from '../components/ManagedImage';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Controls';
+import { Cover } from '../components/ui/Cover';
 import { Icon } from '../components/ui/Icon';
 import { Screen } from '../components/ui/Screen';
 import { useSync, type Attraction } from '../lib/sync';
@@ -10,8 +11,8 @@ import { useFavoriteIds } from '../lib/favorites';
 import { serif, featureGradient } from '../lib/theme';
 import { useUI } from '../lib/ui';
 
-export function AttractionListScreen({ title, label, emptyHeading, emptyBody, slot, ids }: {
-  title: string; label: string; emptyHeading: string; emptyBody: string; slot: string; ids: Set<string> | null;
+export function AttractionListScreen({ page, title, label, emptyHeading, emptyBody, slot, ids }: {
+  page: string; title: string; label: string; emptyHeading: string; emptyBody: string; slot: string; ids: Set<string> | null;
 }) {
   const router = useRouter();
   const { c } = useUI();
@@ -20,13 +21,11 @@ export function AttractionListScreen({ title, label, emptyHeading, emptyBody, sl
   const hasItems = ids && items.length > 0;
 
   return (
-    <Screen title={title} colors={featureGradient.programme} scroll={!!hasItems} contentStyle={hasItems ? undefined : styles.emptyBox}>
+    <Screen page={page} title={title} subtitle="Shows and places you have saved" colors={featureGradient.programme} scroll={!!hasItems} contentStyle={hasItems ? undefined : styles.emptyBox}>
       {hasItems ? (
         items.map((a) => (
           <Card key={a.id} style={styles.row} onPress={() => router.push(`/attraction/${a.slug}`)}>
-            <View style={[styles.thumb, { backgroundColor: c.tint }]}>
-              {a.heroImage ? <Image source={{ uri: a.heroImage }} style={styles.thumbImg} resizeMode="cover" /> : <Icon name="star" color={c.link} size={24} />}
-            </View>
+            <Cover image={a.heroImage} color={featureGradient.programme.from} icon="star" height={58} width={58} radius={14} />
             <View style={{ flex: 1 }}>
               <Text style={[styles.name, { color: c.text }]} numberOfLines={1}>{a.name}</Text>
               {a.tagline && <Text style={[styles.sub, { color: c.sub }]} numberOfLines={1}>{a.tagline}</Text>}
@@ -52,7 +51,7 @@ export default function FavoritesScreen() {
   const { ids } = useFavoriteIds();
   return (
     <AttractionListScreen
-      title="My favourites" label="MY FAVOURITES" slot="favorites.empty"
+      page="favorites" title="My favourites" label="MY FAVOURITES" slot="favorites.empty"
       emptyHeading="Create your favourites list"
       emptyBody="Shows, restaurants and activities appear here when you mark them as favourites."
       ids={ids}
@@ -69,6 +68,6 @@ const styles = StyleSheet.create({
   cat: { fontSize: 11.5, marginTop: 2, textTransform: 'capitalize' },
   emptyBox: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 6 },
   emptyLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 1, marginTop: 18 },
-  emptyHeading: { fontFamily: serif, fontSize: 24, fontWeight: '800', textAlign: 'center', marginTop: 4 },
+  emptyHeading: { fontFamily: serif, fontSize: 21, fontWeight: '800', textAlign: 'center', marginTop: 4 },
   emptyBody: { fontSize: 14.5, textAlign: 'center', lineHeight: 21, marginTop: 6 },
 });

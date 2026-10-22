@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ImageCarousel } from './ImageCarousel';
 import { Touchable } from './Touchable';
 import { GradientFill } from './ui/Gradient';
+import { HeaderArt } from './ui/HeaderArt';
 import { serif, band } from '../lib/theme';
 import { useUI } from '../lib/ui';
 
@@ -33,12 +34,38 @@ export function useDK(): DK {
 }
 
 /** The top of a detail page: the photo gallery, or a gradient band (with room for the close button) when there are no photos. */
-export function DetailHero({ images, height, colors = band }: { images: string[]; height: number; colors?: { from: string; to: string } }) {
+export function DetailHero({
+  images,
+  height,
+  colors = band,
+}: {
+  images: string[];
+  height: number;
+  colors?: { from: string; to: string };
+}) {
   const insets = useSafeAreaInsets();
-  if (images.length > 0) return <ImageCarousel images={images} height={height} />;
+  const hasPhoto = images.length > 0;
   return (
-    <View style={{ height: insets.top + 120, overflow: 'hidden' }}>
-      <GradientFill from={colors.from} to={colors.to} vertical />
+    <View style={{ height: hasPhoto ? height : insets.top + 230, overflow: 'hidden', backgroundColor: colors.from }}>
+      {hasPhoto ? (
+        <ImageCarousel images={images} height={height} />
+      ) : (
+        <>
+          <GradientFill from={colors.from} to={colors.to} vertical />
+          <HeaderArt />
+        </>
+      )}
+    </View>
+  );
+}
+
+/** The name of the place, at the top of the sheet under the picture. */
+export function SheetTitle({ title, subtitle }: { title: string; subtitle?: string }) {
+  const dk = useDK();
+  return (
+    <View style={{ marginBottom: 4 }}>
+      <Text accessibilityRole="header" style={{ fontFamily: serif, color: dk.ink, fontSize: 25, fontWeight: '700', lineHeight: 31 }}>{title}</Text>
+      {subtitle ? <Text style={{ color: dk.sub, fontSize: 14, marginTop: 3 }}>{subtitle}</Text> : null}
     </View>
   );
 }
@@ -102,6 +129,9 @@ export const ICONS = {
 };
 
 const styles = StyleSheet.create({
+  heroText: { position: 'absolute', left: 20, right: 70, bottom: 46 },
+  heroTitle: { fontFamily: serif, color: '#ffffff', fontSize: 27.5, fontWeight: '700', lineHeight: 33, textShadowColor: 'rgba(0,0,0,0.45)', textShadowRadius: 8, textShadowOffset: { width: 0, height: 1 } },
+  heroSub: { color: 'rgba(255,255,255,0.9)', fontSize: 14.5, lineHeight: 20, marginTop: 4 },
   closeBtn: { position: 'absolute', right: 14, width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(15,31,75,0.55)', alignItems: 'center', justifyContent: 'center' },
   badge: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   badgeImg: { width: '100%', height: '100%' },
@@ -111,5 +141,5 @@ const styles = StyleSheet.create({
   tagTxt: { fontSize: 12.5, fontWeight: '600' },
   actionPill: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, paddingVertical: 12, paddingHorizontal: 16, flex: 1, justifyContent: 'center' },
   actionTxt: { fontWeight: '700', fontSize: 13.5 },
-  sectionLabel: { fontFamily: serif, fontSize: 19, fontWeight: '800', marginTop: 24, marginBottom: 10 },
+  sectionLabel: { fontFamily: serif, fontSize: 16.5, fontWeight: '800', marginTop: 24, marginBottom: 10 },
 });

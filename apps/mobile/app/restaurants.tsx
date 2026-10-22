@@ -1,7 +1,9 @@
+import { PageBackdrop } from '../components/ui/PageBackdrop';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { RestaurantCard, useRestaurantFavs } from '../components/ui/RestaurantCard';
 import { ScreenHeader } from '../components/ui/Header';
+import { Reveal } from '../components/ui/Reveal';
 import { useSync } from '../lib/sync';
 import { featureGradient } from '../lib/theme';
 import { useUI } from '../lib/ui';
@@ -27,9 +29,10 @@ export default function RestaurantsScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: c.screen }]}>
+      <PageBackdrop page="restaurants" />
       <Stack.Screen options={{ headerShown: false }} />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
-        <ScreenHeader
+        <ScreenHeader page="restaurants"
           title={heading}
           colors={featureGradient.restaurants}
           onMenu={() => router.back()}
@@ -37,8 +40,10 @@ export default function RestaurantsScreen() {
         />
         <View style={styles.list}>
           {restaurants.length === 0 && <Text style={[styles.empty, { color: c.sub }]}>{all.length === 0 ? 'Loading restaurants…' : 'Nothing to show here yet.'}</Text>}
-          {restaurants.map((r) => (
-            <RestaurantCard key={r.id} r={r} faved={favs.has(r.id)} onFav={() => toggle(r.id)} />
+          {restaurants.map((r, i) => (
+            <Reveal key={r.id} index={i}>
+              <RestaurantCard r={r} faved={favs.has(r.id)} onFav={() => toggle(r.id)} />
+            </Reveal>
           ))}
         </View>
       </ScrollView>

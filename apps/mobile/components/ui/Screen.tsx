@@ -3,6 +3,7 @@ import { ScrollView, type RefreshControlProps, StyleSheet, View, type StyleProp,
 import { Stack, useRouter } from 'expo-router';
 import { KeyboardAvoid } from '../KeyboardAvoid';
 import { ScreenHeader } from './Header';
+import { PageBackdrop } from './PageBackdrop';
 import { useUI } from '../../lib/ui';
 
 /**
@@ -11,6 +12,8 @@ import { useUI } from '../../lib/ui';
  */
 export function Screen({
   title,
+  subtitle,
+  page,
   children,
   colors,
   right,
@@ -22,6 +25,9 @@ export function Screen({
   onBack,
 }: {
   title: string;
+  subtitle?: string;
+  /** The page's name in App Images, for the admin's header and background pictures. */
+  page?: string;
   children: ReactNode;
   colors?: { from: string; to: string };
   right?: ReactNode;
@@ -55,7 +61,8 @@ export function Screen({
   return (
     <View style={[styles.fill, { backgroundColor: c.screen }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ScreenHeader title={title} tone="sky" colors={colors} menuIcon="back" onMenu={back} right={right} />
+      {page ? <PageBackdrop page={page} /> : null}
+      <ScreenHeader page={page} title={title} subtitle={subtitle} colors={colors} menuIcon="back" onMenu={back} right={right} />
       {keyboard ? <KeyboardAvoid>{body}</KeyboardAvoid> : body}
     </View>
   );

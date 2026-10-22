@@ -63,7 +63,7 @@ export default function ProfileScreen() {
   const displayName = name || user?.name || (user?.email ? user.email.split('@')[0] : '');
 
   return (
-    <Screen title="Profile">
+    <Screen page="profile" title="Profile" subtitle="Your account and saved places">
       {user ? (
         <View style={styles.helloWrap}>
           <View style={[styles.avatar, { borderColor: c.card, backgroundColor: c.tint }]}>
@@ -84,7 +84,7 @@ export default function ProfileScreen() {
           <Text style={[styles.ctaHead, { color: c.sub }]}>Create a free account to:</Text>
           <View style={{ gap: 10, marginTop: 4 }}>
             <CheckItem text="Hold your tickets in the app" />
-            <CheckItem text="Add Smeetz bookings by email" />
+            <CheckItem text="Bring your bookings in by email" />
             <CheckItem text="Order ahead and track your order" />
             <CheckItem text="Get reminders before each show" />
           </View>
@@ -161,13 +161,13 @@ const styles = StyleSheet.create({
   helloWrap: { alignItems: 'center', marginTop: 4 },
   avatar: { width: 92, height: 92, borderRadius: 46, borderWidth: 4, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   avatarImg: { width: '100%', height: '100%' },
-  hello: { fontFamily: serif, fontSize: 22, fontWeight: '800', textAlign: 'center', marginTop: 10 },
+  hello: { fontFamily: serif, fontSize: 19.5, fontWeight: '800', textAlign: 'center', marginTop: 10 },
   sub: { fontSize: 14, textAlign: 'center', marginTop: 2 },
 
   ctaCard: { padding: 22 },
   wordmark: { fontSize: 18, fontWeight: '800', letterSpacing: 3, marginBottom: 14 },
   logoImg: { height: 34, width: 150, marginBottom: 14 },
-  ctaTitle: { fontFamily: serif, fontSize: 26, fontWeight: '800', lineHeight: 31 },
+  ctaTitle: { fontFamily: serif, fontSize: 23, fontWeight: '800', lineHeight: 27 },
   ctaHead: { fontSize: 14.5, fontWeight: '600', marginTop: 8, marginBottom: 6 },
 
   checkRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
