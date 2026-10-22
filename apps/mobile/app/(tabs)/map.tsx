@@ -199,7 +199,7 @@ export default function MapScreen() {
   const [closingPin, setClosingPin] = useState<Pin | null>(null);
   const displayPin = selected ?? closingPin;
   const [search, setSearch] = useState('');
-  const [nearOpen, setNearOpen] = useState(true); // the "Near You" strip can be folded away to give the map the whole screen
+  const [nearOpen, setNearOpen] = useState(false); // the "Near you" list, opened from the icon in the search bar
   const [pendingSelect, setPendingSelect] = useState<string | null>(null);
   const [pendingSpot, setPendingSpot] = useState<string | null>(null);
   // "Find on Map" isolation: when set, only this pin is shown (others hidden)
@@ -1081,13 +1081,9 @@ export default function MapScreen() {
                 <Defs>
                   <SvgGradient id="fadeT" x1="0" y1="0" x2="0" y2="1"><Stop offset="0" stopColor={mapBg} stopOpacity={1} /><Stop offset="1" stopColor={mapBg} stopOpacity={0} /></SvgGradient>
                   <SvgGradient id="fadeB" x1="0" y1="0" x2="0" y2="1"><Stop offset="0" stopColor={mapBg} stopOpacity={0} /><Stop offset="1" stopColor={mapBg} stopOpacity={1} /></SvgGradient>
-                  <SvgGradient id="fadeL" x1="0" y1="0" x2="1" y2="0"><Stop offset="0" stopColor={mapBg} stopOpacity={1} /><Stop offset="1" stopColor={mapBg} stopOpacity={0} /></SvgGradient>
-                  <SvgGradient id="fadeR" x1="0" y1="0" x2="1" y2="0"><Stop offset="0" stopColor={mapBg} stopOpacity={0} /><Stop offset="1" stopColor={mapBg} stopOpacity={1} /></SvgGradient>
                 </Defs>
                 <Rect x={0} y={0} width={vw} height={f} fill="url(#fadeT)" />
                 <Rect x={0} y={vh - f} width={vw} height={f} fill="url(#fadeB)" />
-                <Rect x={0} y={0} width={f} height={vh} fill="url(#fadeL)" />
-                <Rect x={vw - f} y={0} width={f} height={vh} fill="url(#fadeR)" />
               </Svg>
             </View>
           );
@@ -1119,11 +1115,28 @@ export default function MapScreen() {
             <Touchable style={[styles.roundBtn, shadow(1, dark), { backgroundColor: c.card }]} onPress={() => router.push('/menu')} accessibilityRole="button" accessibilityLabel="Open menu" hitSlop={8}>
               <Icon name="menu" color={c.text} size={24} />
             </Touchable>
-            <SearchPill style={{ flex: 1 }} placeholder="Find attractions" value={search} onChangeText={setSearch} />
+            <SearchPill style={{ flex: 1 }} placeholder="Find attractions" value={search} onChangeText={(t) => { setSearch(t); if (t) setNearOpen(false); }} onFilter={() => { setSearch(''); setNearOpen((v) => !v); }} filterIcon="compass" filterLabel={nearOpen ? 'Hide places near you' : 'Show places near you'} />
             <Touchable style={[styles.roundBtn, shadow(1, dark), { backgroundColor: c.card }]} onPress={() => router.push('/scan')} accessibilityRole="button" accessibilityLabel="Scan a QR code" hitSlop={8}>
               <Icon name="scan" color={c.text} size={22} />
             </Touchable>
           </View>
+          {nearOpen && search.trim().length === 0 && (
+            <View style={[styles.searchResults, { backgroundColor: c.card }]}>
+              <Text style={[styles.nearHead, { color: c.sub }]}>{locationReal ? 'NEAR YOU' : 'AROUND THE PARK'}</Text>
+              {nearby.length === 0 ? (
+                <Text style={[styles.searchEmpty, { color: c.sub }]}>Nothing to show yet</Text>
+              ) : (
+                <ScrollView style={{ maxHeight: 330 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                  {nearby.map((n) => (
+                    <Touchable key={`${n.kind}:${n.id}`} haptic="selection" style={[styles.searchRow, { borderBottomColor: c.line }]} onPress={() => { setNearOpen(false); goToResult({ id: n.id, kind: n.kind }); }} accessibilityRole="button" accessibilityLabel={`${n.title}${n.dist != null ? `, ${fmtDist(n.dist)} away` : ''}`}>
+                      <Text style={[styles.searchName, { color: c.text }]} numberOfLines={1}>{n.title}</Text>
+                      <Text style={[styles.searchSub, { color: c.sub }]}>{n.dist != null ? fmtDist(n.dist) : n.zone ?? 'Kynren'}</Text>
+                    </Touchable>
+                  ))}
+                </ScrollView>
+              )}
+            </View>
+          )}
           {search.trim().length > 0 && (
             <View style={[styles.searchResults, { backgroundColor: c.card }]}>
               {searchResults.length === 0 ? (
@@ -1188,7 +1201,7 @@ export default function MapScreen() {
           </View>
         )}
 
-        {/* Bottom: the layer filters, then the "Near You" sheet */}
+        {/* Bottom: the layer filters */}
         <View style={styles.bottomStack} pointerEvents="box-none">
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pills} contentContainerStyle={styles.pillsContent}>
             {PILLS.map((p) => {
@@ -1207,34 +1220,6 @@ export default function MapScreen() {
               );
             })}
           </ScrollView>
-
-          {!displayPin && nearby.length > 0 && (
-            <View style={[styles.sheet, shadow(2, dark, 'up'), { backgroundColor: c.card }]}>
-              <Touchable style={styles.sheetHead} onPress={() => setNearOpen((v) => !v)} accessibilityRole="button" accessibilityLabel={nearOpen ? 'Hide nearby places' : 'Show nearby places'}>
-                <View style={[styles.grab, { backgroundColor: c.line }]} />
-                <View style={styles.sheetTitleRow}>
-                  <Text style={[styles.sheetTitle, { color: c.text }]}>{locationReal ? 'Near you' : 'Around the park'}</Text>
-                  <View style={{ transform: [{ rotate: nearOpen ? '90deg' : '-90deg' }] }}>
-                    <Icon name="chevron" color={c.sub} size={20} />
-                  </View>
-                </View>
-              </Touchable>
-              {nearOpen && (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.nearRow}>
-                  {nearby.map((n) => (
-                    <Touchable key={`${n.kind}:${n.id}`} style={[styles.nearCard, { backgroundColor: c.screen }]} onPress={() => goToResult({ id: n.id, kind: n.kind })} accessibilityRole="button" accessibilityLabel={`${n.title}${n.dist != null ? `, ${fmtDist(n.dist)} away` : ''}`}>
-                      <Cover image={n.image} color={n.kind === 'restaurants' ? featureGradient.restaurants.from : featureGradient.programme.from} icon={n.kind === 'restaurants' ? 'fork' : 'calendar'} height={84} radius={14} />
-                      <Text numberOfLines={1} style={[styles.nearName, { color: c.link }]}>{n.title}</Text>
-                      <View style={styles.nearMeta}>
-                        <Icon name="pin" color={c.sub} size={13} />
-                        <Text numberOfLines={1} style={[styles.nearZone, { color: c.sub }]}>{n.dist != null ? fmtDist(n.dist) : n.zone ?? 'Kynren'}</Text>
-                      </View>
-                    </Touchable>
-                  ))}
-                </ScrollView>
-              )}
-            </View>
-          )}
         </View>
       </View>
     </View>
@@ -1402,6 +1387,7 @@ const styles = StyleSheet.create({
   searchRow: { paddingHorizontal: 18, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
   searchName: { fontSize: 14, fontWeight: '700' },
   searchSub: { fontSize: 12, marginTop: 1, textTransform: 'capitalize' },
+  nearHead: { fontSize: 11, fontWeight: '800', letterSpacing: 1.4, paddingHorizontal: 18, paddingTop: 14, paddingBottom: 4 },
   searchEmpty: { padding: 16, fontSize: 13 },
   ctrlCol: { position: 'absolute', right: 16, gap: 10, zIndex: 50 },
   ctrlBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },

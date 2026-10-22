@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, Text, TextInput, View, type StyleProp, type TextInputProps, type ViewStyle } from 'react-native';
 import { Touchable } from '../Touchable';
-import { Icon } from './Icon';
+import { Icon, type IconName } from './Icon';
 import { radius, shadow, useUI } from '../../lib/ui';
 import { serif } from '../../lib/theme';
 
@@ -14,6 +14,8 @@ export function SearchPill({
   onChangeText,
   onPress,
   onFilter,
+  filterIcon = 'filter',
+  filterLabel = 'Filters',
   autoFocus,
   style,
 }: {
@@ -22,6 +24,9 @@ export function SearchPill({
   onChangeText?: (t: string) => void;
   onPress?: () => void;
   onFilter?: () => void;
+  /** The icon and spoken label of the button at the right end of the pill. */
+  filterIcon?: IconName;
+  filterLabel?: string;
   autoFocus?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
@@ -45,8 +50,8 @@ export function SearchPill({
         />
       )}
       {onFilter && (
-        <Touchable onPress={onFilter} hitSlop={10} accessibilityRole="button" accessibilityLabel="Filters">
-          <Icon name="filter" color={c.sub} size={22} />
+        <Touchable onPress={onFilter} hitSlop={10} accessibilityRole="button" accessibilityLabel={filterLabel}>
+          <Icon name={filterIcon} color={c.sub} size={22} />
         </Touchable>
       )}
     </>
