@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import { cert, getApps, initializeApp, type App } from 'firebase-admin/app';
 import { getMessaging, type Messaging } from 'firebase-admin/messaging';
 
@@ -16,10 +16,15 @@ const DEAD_CODES = new Set(['messaging/registration-token-not-registered', 'mess
  * (or base64 of it); with it unset the service is simply disabled and Expo tokens carry on as before.
  */
 @Injectable()
-export class FcmService {
+export class FcmService implements OnModuleInit {
   private readonly logger = new Logger(FcmService.name);
   private messaging: Messaging | null = null;
   private tried = false;
+
+  /** Read the key at start-up, so a bad one shows in the log straight away rather than at the first push. */
+  onModuleInit() {
+    if (!this.init() && process.env.FIREBASE_SERVICE_ACCOUNT_JSON) this.logger.warn('Native push is off: the Firebase key could not be used.');
+  }
 
   /** Whether native sends are configured. */
   get enabled(): boolean {

@@ -48,3 +48,6 @@ coverage/
 apps/mobile/ios/
 apps/mobile/android/
 .prisma/
+
+# Local-only credentials (Firebase service account etc.): never commit
+/secrets/
