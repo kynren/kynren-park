@@ -26,7 +26,7 @@ class PassCard extends StatelessWidget {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('ENTRANCE TICKET', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 2.5, color: c.accent)),
             const SizedBox(height: 4),
-            Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: Tokens.serif, fontSize: 20, fontWeight: FontWeight.w700, color: c.text)),
+            Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: Tokens.display, fontSize: 20, fontWeight: FontWeight.w700, color: c.text)),
             if (subtitle != null && subtitle!.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text(subtitle!, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13.5, color: c.sub))),
             Container(margin: const EdgeInsets.only(top: 10), width: 44, height: 2, decoration: BoxDecoration(color: c.accent, borderRadius: BorderRadius.circular(1))),
           ]),

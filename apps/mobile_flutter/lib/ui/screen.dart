@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../app/shell.dart' show navClearance;
 import '../core/theme.dart';
 import 'managed_image.dart';
 import 'screen_header.dart';
@@ -66,7 +67,7 @@ class KScreen extends StatelessWidget {
       children: [
         ScreenHeader(title: title, subtitle: subtitle, page: page, colors: colors ?? const [Tokens.bandFrom, Tokens.bandTo], back: back, onMenu: onBack, right: right, below: below),
         Padding(
-          padding: padded ? const EdgeInsets.fromLTRB(20, 20, 20, 40) : const EdgeInsets.only(bottom: 40),
+          padding: padded ? EdgeInsets.fromLTRB(20, 20, 20, back ? 40 : navClearance) : EdgeInsets.only(bottom: back ? 40 : navClearance),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [

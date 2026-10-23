@@ -11,6 +11,7 @@ import '../core/theme.dart';
 import '../ui/controls.dart';
 import '../ui/cover.dart';
 import '../ui/reveal.dart';
+import '../ui/skeleton.dart';
 import '../ui/screen.dart';
 import '../ui/tap.dart';
 
@@ -176,7 +177,7 @@ class _ProgrammeScreenState extends State<ProgrammeScreen> {
             ),
           ),
         if (bundle == null)
-          const Padding(padding: EdgeInsets.all(_edge), child: LinearProgressIndicator(minHeight: 2))
+          const Padding(padding: EdgeInsets.all(_edge), child: Column(children: [SkeletonCard(), SizedBox(height: 20), SkeletonCard()]))
         else if (rows.isEmpty)
           Container(
             constraints: const BoxConstraints(minHeight: 380),
@@ -185,7 +186,7 @@ class _ProgrammeScreenState extends State<ProgrammeScreen> {
             child: Text(
               bundle.nextProgramDate != null ? 'The programme will be available from ${_fmtDate(bundle.nextProgramDate!)}.' : 'The programme isn’t available yet.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontFamily: Tokens.serif, fontSize: 16.5, fontWeight: FontWeight.w800, height: 23 / 16.5, color: c.text),
+              style: TextStyle(fontFamily: Tokens.display, fontSize: 16.5, fontWeight: FontWeight.w800, height: 23 / 16.5, color: c.text),
             ),
           ),
         if (bundle != null)
@@ -290,7 +291,7 @@ class _ProgramRow extends StatelessWidget {
                 label: attraction.name,
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
-                    Flexible(child: Text(attraction.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: Tokens.serif, fontSize: 17, fontWeight: FontWeight.w700, color: c.text))),
+                    Flexible(child: Text(attraction.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: Tokens.display, fontSize: 17, fontWeight: FontWeight.w700, color: c.text))),
                     if (isNew) ...[
                       const SizedBox(width: 8),
                       Container(

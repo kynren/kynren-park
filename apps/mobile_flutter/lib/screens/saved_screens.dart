@@ -55,7 +55,7 @@ class AttractionListScreen extends StatelessWidget {
               const SizedBox(height: 18),
               Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1, color: c.sub)),
               const SizedBox(height: 4),
-              Text(emptyHeading, textAlign: TextAlign.center, style: TextStyle(fontFamily: Tokens.serif, fontSize: 21, fontWeight: FontWeight.w800, color: c.text)),
+              Text(emptyHeading, textAlign: TextAlign.center, style: TextStyle(fontFamily: Tokens.display, fontSize: 21, fontWeight: FontWeight.w800, color: c.text)),
               const SizedBox(height: 6),
               Text(emptyBody, textAlign: TextAlign.center, style: TextStyle(fontSize: 14.5, height: 21 / 14.5, color: c.sub)),
               const SizedBox(height: 18),

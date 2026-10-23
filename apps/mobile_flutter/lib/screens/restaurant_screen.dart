@@ -105,7 +105,7 @@ class _RestaurantScreenState extends State<RestaurantScreen> {
                         ),
                         const SizedBox(width: 12),
                         Expanded(child: Text(user != null ? 'Order ahead' : 'Sign in to order', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16))),
-                        Text(poundsFromCents(total), style: const TextStyle(fontFamily: Tokens.serif, color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16)),
+                        Text(poundsFromCents(total), style: const TextStyle(fontFamily: Tokens.display, color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16)),
                       ]),
               ),
             )
@@ -153,7 +153,7 @@ class _RestaurantScreenState extends State<RestaurantScreen> {
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(m.name, style: TextStyle(fontWeight: FontWeight.w700, color: c.text, fontSize: 16)),
                       if ((m.description ?? '').isNotEmpty) Padding(padding: const EdgeInsets.only(top: 3), child: Text(m.description!, style: TextStyle(color: c.sub, fontSize: 13.5, height: 19 / 13.5))),
-                      Padding(padding: const EdgeInsets.only(top: 6), child: Text(poundsFromCents(m.priceCents), style: TextStyle(fontFamily: Tokens.serif, color: c.text, fontWeight: FontWeight.w700, fontSize: 16))),
+                      Padding(padding: const EdgeInsets.only(top: 6), child: Text(poundsFromCents(m.priceCents), style: TextStyle(fontFamily: Tokens.display, color: c.text, fontWeight: FontWeight.w700, fontSize: 16))),
                       if (m.dietaryTags.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(top: 6),

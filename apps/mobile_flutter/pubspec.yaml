@@ -84,13 +84,19 @@ flutter:
     - assets/splash/
     - assets/icon/
 
-  # Headings are set in a serif, bundled so they look the same on every phone (Lora, SIL Open Font License).
+  # One typeface for the whole app (Plus Jakarta Sans, SIL Open Font License).
   fonts:
-    - family: Lora
+    - family: Jakarta
       fonts:
-        - asset: assets/fonts/Lora-Regular.ttf
-        - asset: assets/fonts/Lora-Bold.ttf
+        - asset: assets/fonts/PlusJakartaSans-400Regular.ttf
+        - asset: assets/fonts/PlusJakartaSans-500Medium.ttf
+          weight: 500
+        - asset: assets/fonts/PlusJakartaSans-600SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/PlusJakartaSans-700Bold.ttf
           weight: 700
+        - asset: assets/fonts/PlusJakartaSans-800ExtraBold.ttf
+          weight: 800
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

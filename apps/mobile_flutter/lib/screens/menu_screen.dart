@@ -123,9 +123,9 @@ class _MenuScreenState extends State<MenuScreen> with SingleTickerProviderStateM
                         ]),
                         const SizedBox(height: 18),
                         if (user != null)
-                          Text('Hello${name.isNotEmpty ? ', $name' : ''}', style: const TextStyle(fontFamily: Tokens.serif, color: Colors.white, fontSize: 21, fontWeight: FontWeight.w800))
+                          Text('Hello${name.isNotEmpty ? ', $name' : ''}', style: const TextStyle(fontFamily: Tokens.display, color: Colors.white, fontSize: 21, fontWeight: FontWeight.w800))
                         else ...[
-                          const Text('Welcome', style: TextStyle(fontFamily: Tokens.serif, color: Colors.white, fontSize: 21, fontWeight: FontWeight.w800)),
+                          const Text('Welcome', style: TextStyle(fontFamily: Tokens.display, color: Colors.white, fontSize: 21, fontWeight: FontWeight.w800)),
                           const SizedBox(height: 12),
                           KButton('Sign in or create account', small: true, onPressed: () => _close(() => router.push('/auth'))),
                         ],

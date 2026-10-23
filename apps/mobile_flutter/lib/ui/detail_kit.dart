@@ -1,3 +1,4 @@
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../core/theme.dart';
@@ -53,7 +54,7 @@ class _ImageCarouselState extends State<ImageCarousel> {
 }
 
 /// The frame of a detail page: the hero, a sheet over it holding [children], a close button, and an optional bottom bar.
-class DetailPage extends StatelessWidget {
+class DetailPage extends StatefulWidget {
   final List<String> images;
   final List<Color> colors;
   final List<Widget> children;
@@ -63,39 +64,76 @@ class DetailPage extends StatelessWidget {
   const DetailPage({super.key, required this.images, required this.colors, required this.children, this.bottom, this.bottomPadding = 40, this.controller});
 
   @override
+  State<DetailPage> createState() => _DetailPageState();
+}
+
+class _DetailPageState extends State<DetailPage> {
+  late final ScrollController _scroll = widget.controller ?? ScrollController();
+  double _offset = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(() {
+      final o = _scroll.hasClients ? _scroll.offset.clamp(0.0, 600.0) : 0.0;
+      if (o != _offset) setState(() => _offset = o);
+    });
+  }
+
+  @override
+  void dispose() {
+    if (widget.controller == null) _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final c = context.ui;
     final top = MediaQuery.paddingOf(context).top;
+    final images = widget.images, colors = widget.colors;
     final hasPhoto = images.isNotEmpty;
+    final heroH = hasPhoto ? detailHeroHeight : top + 230;
     return Scaffold(
       backgroundColor: c.screen,
       body: Stack(fit: StackFit.expand, children: [
         ListView(
-          controller: controller,
+          controller: _scroll,
           padding: EdgeInsets.zero,
           children: [
-            Container(
-              height: hasPhoto ? detailHeroHeight : top + 230,
-              color: colors.first,
-              child: hasPhoto
-                  ? ImageCarousel(images: images, height: detailHeroHeight)
-                  : Stack(fit: StackFit.expand, children: [
-                      DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: colors))),
-                      const HeaderArt(),
-                    ]),
+            // The hero drifts at half speed as the sheet slides up over it.
+            SizedBox(
+              height: heroH,
+              child: ClipRect(
+                child: Transform.translate(
+                  offset: Offset(0, _offset * 0.5),
+                  child: Container(
+                    height: heroH,
+                    color: colors.first,
+                    child: hasPhoto
+                        ? ImageCarousel(images: images, height: detailHeroHeight)
+                        : Stack(fit: StackFit.expand, children: [
+                            DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: colors))),
+                            const HeaderArt(),
+                          ]),
+                  ),
+                ),
+              ),
             ),
             Transform.translate(
-              offset: const Offset(0, -28),
+              offset: const Offset(0, -32),
               child: Container(
-                padding: EdgeInsets.fromLTRB(18, 20, 18, bottomPadding),
-                decoration: BoxDecoration(color: c.card, borderRadius: const BorderRadius.vertical(top: Radius.circular(28))),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
+                padding: EdgeInsets.fromLTRB(20, 12, 20, widget.bottomPadding),
+                decoration: BoxDecoration(color: c.screen, borderRadius: const BorderRadius.vertical(top: Radius.circular(32))),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Center(child: Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 18), decoration: BoxDecoration(color: c.line, borderRadius: BorderRadius.circular(2)))),
+                  ...widget.children,
+                ]),
               ),
             ),
           ],
         ),
         Positioned(top: top + 8, right: 14, child: const CloseButton()),
-        if (bottom != null) Positioned(left: 16, right: 16, bottom: MediaQuery.paddingOf(context).bottom + 12, child: bottom!),
+        if (widget.bottom != null) Positioned(left: 16, right: 16, bottom: MediaQuery.paddingOf(context).bottom + 12, child: widget.bottom!),
       ]),
     );
   }
@@ -107,11 +145,16 @@ class CloseButton extends StatelessWidget {
   Widget build(BuildContext context) => Tap(
         label: 'Close',
         onTap: () => context.canPop() ? context.pop() : context.go('/'),
-        child: Container(
-          width: 38,
-          height: 38,
-          decoration: const BoxDecoration(color: Color(0x8C0F1F4B), shape: BoxShape.circle),
-          child: const Icon(Icons.close_rounded, color: Colors.white, size: 20),
+        child: ClipOval(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              width: 42,
+              height: 42,
+              decoration: const BoxDecoration(color: Color(0x55000000), shape: BoxShape.circle),
+              child: const Icon(Icons.close_rounded, color: Colors.white, size: 22),
+            ),
+          ),
         ),
       );
 }
@@ -127,7 +170,7 @@ class SheetTitle extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Semantics(header: true, child: Text(title, style: TextStyle(fontFamily: Tokens.serif, color: c.text, fontSize: 25, fontWeight: FontWeight.w700, height: 31 / 25))),
+        Semantics(header: true, child: Text(title, style: TextStyle(fontFamily: Tokens.display, color: c.text, fontSize: 30, fontWeight: FontWeight.w800, height: 35 / 30, letterSpacing: -0.8))),
         if (subtitle != null) Padding(padding: const EdgeInsets.only(top: 3), child: Text(subtitle!, style: TextStyle(color: c.sub, fontSize: 14))),
       ]),
     );
@@ -165,12 +208,12 @@ class ActionPill extends StatelessWidget {
         onTap: onTap,
         label: label,
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-          decoration: BoxDecoration(color: c.tint, borderRadius: BorderRadius.circular(999)),
-          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(icon, size: 17, color: c.link),
-            const SizedBox(width: 8),
-            Flexible(child: Text(label, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, color: c.link))),
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+          decoration: BoxDecoration(color: c.tint, borderRadius: BorderRadius.circular(20)),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 22, color: c.link),
+            const SizedBox(height: 6),
+            Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: c.link)),
           ]),
         ),
       ),
@@ -184,7 +227,7 @@ class SectionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(top: 24, bottom: 10),
-        child: Semantics(header: true, child: Text(text, style: TextStyle(fontFamily: Tokens.serif, fontSize: 16.5, fontWeight: FontWeight.w800, color: context.ui.text))),
+        child: Semantics(header: true, child: Text(text, style: TextStyle(fontFamily: Tokens.display, fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.4, color: context.ui.text))),
       );
 }
 

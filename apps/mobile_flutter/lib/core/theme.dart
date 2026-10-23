@@ -1,23 +1,25 @@
+import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 
-/// Design tokens ported from the React Native app (lib/theme.ts + lib/ui.ts).
+/// Design tokens: a fresh, contemporary system: a confident sans, clean surfaces, one forest-green brand colour and a warm amber accent.
 class Tokens {
-  static const brand = Color(0xFF2F5B43);
-  static const brandDark = Color(0xFF1F3D2D);
-  static const accent = Color(0xFF8A1F31);
-  static const gold = Color(0xFFB8893A);
-  static const ok = Color(0xFF2E7D4F);
-  static const warn = Color(0xFFB9791A);
-  static const danger = Color(0xFFA3261E);
-  static const full = Color(0xFF6B4A8A);
+  static const brand = Color(0xFF1F6B49);
+  static const brandDark = Color(0xFF0F3B2A);
+  static const accent = Color(0xFFE2862B);
+  static const gold = Color(0xFFC8963E);
+  static const ok = Color(0xFF1F8A5B);
+  static const warn = Color(0xFFD98A12);
+  static const danger = Color(0xFFD1382E);
+  static const full = Color(0xFF7B5BC4);
 
-  static const bandFrom = Color(0xFF1D3A2B);
-  static const bandTo = Color(0xFF376348);
+  static const bandFrom = Color(0xFF0F3B2A);
+  static const bandTo = Color(0xFF1F6B49);
 
-  static const radiusCard = 16.0;
-  static const radiusField = 12.0;
+  static const radiusCard = 22.0;
+  static const radiusField = 14.0;
 
-  static const serif = 'Lora';
+  /// The one typeface: headings are just heavier weights of it.
+  static const display = 'Jakarta';
 }
 
 /// Colours for one screen theme; screens read these instead of keeping a palette of their own.
@@ -40,26 +42,26 @@ class UIColors {
   });
 
   static const _light = (
-    screen: Color(0xFFF3EAD9),
-    card: Color(0xFFFBF6EC),
-    soft: Color(0xFFEBDFC6),
-    text: Color(0xFF2B2118),
-    sub: Color(0xFF6D5C49),
-    line: Color(0xFFDCCDAE),
-    placeholder: Color(0xFFA2917A),
-    tint: Color(0xFFE6E1C8),
-    tabBar: Color(0xFFFBF6EC),
+    screen: Color(0xFFF5F6F2),
+    card: Color(0xFFFFFFFF),
+    soft: Color(0xFFECEFE9),
+    text: Color(0xFF101A15),
+    sub: Color(0xFF5B6A61),
+    line: Color(0xFFE3E7E1),
+    placeholder: Color(0xFF96A39B),
+    tint: Color(0xFFE3F0E8),
+    tabBar: Color(0xFFFFFFFF),
   );
   static const _dark = (
-    screen: Color(0xFF15120E),
-    card: Color(0xFF201B15),
-    soft: Color(0xFF2B241C),
-    text: Color(0xFFF2E8D3),
-    sub: Color(0xFFB9AA90),
-    line: Color(0xFF3A3126),
-    placeholder: Color(0xFF7D705C),
-    tint: Color(0xFF2A3A2E),
-    tabBar: Color(0xFF1B1712),
+    screen: Color(0xFF0C1210),
+    card: Color(0xFF151D19),
+    soft: Color(0xFF1C2621),
+    text: Color(0xFFEDF3EF),
+    sub: Color(0xFF98AAA0),
+    line: Color(0xFF243029),
+    placeholder: Color(0xFF66766D),
+    tint: Color(0xFF1B2D24),
+    tabBar: Color(0xFF151D19),
   );
 
   factory UIColors.of(bool dark, {Color primary = Tokens.brand, Color accent = Tokens.accent}) {
@@ -101,10 +103,15 @@ ThemeData buildTheme(bool dark, {Color primary = Tokens.brand, Color accent = To
   final base = ThemeData(
     brightness: dark ? Brightness.dark : Brightness.light,
     useMaterial3: true,
+    fontFamily: Tokens.display,
     scaffoldBackgroundColor: c.screen,
     colorScheme: ColorScheme.fromSeed(seedColor: primary, brightness: dark ? Brightness.dark : Brightness.light)
         .copyWith(primary: c.link, surface: c.card),
     splashFactory: InkSparkle.splashFactory,
+    pageTransitionsTheme: const PageTransitionsTheme(builders: {
+      TargetPlatform.android: GlideUpTransitions(),
+      TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+    }),
   );
   return base.copyWith(
     textTheme: base.textTheme.apply(bodyColor: c.text, displayColor: c.text),
@@ -112,22 +119,22 @@ ThemeData buildTheme(bool dark, {Color primary = Tokens.brand, Color accent = To
   );
 }
 
-/// Soft, wide shadows: the cards float rather than outline.
+/// Soft, low shadows: cards sit just above the page rather than floating high over it.
 List<BoxShadow> softShadow(bool dark, {int level = 1, bool up = false}) {
-  final lift = level == 2 ? 10.0 : 6.0;
+  final lift = level == 2 ? 12.0 : 6.0;
   return [
     BoxShadow(
-      color: (dark ? Colors.black : const Color(0xFF3B2A14)).withValues(alpha: dark ? 0.4 : (level == 2 ? 0.14 : 0.08)),
-      blurRadius: level == 2 ? 22 : 14,
+      color: (dark ? Colors.black : const Color(0xFF101A15)).withValues(alpha: dark ? 0.45 : (level == 2 ? 0.14 : 0.06)),
+      blurRadius: level == 2 ? 32 : 20,
       offset: Offset(0, up ? -lift : lift),
     ),
   ];
 }
 
 const featureGradient = {
-  'restaurants': [Color(0xFF6E1423), Color(0xFFA8452D)],
-  'tickets': [Color(0xFF2A2118), Color(0xFF5A4630)],
-  'programme': [Color(0xFF7A5A1E), Color(0xFFC2923F)],
+  'restaurants': [Color(0xFFB03A2E), Color(0xFFE5793A)],
+  'tickets': [Color(0xFF0F2A21), Color(0xFF2F5C46)],
+  'programme': [Color(0xFFB4650F), Color(0xFFF0A744)],
 };
 
 const categoryColor = {
@@ -147,3 +154,22 @@ const statusColor = {
   'FULL': Tokens.full,
   'FINISHED': Color(0xFF6D5C49),
 };
+
+/// Screens rise a little and fade in as they open, and sink and fade as they close: quicker and softer than a hard slide.
+class GlideUpTransitions extends PageTransitionsBuilder {
+  const GlideUpTransitions();
+
+  @override
+  Widget buildTransitions<T>(PageRoute<T> route, BuildContext context, Animation<double> animation, Animation<double> secondaryAnimation, Widget child) {
+    final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
+    final behind = CurvedAnimation(parent: secondaryAnimation, curve: Curves.easeOutCubic);
+    return FadeTransition(
+      opacity: curved,
+      child: SlideTransition(
+        position: Tween(begin: const Offset(0, 0.05), end: Offset.zero).animate(curved),
+        // the screen being covered recedes slightly
+        child: ScaleTransition(scale: Tween(begin: 1.0, end: 0.97).animate(behind), child: child),
+      ),
+    );
+  }
+}

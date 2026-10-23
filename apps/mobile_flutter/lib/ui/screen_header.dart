@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../core/theme.dart';
-import 'header_art.dart';
 import 'managed_image.dart';
 import 'tap.dart';
 
@@ -39,7 +38,7 @@ class ScreenHeader extends StatelessWidget {
     return Column(
       children: [
         ClipRRect(
-          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(32)),
+          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(36)),
           child: Stack(
             children: [
               Positioned.fill(
@@ -52,7 +51,7 @@ class ScreenHeader extends StatelessWidget {
                 // a light veil keeps the title readable whatever the picture is
                 const Positioned.fill(child: ColoredBox(color: Color(0x52000000))),
               ] else
-                const HeaderArt(),
+                const _SoftShapes(),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -60,16 +59,14 @@ class ScreenHeader extends StatelessWidget {
                     padding: EdgeInsets.fromLTRB(20, MediaQuery.paddingOf(context).top + 8, 20, 0),
                     child: Row(
                       children: [
-                        SizedBox(
-                          width: 44,
-                          height: 44,
-                          child: Tap(
-                            onTap: onMenu ?? (back ? () => _back(context) : () => context.push('/menu')),
-                            label: back ? 'Go back' : 'Open menu',
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: Icon(back ? Icons.arrow_back_rounded : Icons.menu_rounded, color: Colors.white, size: 26),
-                            ),
+                        Tap(
+                          onTap: onMenu ?? (back ? () => _back(context) : () => context.push('/menu')),
+                          label: back ? 'Go back' : 'Open menu',
+                          child: Container(
+                            width: 44,
+                            height: 44,
+                            decoration: const BoxDecoration(color: Color(0x2EFFFFFF), shape: BoxShape.circle),
+                            child: Icon(back ? Icons.arrow_back_rounded : Icons.menu_rounded, color: Colors.white, size: 24),
                           ),
                         ),
                         const Spacer(),
@@ -78,7 +75,7 @@ class ScreenHeader extends StatelessWidget {
                     ),
                   ),
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(22, 4, 22, 50),
+                    padding: const EdgeInsets.fromLTRB(22, 14, 22, 34),
                     child: SizedBox(
                       width: double.infinity,
                       child: Column(
@@ -91,19 +88,19 @@ class ScreenHeader extends StatelessWidget {
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                fontFamily: Tokens.serif,
+                                fontFamily: Tokens.display,
                                 color: Colors.white,
-                                fontSize: 28,
-                                fontWeight: FontWeight.w700,
-                                height: 33 / 28,
-                                shadows: [Shadow(color: Color(0x40000000), blurRadius: 6, offset: Offset(0, 1))],
+                                fontSize: 32,
+                                fontWeight: FontWeight.w800,
+                                height: 36 / 32,
+                                letterSpacing: -0.8,
                               ),
                             ),
                           ),
                           if (subtitle != null)
                             Padding(
                               padding: const EdgeInsets.only(top: 4),
-                              child: Text(subtitle!, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xDBFFFFFF), fontSize: 14.5, height: 20 / 14.5)),
+                              child: Text(subtitle!, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xCCFFFFFF), fontSize: 15, fontWeight: FontWeight.w500, height: 21 / 15)),
                             ),
                         ],
                       ),
@@ -126,4 +123,25 @@ class ScreenHeader extends StatelessWidget {
       context.go('/');
     }
   }
+}
+
+/// Quiet, overlapping circles of light behind the title: depth without a picture.
+class _SoftShapes extends StatelessWidget {
+  const _SoftShapes();
+  @override
+  Widget build(BuildContext context) => const Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _ShapesPainter())));
+}
+
+class _ShapesPainter extends CustomPainter {
+  const _ShapesPainter();
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width, h = size.height;
+    canvas.drawCircle(Offset(w * 0.92, h * 0.12), h * 0.62, Paint()..color = Colors.white.withValues(alpha: 0.07));
+    canvas.drawCircle(Offset(w * 0.78, h * 0.95), h * 0.42, Paint()..color = Colors.white.withValues(alpha: 0.05));
+    canvas.drawCircle(Offset(w * 0.02, h * 1.05), h * 0.5, Paint()..color = Colors.black.withValues(alpha: 0.08));
+  }
+
+  @override
+  bool shouldRepaint(_ShapesPainter old) => false;
 }

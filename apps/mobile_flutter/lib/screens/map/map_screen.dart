@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../../app/shell.dart' show navClearance;
 import '../../core/favorites.dart';
 import '../../core/format.dart';
 import '../../core/location.dart';
@@ -735,9 +736,9 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             top: top + 150,
             right: 16,
             child: Column(children: [
-              roundBtn(Text('＋', style: TextStyle(fontFamily: Tokens.serif, fontSize: 17.5, fontWeight: FontWeight.w700, color: c.text)), 'Zoom in', () => zoomBy(_scale + 0.4)),
+              roundBtn(Text('＋', style: TextStyle(fontFamily: Tokens.display, fontSize: 17.5, fontWeight: FontWeight.w700, color: c.text)), 'Zoom in', () => zoomBy(_scale + 0.4)),
               const SizedBox(height: 10),
-              roundBtn(Text('－', style: TextStyle(fontFamily: Tokens.serif, fontSize: 17.5, fontWeight: FontWeight.w700, color: c.text)), 'Zoom out', () => zoomBy(_scale - 0.4)),
+              roundBtn(Text('－', style: TextStyle(fontFamily: Tokens.display, fontSize: 17.5, fontWeight: FontWeight.w700, color: c.text)), 'Zoom out', () => zoomBy(_scale - 0.4)),
               const SizedBox(height: 10),
               roundBtn(Icon(Icons.map_outlined, color: c.link, size: 20), 'Show the whole park', () => _setView(1, 0, 0)),
               const SizedBox(height: 10),
@@ -764,7 +765,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           if (_selected != null && selectedDist != null)
             Positioned(
               left: 14,
-              bottom: 74,
+              bottom: navClearance + 38,
               child: IgnorePointer(
                 child: Container(padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 16), decoration: BoxDecoration(color: c.card, borderRadius: BorderRadius.circular(999), boxShadow: const [BoxShadow(color: Color(0x2E000000), blurRadius: 5, offset: Offset(0, 2))]), child: Text('🚶 ${walkMins(selectedDist)} min walk', style: TextStyle(color: c.text, fontWeight: FontWeight.w800, fontSize: 13))),
               ),
@@ -773,7 +774,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           Positioned(
             left: 0,
             right: 0,
-            bottom: 12,
+            bottom: navClearance - 16,
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 12),

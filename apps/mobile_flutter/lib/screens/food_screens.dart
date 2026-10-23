@@ -8,6 +8,7 @@ import '../core/theme.dart';
 import '../ui/controls.dart';
 import '../ui/restaurant_card.dart';
 import '../ui/reveal.dart';
+import '../ui/skeleton.dart';
 import '../ui/screen.dart';
 import '../ui/tap.dart';
 
@@ -20,7 +21,9 @@ const _slots = [
 class _RestaurantList extends StatelessWidget {
   final List restaurants;
   final String emptyText;
-  const _RestaurantList({required this.restaurants, required this.emptyText});
+  /// The park data has not arrived yet, so an empty list means "still loading", not "nothing here".
+  final bool loading;
+  const _RestaurantList({required this.restaurants, required this.emptyText, this.loading = false});
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +31,8 @@ class _RestaurantList extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
       child: Column(children: [
-        if (restaurants.isEmpty) Padding(padding: const EdgeInsets.only(top: 20), child: Text(emptyText, style: TextStyle(color: context.ui.sub))),
+        if (restaurants.isEmpty && loading) const Column(children: [SkeletonCard(imageHeight: 176), SizedBox(height: 20), SkeletonCard(imageHeight: 176)])
+        else if (restaurants.isEmpty) Padding(padding: const EdgeInsets.only(top: 20), child: Text(emptyText, style: TextStyle(color: context.ui.sub))),
         for (var i = 0; i < restaurants.length; i++)
           Padding(
             padding: const EdgeInsets.only(bottom: 16),
@@ -95,7 +99,7 @@ class FoodScreen extends StatelessWidget {
             ),
           ),
         const Padding(padding: EdgeInsets.only(top: 26), child: SectionHeader('Our restaurants')),
-        _RestaurantList(restaurants: restaurants, emptyText: 'Loading restaurants…'),
+        _RestaurantList(restaurants: restaurants, emptyText: 'Nothing to show here yet.', loading: context.watch<SyncState>().bundle == null),
       ],
     );
   }
@@ -123,7 +127,7 @@ class RestaurantsScreen extends StatelessWidget {
       page: 'restaurants',
       padded: false,
       colors: featureGradient['restaurants'],
-      children: [_RestaurantList(restaurants: restaurants, emptyText: all.isEmpty ? 'Loading restaurants…' : 'Nothing to show here yet.')],
+      children: [_RestaurantList(restaurants: restaurants, emptyText: 'Nothing to show here yet.', loading: sync.bundle == null)],
     );
   }
 }

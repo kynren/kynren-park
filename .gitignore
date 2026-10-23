@@ -51,3 +51,7 @@ apps/mobile/android/
 
 # Local-only credentials (Firebase service account etc.): never commit
 /secrets/
+*.jks
+*.keystore
+key.properties
+credentials.json

@@ -43,7 +43,7 @@ class _TicketRow extends StatelessWidget {
         const SizedBox(width: 14),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(ticket.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: Tokens.serif, fontSize: 16, fontWeight: FontWeight.w700, height: 21 / 16, color: c.text)),
+            Text(ticket.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: Tokens.display, fontSize: 16, fontWeight: FontWeight.w700, height: 21 / 16, color: c.text)),
             if (meta.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text(meta, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, height: 18 / 13, color: c.sub))),
           ]),
         ),
@@ -408,7 +408,7 @@ class _FindBookingsScreenState extends State<FindBookingsScreen> {
             keyboardType: TextInputType.number,
             textAlign: TextAlign.center,
             onChanged: (_) => setState(() {}),
-            style: TextStyle(fontFamily: Tokens.serif, fontSize: 23, letterSpacing: 8, fontWeight: FontWeight.w700, color: c.text),
+            style: TextStyle(fontFamily: Tokens.display, fontSize: 23, letterSpacing: 8, fontWeight: FontWeight.w700, color: c.text),
             decoration: InputDecoration(
               counterText: '',
               hintText: '123456',

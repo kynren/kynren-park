@@ -185,7 +185,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   width: 104,
                   height: 104,
                   decoration: BoxDecoration(color: c.primary, shape: BoxShape.circle, image: photo != null ? DecorationImage(image: photo, fit: BoxFit.cover) : null),
-                  child: photo == null ? Center(child: initials.isNotEmpty ? Text(initials, style: const TextStyle(fontFamily: Tokens.serif, color: Colors.white, fontSize: 30, fontWeight: FontWeight.w800)) : const Icon(Icons.person_rounded, color: Colors.white, size: 40)) : null,
+                  child: photo == null ? Center(child: initials.isNotEmpty ? Text(initials, style: const TextStyle(fontFamily: Tokens.display, color: Colors.white, fontSize: 30, fontWeight: FontWeight.w800)) : const Icon(Icons.person_rounded, color: Colors.white, size: 40)) : null,
                 ),
                 Positioned(
                   right: 2,

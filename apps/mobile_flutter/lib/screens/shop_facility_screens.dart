@@ -81,7 +81,7 @@ class _ShopScreenState extends State<ShopScreen> {
                   ]),
                 ),
                 const SizedBox(width: 14),
-                Text(poundsFromCents(it.priceCents), style: TextStyle(fontFamily: Tokens.serif, color: c.text, fontWeight: FontWeight.w700, fontSize: 15)),
+                Text(poundsFromCents(it.priceCents), style: TextStyle(fontFamily: Tokens.display, color: c.text, fontWeight: FontWeight.w700, fontSize: 15)),
               ]),
             ),
       ],

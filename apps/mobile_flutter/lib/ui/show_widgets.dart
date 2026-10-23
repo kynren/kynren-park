@@ -97,7 +97,7 @@ class ShowCard extends StatelessWidget {
               ],
             ]),
             const SizedBox(height: 5),
-            Text(session.attractionName, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: Tokens.serif, fontSize: 15.5, fontWeight: FontWeight.w700, height: 20 / 15.5, color: c.text)),
+            Text(session.attractionName, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: Tokens.display, fontSize: 15.5, fontWeight: FontWeight.w700, height: 20 / 15.5, color: c.text)),
           ],
         ),
       ),

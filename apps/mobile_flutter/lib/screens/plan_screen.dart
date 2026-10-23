@@ -96,7 +96,7 @@ class _PlanScreenState extends State<PlanScreen> {
 
     Widget summaryCell(String n, String label, {bool small = false}) => Expanded(
           child: Column(children: [
-            Text(n, style: TextStyle(fontFamily: Tokens.serif, fontSize: small ? 14 : 16.5, fontWeight: FontWeight.w800, color: c.link)),
+            Text(n, style: TextStyle(fontFamily: Tokens.display, fontSize: small ? 14 : 16.5, fontWeight: FontWeight.w800, color: c.link)),
             const SizedBox(height: 2),
             Text(label.toUpperCase(), style: TextStyle(fontSize: 11, letterSpacing: 0.4, color: c.sub)),
           ]),
@@ -158,7 +158,7 @@ class _PlanScreenState extends State<PlanScreen> {
           Padding(
             padding: const EdgeInsets.only(top: 10),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Padding(padding: const EdgeInsets.only(bottom: 12), child: Text('Your day, planned', style: TextStyle(fontFamily: Tokens.serif, fontSize: 16.5, fontWeight: FontWeight.w800, color: c.text))),
+              Padding(padding: const EdgeInsets.only(bottom: 12), child: Text('Your day, planned', style: TextStyle(fontFamily: Tokens.display, fontSize: 16.5, fontWeight: FontWeight.w800, color: c.text))),
               if (summaryWindow != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 18),

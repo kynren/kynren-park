@@ -128,7 +128,7 @@ class _SearchScreenState extends State<SearchScreen> {
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Cover(image: t.image, color: _kindColor[t.kind]!, icon: _kindIcon[t.kind]!, height: 112, radius: 18),
                       const SizedBox(height: 8),
-                      Text(_tileTitle[t.kind]!, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: Tokens.serif, fontSize: 16.5, fontWeight: FontWeight.w700, color: c.text)),
+                      Text(_tileTitle[t.kind]!, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: Tokens.display, fontSize: 16.5, fontWeight: FontWeight.w700, color: c.text)),
                       Text('${t.count} ${t.count == 1 ? 'place' : 'places'}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c.sub)),
                     ]),
                   ),

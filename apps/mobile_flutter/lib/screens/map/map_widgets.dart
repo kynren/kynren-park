@@ -257,7 +257,7 @@ class Callout extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.fromLTRB(14, 8, 30, 8),
                 child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(pin.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: Tokens.serif, fontWeight: FontWeight.w700, fontSize: 14.5, height: 18 / 14.5, color: ink)),
+                  Text(pin.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: Tokens.display, fontWeight: FontWeight.w700, fontSize: 14.5, height: 18 / 14.5, color: ink)),
                   Padding(padding: const EdgeInsets.only(top: 2), child: Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, height: 16 / 12, color: muted))),
                   Padding(padding: const EdgeInsets.only(top: 6), child: Text(pin.kind == PinKind.restaurant ? 'See the menu' : 'More information', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, decoration: TextDecoration.underline, color: ink))),
                 ]),

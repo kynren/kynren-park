@@ -65,7 +65,7 @@ class _ScanScreenState extends State<ScanScreen> {
           errorBuilder: (context, error) => Padding(
             padding: const EdgeInsets.all(28),
             child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              const Text('Scan Kynren codes', style: TextStyle(fontFamily: Tokens.serif, color: Colors.white, fontSize: 19.5, fontWeight: FontWeight.w800)),
+              const Text('Scan Kynren codes', style: TextStyle(fontFamily: Tokens.display, color: Colors.white, fontSize: 19.5, fontWeight: FontWeight.w800)),
               const SizedBox(height: 10),
               const Text('Allow camera access to scan a code — a spot on the map, or a menu item or product.', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFFCFCFCF), fontSize: 15, height: 21 / 15)),
               const SizedBox(height: 26),

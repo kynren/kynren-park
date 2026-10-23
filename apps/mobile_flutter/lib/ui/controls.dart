@@ -19,6 +19,7 @@ class KCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: color ?? c.card,
         borderRadius: BorderRadius.circular(Tokens.radiusCard),
+        border: Border.all(color: c.line.withValues(alpha: context.isDark ? 0.8 : 0.6)),
         boxShadow: softShadow(context.isDark),
       ),
       child: child,
@@ -67,7 +68,7 @@ class SectionHeader extends StatelessWidget {
           Expanded(
             child: Semantics(
               header: true,
-              child: Text(title, style: TextStyle(fontFamily: Tokens.serif, fontSize: 16.5, fontWeight: FontWeight.w800, color: c.text)),
+              child: Text(title, style: TextStyle(fontFamily: Tokens.display, fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.4, color: c.text)),
             ),
           ),
           ?trailing,
@@ -111,7 +112,7 @@ class KButton extends StatelessWidget {
       opacity: disabled ? 0.5 : 1,
       child: Container(
         padding: EdgeInsets.symmetric(vertical: small ? 9 : 14, horizontal: small ? 18 : 26),
-        decoration: BoxDecoration(color: solid ? c.primary : c.tint, borderRadius: BorderRadius.circular(14)),
+        decoration: BoxDecoration(color: solid ? c.primary : c.tint, borderRadius: BorderRadius.circular(999)),
         child: Row(
           mainAxisSize: full ? MainAxisSize.max : MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,

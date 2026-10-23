@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'header_art.dart';
 import 'kimage.dart';
+import 'skeleton.dart';
 
 /// Mix a colour with black (amount < 0) or white (amount > 0).
 Color shade(Color c, double amount) => amount < 0 ? Color.lerp(c, Colors.black, -amount)! : Color.lerp(c, Colors.white, amount)!;
@@ -55,7 +56,7 @@ class Cover extends StatelessWidget {
                 child: KImage(image!, cacheWidth: 120),
               ),
               const ColoredBox(color: Color(0x47000000)),
-              KImage(image!, fit: BoxFit.contain, cacheWidth: 900),
+              KImage(image!, fit: BoxFit.contain, cacheWidth: 900, placeholder: (_) => const Skeleton(radius: 0)),
             ] else ...[
               DecoratedBox(
                 decoration: BoxDecoration(

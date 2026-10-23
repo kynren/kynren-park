@@ -119,7 +119,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: photo == null ? Stack(alignment: Alignment.center, children: [const ManagedImage(slot: 'profile.avatar'), Icon(Icons.person_rounded, color: c.link, size: 38)]) : null,
             ),
             const SizedBox(height: 10),
-            Text('Hello${displayName.isNotEmpty ? ', $displayName' : ''}', textAlign: TextAlign.center, style: TextStyle(fontFamily: Tokens.serif, fontSize: 19.5, fontWeight: FontWeight.w800, color: c.text)),
+            Text('Hello${displayName.isNotEmpty ? ', $displayName' : ''}', textAlign: TextAlign.center, style: TextStyle(fontFamily: Tokens.display, fontSize: 19.5, fontWeight: FontWeight.w800, color: c.text)),
             const SizedBox(height: 2),
             Text(bundle?.branding?.appName ?? 'Kynren – The Storied Lands', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: c.sub)),
           ])
@@ -131,7 +131,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Padding(padding: const EdgeInsets.only(bottom: 14), child: KImage(bundle!.branding!.logoUrl!, height: 34, width: 150, fit: BoxFit.contain, alignment: Alignment.centerLeft))
               else
                 Padding(padding: const EdgeInsets.only(bottom: 14), child: Text((bundle?.branding?.appName ?? 'Kynren').toUpperCase(), style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: 3, color: c.link))),
-              Text('Your adventure starts here', style: TextStyle(fontFamily: Tokens.serif, fontSize: 23, fontWeight: FontWeight.w800, height: 27 / 23, color: c.text)),
+              Text('Your adventure starts here', style: TextStyle(fontFamily: Tokens.display, fontSize: 23, fontWeight: FontWeight.w800, height: 27 / 23, color: c.text)),
               Padding(padding: const EdgeInsets.only(top: 8, bottom: 10), child: Text('Create a free account to:', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: c.sub))),
               check('Hold your tickets in the app'),
               const SizedBox(height: 10),

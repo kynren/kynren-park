@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
+import '../app/shell.dart' show navClearance;
 import '../core/api.dart';
 import '../core/auth.dart';
 import '../core/favorites.dart';
@@ -17,6 +18,7 @@ import '../ui/hero_art.dart';
 import '../ui/kimage.dart';
 import '../ui/managed_image.dart';
 import '../ui/reveal.dart';
+import '../ui/skeleton.dart';
 import '../ui/screen.dart';
 import '../ui/show_widgets.dart';
 import '../ui/tap.dart';
@@ -116,7 +118,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final order = saved != null
         ? [...saved.where((s) => s.visible).map((s) => s.key), ..._newSections.where((k) => !saved.any((s) => s.key == k))]
         : _defaultSections;
-
+    // Quick actions sit right under the search, and the next show right after the welcome, whatever layout admin saved.
+    final fullOrder = ['quick', for (final k in order) ...[k, if (k == 'welcome') 'nextUp']];
+    if (!order.contains('welcome')) fullOrder.insert(1, 'nextUp');
     // Pictures for the promo cards come from the park's own content, so they stay current.
     String? firstImage(Iterable<String?> xs) => xs.firstWhere((x) => x != null && x.isNotEmpty, orElse: () => null);
     final showImage = firstImage((bundle?.attractions ?? []).where((a) => a.category == 'EVENING_SHOW').map((a) => a.heroImage));
@@ -145,11 +149,75 @@ class _HomeScreenState extends State<HomeScreen> {
 
     Widget? section(String key) {
       switch (key) {
+        case 'quick':
+          const actions = [
+            (label: 'Tickets', icon: Icons.confirmation_number_rounded, to: '/tickets', tab: false),
+            (label: 'Map', icon: Icons.map_rounded, to: '/map', tab: true),
+            (label: 'Eat', icon: Icons.restaurant_rounded, to: '/food', tab: true),
+            (label: 'My day', icon: Icons.event_available_rounded, to: '/plan', tab: false),
+            (label: 'Shuttle', icon: Icons.directions_bus_rounded, to: '/shuttle', tab: false),
+            (label: 'Access', icon: Icons.accessible_rounded, to: '/accessibility', tab: false),
+          ];
+          return Padding(
+            padding: EdgeInsets.zero,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(children: [
+                for (final a in actions)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 18),
+                    child: Tap(
+                      onTap: () => a.tab ? context.go(a.to) : go(a.to),
+                      label: a.label,
+                      child: SizedBox(
+                        width: 64,
+                        child: Column(children: [
+                          Container(width: 58, height: 58, decoration: BoxDecoration(color: c.tint, borderRadius: BorderRadius.circular(20)), child: Icon(a.icon, color: c.link, size: 26)),
+                          const SizedBox(height: 8),
+                          Text(a.label, maxLines: 1, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c.text)),
+                        ]),
+                      ),
+                    ),
+                  ),
+              ]),
+            ),
+          );
+        case 'nextUp':
+          if (upcoming.isEmpty) return null;
+          final next = upcoming.first;
+          final startsIn = _start(next).difference(ukNow()).inMinutes;
+          final when = startsIn <= 0 ? 'On now' : startsIn < 60 ? 'In $startsIn min' : 'In ${startsIn ~/ 60}h ${(startsIn % 60).toString().padLeft(2, '0')}m';
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 0),
+            child: KCard(
+              onTap: () => go('/attraction/${next.attractionSlug}'),
+              padding: const EdgeInsets.all(12),
+              child: Row(children: [
+                Cover(image: imageById[next.attractionId], color: categoryColor[next.attractionCategory] ?? Tokens.brand, icon: Icons.calendar_month_rounded, height: 84, width: 84, radius: 18),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      Container(width: 8, height: 8, decoration: BoxDecoration(color: startsIn <= 0 ? Tokens.danger : Tokens.ok, shape: BoxShape.circle)),
+                      const SizedBox(width: 6),
+                      Text(startsIn <= 0 ? 'HAPPENING NOW' : 'NEXT UP', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1, color: c.sub)),
+                    ]),
+                    const SizedBox(height: 4),
+                    Text(next.attractionName, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, height: 1.2, letterSpacing: -0.2, color: c.text)),
+                    const SizedBox(height: 6),
+                    Text('${fmtTime(next.revisedStart ?? next.startTime)}  ·  $when', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: c.link)),
+                  ]),
+                ),
+                Icon(Icons.chevron_right_rounded, color: c.placeholder, size: 22),
+              ]),
+            ),
+          );
         case 'welcome':
           return Padding(
             padding: const EdgeInsets.fromLTRB(22, 24, 22, 0),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(greeting, style: TextStyle(fontFamily: Tokens.serif, fontSize: 21, fontWeight: FontWeight.w800, color: c.text)),
+              Text(greeting, style: TextStyle(fontFamily: Tokens.display, fontSize: 21, fontWeight: FontWeight.w800, color: c.text)),
               const SizedBox(height: 6),
               Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Padding(
@@ -206,7 +274,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Cover(image: image, color: color, icon: icon, height: 112, radius: 18),
                   const SizedBox(height: 8),
-                  Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: Tokens.serif, fontSize: 15, fontWeight: FontWeight.w700, color: c.text)),
+                  Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: Tokens.display, fontSize: 15, fontWeight: FontWeight.w700, color: c.text)),
                   const SizedBox(height: 1),
                   Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: c.sub)),
                 ]),
@@ -302,7 +370,7 @@ class _HomeScreenState extends State<HomeScreen> {
               SectionHeader('Coming up', action: 'See All', onAction: () => go('/shows'), trailing: ViewToggle(view: prefs.views[HomeList.comingUp]!, onChange: (v) => prefs.setView(HomeList.comingUp, v))),
               const SizedBox(height: 12),
               if (bundle == null)
-                const Padding(padding: EdgeInsets.symmetric(horizontal: 20), child: LinearProgressIndicator(minHeight: 2))
+                const Padding(padding: EdgeInsets.symmetric(horizontal: 20), child: Column(children: [SkeletonRow(), SkeletonRow(), SkeletonRow()]))
               else if (upcoming.isEmpty)
                 Padding(padding: const EdgeInsets.symmetric(horizontal: 20), child: Text('No more shows today.', style: TextStyle(color: c.sub, fontSize: 13)))
               else
@@ -338,7 +406,7 @@ class _HomeScreenState extends State<HomeScreen> {
               onRefresh: sync.refresh,
               child: ListView(
                 controller: _scroll,
-                padding: const EdgeInsets.only(bottom: 40),
+                padding: const EdgeInsets.only(bottom: navClearance),
                 children: [
                   // The sky band: admin media (image / GIF / video) or the built-in illustration, under the menu bar
                   SizedBox(
@@ -357,14 +425,15 @@ class _HomeScreenState extends State<HomeScreen> {
                           left: 22,
                           right: 22,
                           bottom: 46,
-                          child: Text(tagline, style: const TextStyle(fontFamily: Tokens.serif, color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800, height: 32 / 28, shadows: [Shadow(color: Color(0x59000000), blurRadius: 8)])),
+                          child: Text(tagline, style: const TextStyle(fontFamily: Tokens.display, color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800, height: 32 / 28, shadows: [Shadow(color: Color(0x59000000), blurRadius: 8)])),
                         ),
                       ]),
                     ),
                   ),
-                  Padding(padding: const EdgeInsets.fromLTRB(20, 18, 20, 0), child: SearchPill(placeholder: 'Find everything here', onTap: () => context.go('/search'))),
-                  for (var i = 0; i < order.length; i++) ...[
-                    if (section(order[i]) case final w?) Reveal(index: i, child: w),
+                  // The search floats over the foot of the hero.
+                  Transform.translate(offset: const Offset(0, -28), child: Padding(padding: const EdgeInsets.symmetric(horizontal: 20), child: SearchPill(placeholder: 'Find everything here', onTap: () => context.go('/search')))),
+                  for (var i = 0; i < fullOrder.length; i++) ...[
+                    if (section(fullOrder[i]) case final w?) Reveal(index: i, child: w),
                   ],
                 ],
               ),
@@ -507,7 +576,7 @@ class _PromoCard extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: TextStyle(fontFamily: Tokens.serif, fontSize: 19, fontWeight: FontWeight.w700, color: c.text)),
+              Text(title, style: TextStyle(fontFamily: Tokens.display, fontSize: 19, fontWeight: FontWeight.w700, color: c.text)),
               const SizedBox(height: 3),
               Text(text, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13.5, height: 19 / 13.5, color: c.sub)),
               const SizedBox(height: 12),
