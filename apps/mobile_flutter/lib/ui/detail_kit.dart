@@ -5,6 +5,7 @@ import '../core/theme.dart';
 import 'header_art.dart';
 import 'kimage.dart';
 import 'tap.dart';
+import 'top_bar.dart';
 
 // Shared visual language for the show / restaurant / shop / facility detail pages: a full-bleed photo
 // (or the feature's own gradient when there is none) with a rounded sheet rising over it.
@@ -53,15 +54,17 @@ class _ImageCarouselState extends State<ImageCarousel> {
   }
 }
 
-/// The frame of a detail page: the hero, a sheet over it holding [children], a close button, and an optional bottom bar.
+/// The frame of a detail page: the hero, a sheet over it holding [children], the shared top bar (back, the [title] once
+/// you scroll, the bell), and an optional bottom bar.
 class DetailPage extends StatefulWidget {
   final List<String> images;
   final List<Color> colors;
+  final String title;
   final List<Widget> children;
   final Widget? bottom;
   final double bottomPadding;
   final ScrollController? controller;
-  const DetailPage({super.key, required this.images, required this.colors, required this.children, this.bottom, this.bottomPadding = 40, this.controller});
+  const DetailPage({super.key, required this.images, required this.colors, this.title = '', required this.children, this.bottom, this.bottomPadding = 40, this.controller});
 
   @override
   State<DetailPage> createState() => _DetailPageState();
@@ -132,7 +135,8 @@ class _DetailPageState extends State<DetailPage> {
             ),
           ],
         ),
-        Positioned(top: top + 8, right: 14, child: const CloseButton()),
+        // the hero is tall, so the bar only turns solid once the sheet has covered most of it
+        KTopBar(title: widget.title, offset: _offset + 140 - (heroH - top - 80), back: true),
         if (widget.bottom != null) Positioned(left: 16, right: 16, bottom: MediaQuery.paddingOf(context).bottom + 12, child: widget.bottom!),
       ]),
     );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../core/sync.dart';
 import '../core/theme.dart';
 import '../ui/controls.dart';
@@ -18,6 +19,7 @@ class _Result {
   _Result(this.key, this.kind, this.title, this.subtitle, this.image, this.to, this.haystack);
 }
 
+const _recentKey = 'kynren_recent_searches';
 const _filters = <(String, String)>[('all', 'All'), ('show', 'Shows'), ('food', 'Food'), ('shop', 'Shops'), ('facility', 'Facilities')];
 const _kindIcon = {Kind.show: Icons.calendar_month_rounded, Kind.food: Icons.restaurant_rounded, Kind.shop: Icons.storefront_rounded, Kind.facility: Icons.place_rounded};
 const _tileTitle = {Kind.show: 'Shows', Kind.food: 'Food & drink', Kind.shop: 'Shops', Kind.facility: 'Facilities'};
@@ -46,6 +48,28 @@ class _SearchScreenState extends State<SearchScreen> {
   final _controller = TextEditingController();
   String _query = '';
   String? _chosen;
+  List<String> _recent = [];
+
+  @override
+  void initState() {
+    super.initState();
+    SharedPreferences.getInstance().then((p) {
+      if (mounted) setState(() => _recent = p.getStringList(_recentKey) ?? []);
+    });
+  }
+
+  /// Remember a search the guest acted on: newest first, no repeats, six at most.
+  void _remember(String q) {
+    final t = q.trim();
+    if (t.isEmpty) return;
+    setState(() => _recent = [t, ..._recent.where((r) => r.toLowerCase() != t.toLowerCase())].take(6).toList());
+    SharedPreferences.getInstance().then((p) => p.setStringList(_recentKey, _recent));
+  }
+
+  void _clearRecent() {
+    setState(() => _recent = []);
+    SharedPreferences.getInstance().then((p) => p.remove(_recentKey));
+  }
 
   @override
   void dispose() {
@@ -98,7 +122,7 @@ class _SearchScreenState extends State<SearchScreen> {
       page: 'search',
       back: false,
       padded: false,
-      below: SearchPill(placeholder: 'Find everything here', controller: _controller, onChanged: (t) => setState(() => _query = t)),
+      below: SearchPill(placeholder: 'Find everything here', controller: _controller, onChanged: (t) => setState(() => _query = t), onSubmitted: _remember),
       children: [
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -107,6 +131,20 @@ class _SearchScreenState extends State<SearchScreen> {
             for (final f in _filters) Padding(padding: const EdgeInsets.only(right: 10), child: KChip(f.$2, active: filter == f.$1, onTap: () => setState(() => _chosen = f.$1))),
           ]),
         ),
+        if (browsing && _recent.isNotEmpty) ...[
+          Padding(padding: const EdgeInsets.only(top: 4, bottom: 12), child: SectionHeader('Recent searches', action: 'Clear', onAction: _clearRecent)),
+          Padding(
+            padding: const EdgeInsets.only(left: 20, right: 20, bottom: 10),
+            child: Wrap(spacing: 8, runSpacing: 8, children: [
+              for (final r in _recent)
+                KChip(r, onTap: () {
+                  _controller.text = r;
+                  _controller.selection = TextSelection.collapsed(offset: r.length);
+                  setState(() => _query = r);
+                }),
+            ]),
+          ),
+        ],
         if (browsing) ...[
           const Padding(padding: EdgeInsets.only(top: 4, bottom: 12), child: SectionHeader('Browse the park')),
           Padding(
@@ -187,7 +225,10 @@ class _SearchScreenState extends State<SearchScreen> {
                         child: Reveal(
                           index: i,
                           child: KCard(
-                            onTap: () => context.push(g.items[i].to),
+                            onTap: () {
+                              _remember(_query);
+                              context.push(g.items[i].to);
+                            },
                             padding: const EdgeInsets.all(14),
                             child: Row(children: [
                               Cover(image: g.items[i].image, color: _kindColor[g.items[i].kind]!, icon: _kindIcon[g.items[i].kind]!, height: 64, width: 64, radius: 16),

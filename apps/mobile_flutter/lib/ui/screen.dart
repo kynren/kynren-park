@@ -3,6 +3,7 @@ import '../app/shell.dart' show navClearance;
 import '../core/theme.dart';
 import 'managed_image.dart';
 import 'screen_header.dart';
+import 'top_bar.dart';
 
 /// The picture the admin has set behind a whole page (System → App Images → Page backgrounds),
 /// softened with the page colour so cards and text on top stay easy to read.
@@ -30,7 +31,7 @@ class PageBackdrop extends StatelessWidget {
 
 /// The frame for every screen opened from the menu or a card: the app's header with a back arrow,
 /// then a padded scrolling body. (Home, Search, Map, Restaurants lay out their own headers.)
-class KScreen extends StatelessWidget {
+class KScreen extends StatefulWidget {
   final String title;
   final String? subtitle, page;
   final List<Widget> children;
@@ -59,31 +60,60 @@ class KScreen extends StatelessWidget {
   });
 
   @override
+  State<KScreen> createState() => _KScreenState();
+}
+
+class _KScreenState extends State<KScreen> {
+  final _scroll = ScrollController();
+  double _offset = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(() {
+      final o = _scroll.hasClients ? _scroll.offset.clamp(0.0, 400.0) : 0.0;
+      if (o != _offset) setState(() => _offset = o);
+    });
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final c = context.ui;
+    final w = widget;
     Widget list = ListView(
+      controller: _scroll,
       padding: EdgeInsets.zero,
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       children: [
-        ScreenHeader(title: title, subtitle: subtitle, page: page, colors: colors ?? const [Tokens.bandFrom, Tokens.bandTo], back: back, onMenu: onBack, right: right, below: below),
+        ScreenHeader(title: w.title, subtitle: w.subtitle, page: w.page, colors: w.colors ?? const [Tokens.bandFrom, Tokens.bandTo], below: w.below),
         Padding(
-          padding: padded ? EdgeInsets.fromLTRB(20, 20, 20, back ? 40 : navClearance) : EdgeInsets.only(bottom: back ? 40 : navClearance),
+          padding: w.padded ? EdgeInsets.fromLTRB(20, 20, 20, w.back ? 40 : navClearance) : EdgeInsets.only(bottom: w.back ? 40 : navClearance),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              for (var i = 0; i < children.length; i++) ...[
-                if (i > 0 && padded) const SizedBox(height: 14),
-                children[i],
+              for (var i = 0; i < w.children.length; i++) ...[
+                if (i > 0 && w.padded) const SizedBox(height: 14),
+                w.children[i],
               ],
             ],
           ),
         ),
       ],
     );
-    if (onRefresh != null) list = RefreshIndicator(onRefresh: onRefresh!, child: list);
+    if (w.onRefresh != null) list = RefreshIndicator(onRefresh: w.onRefresh!, edgeOffset: MediaQuery.paddingOf(context).top + 60, child: list);
     return Scaffold(
       backgroundColor: c.screen,
-      body: Stack(fit: StackFit.expand, children: [if (page != null) PageBackdrop(page!), Positioned.fill(child: list)]),
+      body: Stack(fit: StackFit.expand, children: [
+        if (w.page != null) PageBackdrop(w.page!),
+        Positioned.fill(child: list),
+        KTopBar(title: w.title, offset: _offset, back: w.back, onBack: w.onBack, right: w.right, showBell: w.page != 'notifications'),
+      ]),
     );
   }
 }

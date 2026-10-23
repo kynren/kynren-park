@@ -81,6 +81,7 @@ class _RestaurantScreenState extends State<RestaurantScreen> {
     return DetailPage(
       images: images,
       colors: featureGradient['restaurants']!,
+      title: restaurant.name,
       bottomPadding: count > 0 ? 120 : 40,
       bottom: canOrder && count > 0
           ? Tap(

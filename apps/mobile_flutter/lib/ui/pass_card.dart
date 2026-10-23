@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../core/theme.dart';
+import 'header_art.dart';
 
-const _notch = 20.0;
+const _notch = 22.0;
 
-/// A paper ticket: a parchment top with what it is and when, then the QR on white, big enough to scan from a phone held at the gate.
+/// A boarding-pass style ticket: a brand-coloured top with what it is and when, a perforated tear line, then the QR on
+/// white, big enough to scan from a phone held at the gate.
 class PassCard extends StatelessWidget {
   final String title, code;
   final String? subtitle, footer;
@@ -15,39 +17,47 @@ class PassCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.ui;
+    final dark = context.isDark;
+    final gradient = featureGradient['tickets']!;
     return Container(
       clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(color: c.card, borderRadius: BorderRadius.circular(24), boxShadow: softShadow(context.isDark, level: 2)),
+      decoration: BoxDecoration(color: c.card, borderRadius: BorderRadius.circular(28), boxShadow: softShadow(dark, level: 2)),
       child: Column(children: [
-        Container(
-          width: double.infinity,
-          color: c.soft,
-          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('ENTRANCE TICKET', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 2.5, color: c.accent)),
-            const SizedBox(height: 4),
-            Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: Tokens.display, fontSize: 20, fontWeight: FontWeight.w700, color: c.text)),
-            if (subtitle != null && subtitle!.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text(subtitle!, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13.5, color: c.sub))),
-            Container(margin: const EdgeInsets.only(top: 10), width: 44, height: 2, decoration: BoxDecoration(color: c.accent, borderRadius: BorderRadius.circular(1))),
-          ]),
-        ),
+        Stack(children: [
+          Positioned.fill(child: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: gradient)))),
+          const HeaderArt(),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 26),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                const Icon(Icons.confirmation_number_rounded, color: Color(0xCCFFFFFF), size: 16),
+                const SizedBox(width: 8),
+                const Text('ENTRANCE TICKET', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 2, color: Color(0xCCFFFFFF))),
+              ]),
+              const SizedBox(height: 10),
+              Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: Tokens.display, fontSize: 24, fontWeight: FontWeight.w800, height: 1.15, letterSpacing: -0.5, color: Colors.white)),
+              if (subtitle != null && subtitle!.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: Text(subtitle!, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xCCFFFFFF)))),
+            ]),
+          ),
+        ]),
         SizedBox(
           height: _notch,
           child: Stack(alignment: Alignment.center, clipBehavior: Clip.none, children: [
             Positioned(left: -_notch / 2, child: Container(width: _notch, height: _notch, decoration: BoxDecoration(color: c.screen, shape: BoxShape.circle))),
             Positioned(right: -_notch / 2, child: Container(width: _notch, height: _notch, decoration: BoxDecoration(color: c.screen, shape: BoxShape.circle))),
-            Padding(padding: const EdgeInsets.symmetric(horizontal: _notch), child: _Dashes(color: c.line)),
+            Padding(padding: const EdgeInsets.symmetric(horizontal: _notch + 4), child: _Dashes(color: c.line)),
           ]),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(22, 0, 22, 16),
+          padding: const EdgeInsets.fromLTRB(24, 4, 24, 22),
           child: Column(children: [
             Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(Tokens.radiusCard)),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(22), border: Border.all(color: c.line)),
               child: QrImageView(data: code, size: qrSize, padding: EdgeInsets.zero, backgroundColor: Colors.white),
             ),
-            if (footer != null) Padding(padding: const EdgeInsets.only(top: 10), child: Text(footer!, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: c.sub))),
+            if (footer != null) Padding(padding: const EdgeInsets.only(top: 14), child: Text(footer!, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: c.text))),
             ?child,
           ]),
         ),
@@ -62,8 +72,8 @@ class _Dashes extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
         builder: (_, box) {
-          final n = (box.maxWidth / 9).floor();
-          return Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [for (var i = 0; i < n; i++) Container(width: 5, height: 1.5, color: color)]);
+          final n = (box.maxWidth / 11).floor();
+          return Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [for (var i = 0; i < n; i++) Container(width: 6, height: 2, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(1)))]);
         },
       );
 }

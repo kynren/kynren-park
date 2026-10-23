@@ -138,6 +138,7 @@ class SearchPill extends StatelessWidget {
   final ValueChanged<String>? onChanged;
   final VoidCallback? onTap;
   final VoidCallback? onFilter;
+  final ValueChanged<String>? onSubmitted;
   final IconData filterIcon;
   final String filterLabel;
   final bool autofocus;
@@ -148,6 +149,7 @@ class SearchPill extends StatelessWidget {
     this.onChanged,
     this.onTap,
     this.onFilter,
+    this.onSubmitted,
     this.filterIcon = Icons.tune_rounded,
     this.filterLabel = 'Filters',
     this.autofocus = false,
@@ -170,6 +172,7 @@ class SearchPill extends StatelessWidget {
                 : TextField(
                     controller: controller,
                     onChanged: onChanged,
+                    onSubmitted: onSubmitted,
                     autofocus: autofocus,
                     textInputAction: TextInputAction.search,
                     autocorrect: false,

@@ -47,6 +47,7 @@ class _ShopScreenState extends State<ShopScreen> {
     return DetailPage(
       images: images,
       colors: const [Tokens.bandFrom, Tokens.bandTo],
+      title: shop.name,
       children: [
         SheetTitle(shop.name),
         _desc(context, shop.description),
@@ -114,6 +115,7 @@ class FacilityScreen extends StatelessWidget {
     return DetailPage(
       images: images,
       colors: const [Tokens.bandFrom, Tokens.bandTo],
+      title: poi.name,
       children: [
         SheetTitle(poi.name),
         _desc(context, poi.description),

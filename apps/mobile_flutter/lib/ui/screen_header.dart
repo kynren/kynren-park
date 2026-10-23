@@ -1,18 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import '../core/theme.dart';
 import 'managed_image.dart';
-import 'tap.dart';
 
-/// The top of every screen: a tall band in the feature's colour with the storybook landscape along
-/// its foot, a menu (or back) button and an optional slot on the right, and the screen's name large
-/// in serif beneath them. [below] (a search pill, usually) sits on the page just under the band.
+/// The top of every screen: a tall band in the feature's colour with the screen's name large beneath the shared top bar
+/// (see [KTopBar], which floats over it). [below] (a search pill, usually) sits on the page just under the band.
 class ScreenHeader extends StatelessWidget {
   final String title;
   final String? subtitle;
-  final Widget? right;
-  final VoidCallback? onMenu;
-  final bool back;
   final Widget? below;
   final List<Color> colors;
 
@@ -23,9 +17,6 @@ class ScreenHeader extends StatelessWidget {
     super.key,
     required this.title,
     this.subtitle,
-    this.right,
-    this.onMenu,
-    this.back = false,
     this.below,
     this.colors = const [Tokens.bandFrom, Tokens.bandTo],
     this.page,
@@ -55,27 +46,9 @@ class ScreenHeader extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  SizedBox(height: MediaQuery.paddingOf(context).top + 60),
                   Padding(
-                    padding: EdgeInsets.fromLTRB(20, MediaQuery.paddingOf(context).top + 8, 20, 0),
-                    child: Row(
-                      children: [
-                        Tap(
-                          onTap: onMenu ?? (back ? () => _back(context) : () => context.push('/menu')),
-                          label: back ? 'Go back' : 'Open menu',
-                          child: Container(
-                            width: 44,
-                            height: 44,
-                            decoration: const BoxDecoration(color: Color(0x2EFFFFFF), shape: BoxShape.circle),
-                            child: Icon(back ? Icons.arrow_back_rounded : Icons.menu_rounded, color: Colors.white, size: 24),
-                          ),
-                        ),
-                        const Spacer(),
-                        ?right,
-                      ],
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(22, 14, 22, 34),
+                    padding: const EdgeInsets.fromLTRB(22, 10, 22, 34),
                     child: SizedBox(
                       width: double.infinity,
                       child: Column(
@@ -116,13 +89,6 @@ class ScreenHeader extends StatelessWidget {
     );
   }
 
-  static void _back(BuildContext context) {
-    if (context.canPop()) {
-      context.pop();
-    } else {
-      context.go('/');
-    }
-  }
 }
 
 /// Quiet, overlapping circles of light behind the title: depth without a picture.

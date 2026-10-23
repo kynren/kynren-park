@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../core/api.dart';
 import '../core/auth.dart';
+import '../core/calendar.dart';
 import '../core/favorites.dart';
 import '../core/format.dart';
 import '../core/models.dart';
@@ -72,6 +73,7 @@ class _AttractionScreenState extends State<AttractionScreen> {
     return DetailPage(
       images: images,
       colors: featureGradient['programme']!,
+      title: attraction.name,
       children: [
         SheetTitle(attraction.name),
         if ((attraction.tagline ?? '').isNotEmpty || attraction.synopsis.isNotEmpty)
@@ -105,25 +107,33 @@ class _AttractionScreenState extends State<AttractionScreen> {
           ]),
         ),
         const SectionLabel('Schedules'),
-        Transform.translate(offset: const Offset(0, -4), child: Padding(padding: const EdgeInsets.only(bottom: 10), child: Text(dateLong, style: TextStyle(color: c.sub, fontSize: 12.5)))),
+        Transform.translate(offset: const Offset(0, -4), child: Padding(padding: const EdgeInsets.only(bottom: 10), child: Text(sessions.isEmpty ? dateLong : '$dateLong  ·  tap a time to add it to your calendar', style: TextStyle(color: c.sub, fontSize: 12.5)))),
         if (sessions.isEmpty)
           const Muted('No sessions listed for this day.')
         else
           Wrap(spacing: 10, runSpacing: 10, children: [
             for (final s in sessions)
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                decoration: BoxDecoration(color: c.tint, borderRadius: BorderRadius.circular(999)),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Text(
-                    fmtTime(s.revisedStart ?? s.startTime),
-                    style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: s.status == 'CANCELLED' ? const Color(0xFFD64545) : c.link, decoration: s.status == 'CANCELLED' ? TextDecoration.lineThrough : null),
-                  ),
-                  if (s.status != 'SCHEDULED') ...[
-                    const SizedBox(width: 6),
-                    Container(width: 8, height: 8, decoration: BoxDecoration(color: statusColor[s.status], shape: BoxShape.circle)),
-                  ],
-                ]),
+              Tap(
+                label: 'Add ${fmtTime(s.revisedStart ?? s.startTime)} to your calendar',
+                onTap: s.status == 'CANCELLED' ? null : () => addSessionToCalendar(s),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 12, 8),
+                  decoration: BoxDecoration(color: c.tint, borderRadius: BorderRadius.circular(999)),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Text(
+                      fmtTime(s.revisedStart ?? s.startTime),
+                      style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: s.status == 'CANCELLED' ? const Color(0xFFD64545) : c.link, decoration: s.status == 'CANCELLED' ? TextDecoration.lineThrough : null),
+                    ),
+                    if (s.status != 'SCHEDULED') ...[
+                      const SizedBox(width: 6),
+                      Container(width: 8, height: 8, decoration: BoxDecoration(color: statusColor[s.status], shape: BoxShape.circle)),
+                    ],
+                    if (s.status != 'CANCELLED') ...[
+                      const SizedBox(width: 8),
+                      Icon(Icons.event_available_rounded, size: 16, color: c.link),
+                    ],
+                  ]),
+                ),
               ),
           ]),
         Container(
