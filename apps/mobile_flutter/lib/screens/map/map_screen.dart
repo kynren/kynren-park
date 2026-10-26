@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../app/shell.dart' show navClearance;
+import '../../app/shell.dart' show navBarHeight, navHomeRise;
 import '../../core/favorites.dart';
 import '../../core/format.dart';
 import '../../core/location.dart';
@@ -256,6 +256,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     final favs = context.watch<FavoritesState>().ids;
     final gps = context.watch<LocationState>().gps;
     final top = MediaQuery.paddingOf(context).top;
+    // the top of the bottom bar, including the Home button that stands above it: the map's own controls sit above this
+    final barTop = navBarHeight + navHomeRise + MediaQuery.paddingOf(context).bottom;
     final cfg = bundle?.mapConfig;
     final mapImageUrl = (bundle?.defaultMap?.imageUrl?.isNotEmpty ?? false) ? bundle!.defaultMap!.imageUrl : (cfg?.mapImageUrl?.isNotEmpty ?? false) ? cfg!.mapImageUrl : null;
     final mapBg = parseHex(bundle?.defaultMap?.bgColor, _grass);
@@ -593,7 +595,13 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               },
             ),
           ),
-          if (_selected != null && routePoints != null) Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: RoutePainter(routePoints)))),
+          if (_selected != null && routePoints != null)
+            Positioned.fill(
+              child: IgnorePointer(
+                // redrawn as the map zooms, so the footprints stay the same size on screen
+                child: AnimatedBuilder(animation: _view, builder: (_, _) => CustomPaint(painter: RoutePainter(routePoints!, scale: _scale))),
+              ),
+            ),
           markers(),
           if (selPin != null) callout(),
           if (showMe) Anchored(controller: _view, x: youAreHere.dx, y: youAreHere.dy, width: 60, height: 60, anchorX: 30, anchorY: 30, child: IgnorePointer(child: Beacon(pulse: _pulse, color: markerColor))),
@@ -802,7 +810,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           if (_selected != null && selectedDist != null)
             Positioned(
               left: 14,
-              bottom: navClearance + 38,
+              bottom: barTop + 56,
               child: IgnorePointer(
                 child: Container(padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 16), decoration: BoxDecoration(color: c.card, borderRadius: BorderRadius.circular(999), boxShadow: const [BoxShadow(color: Color(0x2E000000), blurRadius: 5, offset: Offset(0, 2))]), child: Text('🚶 ${walkMins(selectedDist)} min walk', style: TextStyle(color: c.text, fontWeight: FontWeight.w800, fontSize: 13))),
               ),
@@ -811,7 +819,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           Positioned(
             left: 0,
             right: 0,
-            bottom: navClearance - 16,
+            bottom: barTop + 8,
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 12),

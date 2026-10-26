@@ -182,24 +182,74 @@ class Beacon extends StatelessWidget {
       );
 }
 
-/// The walking route: a white casing under a coloured line, like a map app.
+/// The walking route as footprints: a left and a right foot alternating along the path, each pointing the way you walk.
+/// The map is drawn zoomed, so sizes and spacing are divided by [scale] to stay the same on the guest's screen at every zoom.
 class RoutePainter extends CustomPainter {
   final List<Offset> points;
-  const RoutePainter(this.points);
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (points.length < 2) return;
-    final path = Path()..moveTo(points.first.dx, points.first.dy);
-    for (final p in points.skip(1)) {
-      path.lineTo(p.dx, p.dy);
-    }
-    Paint line(Color c, double w) => Paint()..color = c..style = PaintingStyle.stroke..strokeWidth = w..strokeCap = StrokeCap.round..strokeJoin = StrokeJoin.round;
-    canvas.drawPath(path, line(Colors.white, 8));
-    canvas.drawPath(path, line(const Color(0xFF2B7FFF), 5));
+  final double scale;
+  const RoutePainter(this.points, {this.scale = 1});
+
+  static const _stepPx = 30.0; // distance between footprints along the path, on screen
+  static const _sidePx = 6.5; // how far each foot sits to the side of the path
+  static const _colour = Color(0xFF2B7FFF);
+
+  /// One footprint pointing up, about 12 by 27 px: a broad sole joined to a narrower heel, like a shoe print.
+  static Path _foot() {
+    final sole = Path()..addOval(Rect.fromCenter(center: const Offset(0, -5), width: 12, height: 18));
+    final heel = Path()..addOval(Rect.fromCenter(center: const Offset(0, 7), width: 8, height: 10));
+    return Path.combine(PathOperation.union, sole, heel);
   }
 
   @override
-  bool shouldRepaint(RoutePainter old) => old.points != points;
+  void paint(Canvas canvas, Size size) {
+    if (points.length < 2 || scale <= 0) return;
+    final foot = _foot();
+    final step = _stepPx / scale;
+    final side = _sidePx / scale;
+    // stop a little short of the destination so the last foot is not hidden under its pin
+    final lead = 20 / scale;
+
+    var total = 0.0;
+    for (var i = 1; i < points.length; i++) {
+      total += (points[i] - points[i - 1]).distance;
+    }
+    if (total <= lead) return;
+
+    final fill = Paint()..color = _colour;
+    final casing = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.2
+      ..strokeJoin = StrokeJoin.round;
+
+    var walked = 0.0; // distance along the whole path at the start of the current segment
+    var next = step / 2; // where the next footprint goes
+    var left = true;
+    for (var i = 1; i < points.length; i++) {
+      final a = points[i - 1], b = points[i];
+      final len = (b - a).distance;
+      if (len == 0) continue;
+      final dir = (b - a) / len;
+      final normal = Offset(-dir.dy, dir.dx);
+      final heading = dir.direction + 1.5707963267948966; // the footprint is drawn pointing up
+      while (next <= walked + len && next < total - lead) {
+        final centre = a + dir * (next - walked) + normal * (left ? -side : side);
+        canvas.save();
+        canvas.translate(centre.dx, centre.dy);
+        canvas.rotate(heading);
+        canvas.scale(left ? 1 / scale : -1 / scale, 1 / scale); // a right foot is a left foot mirrored
+        canvas.drawPath(foot, casing);
+        canvas.drawPath(foot, fill);
+        canvas.restore();
+        left = !left;
+        next += step;
+      }
+      walked += len;
+    }
+  }
+
+  @override
+  bool shouldRepaint(RoutePainter old) => old.points != points || old.scale != scale;
 }
 
 class _ArrowPainter extends CustomPainter {
