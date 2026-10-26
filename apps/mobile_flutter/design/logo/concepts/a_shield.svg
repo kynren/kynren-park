@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0F3B2A"/><stop offset="1" stop-color="#1F6B49"/></linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.18" r="0.7"><stop offset="0" stop-color="#F4BE62" stop-opacity="0.28"/><stop offset="1" stop-color="#F4BE62" stop-opacity="0"/></radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F4BE62"/><stop offset="1" stop-color="#E2862B"/></linearGradient>
+    <linearGradient id="face" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#14503A"/><stop offset="1" stop-color="#0A2A1E"/></linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000" flood-opacity="0.35"/></filter>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/><rect width="1024" height="1024" fill="url(#glow)"/>
+  <g filter="url(#soft)">
+    <path d="M512 188 L762 262 L762 524 C762 700 640 800 512 862 C384 800 262 700 262 524 L262 262 Z" fill="url(#face)" stroke="url(#gold)" stroke-width="30" stroke-linejoin="round"/>
+    <path d="M512 188 L762 262 L762 524 C762 700 640 800 512 862 C384 800 262 700 262 524 L262 262 Z" fill="none" stroke="#F4BE62" stroke-opacity="0.35" stroke-width="3" transform="translate(512 525) scale(0.9) translate(-512 -525)"/>
+  </g>
+  <g stroke-linejoin="round">
+    <line x1="442.7" y1="428" x2="442.7" y2="692" stroke="#FFF3D9" stroke-width="66" stroke-linecap="round"/>
+    <line x1="479" y1="569.9" x2="581.3" y2="428" stroke="#FFF3D9" stroke-width="66" stroke-linecap="round"/>
+    <line x1="495.5" y1="576.5" x2="581.3" y2="692" stroke="#F4BE62" stroke-width="66" stroke-linecap="round"/>
+  </g>
+  <path d="M512 288 Q524.32 319.68 556 332 Q524.32 344.32 512 376 Q499.68 344.32 468 332 Q499.68 319.68 512 288 Z" fill="#F4BE62"/>
+</svg>
