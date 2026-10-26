@@ -3,7 +3,10 @@ import { createHmac, randomInt, randomUUID, timingSafeEqual } from 'node:crypto'
 import { Prisma } from '@kynren/db';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { MailService } from '../mail/mail.service.js';
-import { GroupsOrdersClient, type GuestOrder } from './groups-orders.client.js';
+import { SmeetzOrderDirectory } from './order-directory.service.js';
+import { normaliseEmail, type GuestBuyer, type GuestOrder } from './order-shape.js';
+
+export { normaliseEmail };
 
 const CODE_TTL_MS = 10 * 60_000;
 const RESEND_COOLDOWN_MS = 60_000;
@@ -14,11 +17,6 @@ const MAX_FAILED_GUESSES_PER_EMAIL_PER_DAY = 15;
 const MAX_EMAILS_PER_USER = 3;
 const HOUR_MS = 60 * 60_000;
 const DAY_MS = 24 * HOUR_MS;
-
-export function normaliseEmail(raw: unknown): string {
-  const text = String(raw ?? '').trim().toLowerCase();
-  return /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(text) ? text : '';
-}
 
 function codeSecret(): string {
   return process.env.EMAIL_CODE_SECRET || process.env.JWT_REFRESH_SECRET || '';
@@ -57,7 +55,7 @@ export class SmeetzEmailLinkService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
-    private readonly groups: GroupsOrdersClient,
+    private readonly groups: SmeetzOrderDirectory,
   ) {}
 
   private tooMany(message: string): never {
@@ -154,6 +152,27 @@ export class SmeetzEmailLinkService {
     }
     if (emails.length > 0 && failures === emails.length) throw new HttpException('Booking lookup is temporarily unavailable', HttpStatus.SERVICE_UNAVAILABLE);
     return { linked };
+  }
+
+  /**
+   * The name, phone and address the booking system holds for this guest, from the addresses they have proved they own - and
+   * nothing for an address they have not. A lookup that is down just means nothing to show yet.
+   */
+  async profile(userId: string): Promise<GuestBuyer> {
+    const out: GuestBuyer = { name: null, phone: null, address: null };
+    for (const email of await this.verifiedEmails(userId)) {
+      try {
+        // The address is not in the index until a guest asks for their own details: read it then, once.
+        await this.groups.fillAddress(email);
+        const { buyer } = await this.groups.lookup(email);
+        out.name ??= buyer?.name ?? null;
+        out.phone ??= buyer?.phone ?? null;
+        out.address ??= buyer?.address ?? null;
+      } catch {
+        // try the next address
+      }
+    }
+    return out;
   }
 
   async verifiedEmails(userId: string): Promise<string[]> {

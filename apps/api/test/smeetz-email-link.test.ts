@@ -62,6 +62,8 @@ let state: ReturnType<typeof fakePrisma>;
 let sent: { to: string; subject: string; html: string }[];
 let orders: Record<string, any[]>;
 let groupsDown: boolean;
+let buyers: Record<string, { name: string | null; phone: string | null; address: string | null }>;
+let filled: string[];
 let svc: SmeetzEmailLinkService;
 
 beforeEach(() => {
@@ -69,11 +71,20 @@ beforeEach(() => {
   sent = [];
   orders = {};
   groupsDown = false;
+  buyers = {};
+  filled = [];
   const mail = { send: async (to: string, subject: string, html: string) => (sent.push({ to, subject, html }), { sent: true }) };
   const groups = {
     ordersForEmail: async (email: string) => {
       if (groupsDown) throw new Error('down');
       return orders[email] ?? [];
+    },
+    fillAddress: async (email: string) => {
+      filled.push(email);
+    },
+    lookup: async (email: string) => {
+      if (groupsDown) throw new Error('down');
+      return { orders: orders[email] ?? [], buyer: buyers[email] ?? null };
     },
   };
   svc = new (SmeetzEmailLinkService as any)(state.prisma, mail, groups);
@@ -198,4 +209,27 @@ test('a guest can prove at most three addresses', async () => {
   const before = sent.length;
   await deliver('d@x.co');
   assert.equal(sent.length, before);
+});
+
+test("the profile is the buyer on addresses the guest has proved, and nothing for ones they have not", async () => {
+  orders['pat@example.org'] = [order('AB12')];
+  orders['other@example.org'] = [order('ZZ99')];
+  buyers['pat@example.org'] = { name: 'Pat Buyer', phone: '0123456', address: '1 High St, Leeds' };
+  buyers['other@example.org'] = { name: 'Somebody Else', phone: '999', address: 'Elsewhere' };
+
+  assert.deepEqual(await svc.profile('u1'), { name: null, phone: null, address: null }, 'nothing proved yet');
+
+  await deliver('pat@example.org');
+  await svc.verify('u1', 'pat@example.org', lastCode());
+  assert.deepEqual(await svc.profile('u1'), { name: 'Pat Buyer', phone: '0123456', address: '1 High St, Leeds' });
+  assert.deepEqual(filled, ['pat@example.org'], 'the address is read once for a proved address, and never for another');
+  assert.deepEqual(await svc.profile('u2'), { name: null, phone: null, address: null }, "another guest sees none of it");
+});
+
+test('a booking lookup that is down gives an empty profile rather than an error', async () => {
+  orders['pat@example.org'] = [order('AB12')];
+  await deliver('pat@example.org');
+  await svc.verify('u1', 'pat@example.org', lastCode());
+  groupsDown = true;
+  assert.deepEqual(await svc.profile('u1'), { name: null, phone: null, address: null });
 });

@@ -779,3 +779,86 @@ model HomeScreen {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 }
+
+// ---------------------------------------------------------------------------
+// Smeetz order mirror
+//
+// A local copy of the tickets sold through Smeetz's own checkout, kept by the
+// API's background sync (apps/api/src/smeetz/order-sync.service.ts), so a guest
+// can be matched to their bookings by a verified email without a live Smeetz
+// call. Read-only with respect to Smeetz: nothing here is ever written back.
+// Deliberately smaller than Smeetz's own order: the order form's answers
+// ("allergies" and the like) are not kept.
+// ---------------------------------------------------------------------------
+
+model SmeetzOrder {
+  id              String   @id // Smeetz's own order id (a UUID; older orders carry a short code)
+  reference       String
+  status          String
+  currency        String
+  customerId      String?
+  language        String?
+  smeetzCreatedAt DateTime
+  smeetzUpdatedAt DateTime
+  syncedAt        DateTime @default(now())
+
+  lines SmeetzOrderLine[]
+
+  @@index([smeetzCreatedAt])
+  @@index([reference])
+  @@index([customerId])
+}
+
+// One row per ticket, retail item, voucher or membership unit in an order.
+model SmeetzOrderLine {
+  id      String      @id @default(cuid())
+  orderId String
+  order   SmeetzOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  kind       String // TICKET | RETAIL | VOUCHER | MEMBERSHIP
+  itemName   String
+  priceName  String?
+  priceValue Float?
+  quantity   Int     @default(1)
+  itemStatus String?
+
+  optionId       String? // the Smeetz product option, and the slot a ticket is for
+  availabilityId String?
+  showDate       DateTime? // the night, once the slot could be resolved (upcoming slots only)
+
+  unitId        String?
+  barcode       String?
+  voucherCode   String?
+  voucherStatus String?
+  membershipCode   String?
+  membershipStatus String?
+
+  // The named attendee on a ticket, where Smeetz has one (not the buyer).
+  guestFirstName String?
+  guestLastName  String?
+
+  @@index([orderId])
+  @@index([kind])
+  @@index([optionId, availabilityId])
+}
+
+// Who bought an order, read from Smeetz's one-order call - kept so no order is read twice.
+// Smeetz cannot be searched by buyer, which is why this index exists at all.
+model SmeetzBuyer {
+  orderId String   @id
+  email   String?
+  name    String?
+  company String?
+  phone   String?
+  address String?
+  readAt  DateTime @default(now())
+
+  @@index([email])
+}
+
+// Small key/value state for the sync: how far the order history has been read.
+model SmeetzSyncState {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}

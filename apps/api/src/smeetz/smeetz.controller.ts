@@ -65,6 +65,13 @@ export class SmeetzController {
     return this.emailLink.refresh(guestId(user));
   }
 
+  /** Who the booking system says this guest is (name, phone, address), for the addresses they have proved they own. */
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @Get('profile')
+  async profile(@CurrentUser() user: AuthPrincipal) {
+    return this.emailLink.profile(guestId(user));
+  }
+
   @Get('my-orders')
   async myOrders(@CurrentUser() user: AuthPrincipal) {
     const userId = guestId(user);
