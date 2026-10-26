@@ -37,6 +37,10 @@ if (!sqlitePath || !pgUrl) {
 }
 
 const BATCH = 500;
+// A multi-row INSERT with untyped placeholders leaves Postgres to guess each column's type from the values, which fails when a
+// whole batch of a column is null. Say it outright for the columns that are not text.
+const CAST = { smeetzCreatedAt: 'timestamp', smeetzUpdatedAt: 'timestamp', syncedAt: 'timestamp', readAt: 'timestamp', showDate: 'timestamp', priceValue: 'float8', quantity: 'int' };
+const placeholder = (column, n) => `$${n}${CAST[column] ? `::${CAST[column]}` : ''}`;
 // Prisma stores a SQLite DateTime as milliseconds since the epoch. Sent to Postgres as UTC text, which is how Prisma wrote the
 // park's own timestamps (timestamp without time zone, UTC clock time).
 const iso = (ms) => (ms === null || ms === undefined ? null : new Date(Number(ms)).toISOString());
@@ -56,7 +60,7 @@ async function copy(name, selectSql, columns, mapRow, conflict) {
     if (batch.length === 0) return;
     if (!dryRun) {
       const params = [];
-      const rows = batch.map((row, r) => `(${columns.map((_, c) => `$${r * columns.length + c + 1}`).join(',')})`);
+      const rows = batch.map((row, r) => `(${columns.map((col, c) => placeholder(col, r * columns.length + c + 1)).join(',')})`);
       for (const row of batch) params.push(...row);
       const res = await pg.query(`INSERT INTO "${name}" (${columns.map((c) => `"${c}"`).join(',')}) VALUES ${rows.join(',')} ON CONFLICT ${conflict} DO NOTHING`, params);
       inserted += res.rowCount ?? 0;
@@ -73,6 +77,82 @@ async function copy(name, selectSql, columns, mapRow, conflict) {
   console.log(`${name}: ${total} in groups, ${dryRun ? 'would add up to' : 'added'} ${dryRun ? seen : inserted}${dryRun ? '' : `, ${seen - inserted} already there`}`);
 }
 
+/**
+ * Lines are copied an ORDER at a time and replaced wholesale when they differ. The groups app re-saves an order's lines under
+ * new ids whenever the order changes, so adding by id alone would leave the old and the new lines side by side: a guest would
+ * see every ticket twice. An order whose lines already match (same ids, same count) is left alone, so a second run is cheap.
+ */
+async function copyLines() {
+  const columns = ['id', 'orderId', 'kind', 'itemName', 'priceName', 'priceValue', 'quantity', 'itemStatus', 'optionId', 'availabilityId', 'showDate', 'unitId', 'barcode', 'voucherCode', 'voucherStatus', 'membershipCode', 'membershipStatus', 'guestFirstName', 'guestLastName'];
+  const mapRow = (r) => [r.id, r.orderId, r.kind, r.itemName, text(r.priceName), r.priceValue ?? null, r.quantity ?? 1, text(r.itemStatus), text(r.optionId), text(r.availabilityId), iso(r.showDate), text(r.unitId), text(r.barcode), text(r.voucherCode), text(r.voucherStatus), text(r.membershipCode), text(r.membershipStatus), text(r.guestFirstName), text(r.guestLastName)];
+  const total = src.prepare('SELECT count(*) AS n FROM SmeetzOrderLine').get().n;
+
+  // what the park already holds, by order
+  const held = new Map();
+  for (const row of (await pg.query('SELECT "orderId", id FROM "SmeetzOrderLine"')).rows) {
+    let set = held.get(row.orderId);
+    if (!set) held.set(row.orderId, (set = new Set()));
+    set.add(row.id);
+  }
+
+  let seen = 0;
+  let ordersReplaced = 0;
+  let linesWritten = 0;
+  let pendingOrders = [];
+  let pendingRows = [];
+
+  const flush = async () => {
+    if (pendingOrders.length === 0) return;
+    if (!dryRun) {
+      await pg.query('BEGIN');
+      try {
+        await pg.query('DELETE FROM "SmeetzOrderLine" WHERE "orderId" = ANY($1)', [pendingOrders]);
+        for (let i = 0; i < pendingRows.length; i += BATCH) {
+          const chunk = pendingRows.slice(i, i + BATCH);
+          const params = [];
+          const rows = chunk.map((row, r) => `(${columns.map((col, c) => placeholder(col, r * columns.length + c + 1)).join(',')})`);
+          for (const row of chunk) params.push(...row);
+          await pg.query(`INSERT INTO "SmeetzOrderLine" (${columns.map((c) => `"${c}"`).join(',')}) VALUES ${rows.join(',')}`, params);
+        }
+        await pg.query('COMMIT');
+      } catch (error) {
+        await pg.query('ROLLBACK');
+        throw error;
+      }
+    }
+    ordersReplaced += pendingOrders.length;
+    linesWritten += pendingRows.length;
+    pendingOrders = [];
+    pendingRows = [];
+  };
+
+  const settle = async (orderId, group) => {
+    if (group.length === 0) return;
+    const have = held.get(orderId);
+    const same = have && have.size === group.length && group.every((r) => have.has(r.id));
+    if (same) return;
+    pendingOrders.push(orderId);
+    for (const r of group) pendingRows.push(mapRow(r));
+    if (pendingRows.length >= BATCH) await flush();
+  };
+
+  let current = null;
+  let group = [];
+  for (const row of src.prepare('SELECT * FROM SmeetzOrderLine ORDER BY orderId').iterate()) {
+    if (row.orderId !== current) {
+      await settle(current, group);
+      current = row.orderId;
+      group = [];
+    }
+    group.push(row);
+    seen += 1;
+    if (seen % 50_000 === 0) console.log(`  SmeetzOrderLine: ${seen}/${total}`);
+  }
+  await settle(current, group);
+  await flush();
+  console.log(`SmeetzOrderLine: ${total} in groups, ${dryRun ? 'would write' : 'wrote'} ${linesWritten} across ${ordersReplaced} order(s) that were new or had changed`);
+}
+
 try {
   // orders first (lines point at them), then lines, then who bought
   await copy(
@@ -83,14 +163,7 @@ try {
     '("id")',
   );
 
-  await copy(
-    'SmeetzOrderLine',
-    `SELECT id, orderId, kind, itemName, priceName, priceValue, quantity, itemStatus, optionId, availabilityId, showDate, unitId, barcode,
-            voucherCode, voucherStatus, membershipCode, membershipStatus, guestFirstName, guestLastName FROM SmeetzOrderLine`,
-    ['id', 'orderId', 'kind', 'itemName', 'priceName', 'priceValue', 'quantity', 'itemStatus', 'optionId', 'availabilityId', 'showDate', 'unitId', 'barcode', 'voucherCode', 'voucherStatus', 'membershipCode', 'membershipStatus', 'guestFirstName', 'guestLastName'],
-    (r) => [r.id, r.orderId, r.kind, r.itemName, text(r.priceName), r.priceValue ?? null, r.quantity ?? 1, text(r.itemStatus), text(r.optionId), text(r.availabilityId), iso(r.showDate), text(r.unitId), text(r.barcode), text(r.voucherCode), text(r.voucherStatus), text(r.membershipCode), text(r.membershipStatus), text(r.guestFirstName), text(r.guestLastName)],
-    '("id")',
-  );
+  await copyLines();
 
   await copy(
     'SmeetzBuyer',
