@@ -4,8 +4,9 @@ import '../../core/theme.dart';
 import '../../ui/cover.dart';
 import 'map_logic.dart';
 
-/// Pins keep a constant screen size inside the zoomed canvas: each marker is a real-sized box positioned at its map
-/// coordinate and counter-scaled around its anchor point, so it tracks the map while staying the same size on screen.
+/// Pins keep a constant screen size, and stay upright, inside the zoomed and turned canvas: each marker is a real-sized
+/// box positioned at its map coordinate and counter-scaled and counter-rotated around its anchor point, so it tracks
+/// the map while looking the same on screen.
 class Anchored extends StatelessWidget {
   final TransformationController controller;
   final double x, y, width, height, anchorX, anchorY;
@@ -22,11 +23,16 @@ class Anchored extends StatelessWidget {
       child: AnimatedBuilder(
         animation: controller,
         child: child,
-        builder: (_, child) => Transform.scale(
-          scale: 1 / controller.value.getMaxScaleOnAxis(),
-          alignment: Alignment(anchorX / width * 2 - 1, anchorY / height * 2 - 1),
-          child: child,
-        ),
+        builder: (_, child) {
+          final s = 1 / controller.value.getMaxScaleOnAxis();
+          return Transform(
+            transform: Matrix4.identity()
+              ..scaleByDouble(s, s, 1, 1)
+              ..rotateZ(-viewAngle(controller.value)),
+            alignment: Alignment(anchorX / width * 2 - 1, anchorY / height * 2 - 1),
+            child: child,
+          );
+        },
       ),
     );
   }

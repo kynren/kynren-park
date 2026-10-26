@@ -9,6 +9,7 @@ import 'core/i18n.dart';
 import 'core/location.dart';
 import 'core/notifications.dart';
 import 'core/preferences.dart';
+import 'core/profile.dart';
 import 'core/push.dart';
 import 'core/restaurant_favs.dart';
 import 'core/sync.dart';
@@ -37,6 +38,7 @@ class _KynrenAppState extends State<KynrenApp> {
   final _themePref = ThemePref();
   final _unread = UnreadNotifications();
   final _tickets = TicketsState();
+  final _profile = ProfileState();
   final _location = LocationState();
   final _push = PushState();
   final _messengerKey = GlobalKey<ScaffoldMessengerState>();
@@ -51,10 +53,12 @@ class _KynrenAppState extends State<KynrenApp> {
       _unread.syncWith(_auth.user);
       _location.syncWith(_auth.user);
       _push.syncWith(_auth.user);
+      _profile.syncWith(_auth.user);
     });
     _sync.start();
     _auth.restore();
     _prefs.load();
+    _profile.load();
     _restaurantFavs.load();
     _i18n.load();
     _themePref.load();
@@ -84,6 +88,7 @@ class _KynrenAppState extends State<KynrenApp> {
     _themePref.dispose();
     _unread.dispose();
     _tickets.dispose();
+    _profile.dispose();
     _location.dispose();
     super.dispose();
   }
@@ -101,6 +106,7 @@ class _KynrenAppState extends State<KynrenApp> {
         ChangeNotifierProvider.value(value: _themePref),
         ChangeNotifierProvider.value(value: _unread),
         ChangeNotifierProvider.value(value: _tickets),
+        ChangeNotifierProvider.value(value: _profile),
         ChangeNotifierProvider.value(value: _location),
       ],
       child: Consumer<SyncState>(

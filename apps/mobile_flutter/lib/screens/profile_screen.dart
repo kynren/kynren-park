@@ -1,12 +1,11 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../core/auth.dart';
+import '../core/profile.dart';
 import '../core/sync.dart';
 import '../core/tickets.dart';
 import '../core/theme.dart';
@@ -14,9 +13,6 @@ import '../ui/controls.dart';
 import '../ui/kimage.dart';
 import '../ui/managed_image.dart';
 import '../ui/screen.dart';
-import '../ui/tap.dart';
-
-const profileKey = 'kynren_profile';
 
 /// The photo a guest picked, as an image provider that works on phone and web.
 ImageProvider? profilePhoto(String? uri) {
@@ -32,152 +28,10 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  String? _photo;
-  String _name = '';
   String _version = '';
-  Map<String, dynamic> _saved = {};
-  bool _editing = false, _justSaved = false;
-  final _first = TextEditingController(), _last = TextEditingController(), _phone = TextEditingController(), _address = TextEditingController();
-
-  @override
-  void dispose() {
-    for (final c in [_first, _last, _phone, _address]) {
-      c.dispose();
-    }
-    super.dispose();
-  }
-
-  /// The guest's name as their bookings spell it ("Mrs Jane Smith" becomes Jane / Smith).
-  static (String, String) _splitName(String full) {
-    final parts = full.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
-    if (parts.isNotEmpty && RegExp(r'^(mr|mrs|ms|miss|mx|dr|master)\.?$', caseSensitive: false).hasMatch(parts.first)) parts.removeAt(0);
-    if (parts.isEmpty) return ('', '');
-    return (parts.first, parts.skip(1).join(' '));
-  }
-
-  /// What we know: anything the guest has saved, filled in from their account and bookings where it is blank.
-  Map<String, String> _details(AuthUser? user, List<TicketItem> tickets) {
-    String saved(String k) => (_saved[k] as String?)?.trim() ?? '';
-    var first = saved('firstName'), last = saved('lastName');
-    if (first.isEmpty && last.isEmpty) {
-      final holder = tickets.map((t) => t.holder).firstWhere((h) => h != null && h.trim().isNotEmpty, orElse: () => null);
-      final accountName = user?.name;
-      final (f, l) = _splitName(accountName != null && accountName.trim().isNotEmpty ? accountName : (holder ?? ''));
-      first = f;
-      last = l;
-    }
-    return {'firstName': first, 'lastName': last, 'phone': saved('phone'), 'address': saved('address')};
-  }
-
-  void _startEdit(Map<String, String> d) {
-    _first.text = d['firstName']!;
-    _last.text = d['lastName']!;
-    _phone.text = d['phone']!;
-    _address.text = d['address']!;
-    setState(() => _editing = true);
-  }
-
-  Future<void> _saveEdit() async {
-    final p = await SharedPreferences.getInstance();
-    // keep everything else the settings page stores (accessibility needs, photo, notes)
-    final next = {..._saved, 'firstName': _first.text.trim(), 'lastName': _last.text.trim(), 'phone': _phone.text.trim(), 'address': _address.text.trim()};
-    await p.setString(profileKey, jsonEncode(next));
-    if (!mounted) return;
-    setState(() {
-      _saved = next;
-      _name = [next['firstName'], next['lastName']].where((x) => x != null && '$x'.isNotEmpty).join(' ');
-      _editing = false;
-      _justSaved = true;
-    });
-    Future.delayed(const Duration(milliseconds: 2200), () => mounted ? setState(() => _justSaved = false) : null);
-  }
-
-  Widget _detailsCard(BuildContext context, AuthUser user, Map<String, String> d) {
-    final c = context.ui;
-    Widget line(IconData icon, String label, String value, {String empty = 'Not added yet'}) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 9),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Icon(icon, size: 20, color: c.link),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: c.sub)),
-                const SizedBox(height: 2),
-                Text(value.isEmpty ? empty : value, style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: value.isEmpty ? c.placeholder : c.text)),
-              ]),
-            ),
-          ]),
-        );
-    final fullName = [d['firstName'], d['lastName']].where((x) => x != null && x.isNotEmpty).join(' ');
-    final fromBookings = d['firstName']!.isNotEmpty && ((_saved['firstName'] as String?) ?? '').isEmpty && ((_saved['lastName'] as String?) ?? '').isEmpty;
-    return KCard(
-      padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Row(children: [
-          Expanded(child: Text('Your details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: c.text))),
-          if (_justSaved)
-            const Padding(padding: EdgeInsets.only(right: 10), child: Text('✓ Saved', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Tokens.ok)))
-          else if (!_editing)
-            Tap(
-              onTap: () => _startEdit(d),
-              label: 'Edit your details',
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                decoration: BoxDecoration(color: c.tint, borderRadius: BorderRadius.circular(999)),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.edit_rounded, size: 15, color: c.link),
-                  const SizedBox(width: 6),
-                  Text('Edit', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: c.link)),
-                ]),
-              ),
-            ),
-        ]),
-        const SizedBox(height: 6),
-        if (!_editing) ...[
-          line(Icons.person_rounded, 'Name', fullName),
-          line(Icons.mail_rounded, 'Email', user.email ?? ''),
-          line(Icons.phone_rounded, 'Phone', d['phone']!),
-          line(Icons.home_rounded, 'Address', d['address']!),
-          if (fromBookings)
-            Padding(padding: const EdgeInsets.only(top: 6), child: Text('Filled in from your bookings. Tap Edit to change anything.', style: TextStyle(fontSize: 12, color: c.sub))),
-        ] else ...[
-          const SizedBox(height: 6),
-          KTextField(label: 'First name', hint: 'First name', controller: _first, capitalization: TextCapitalization.words),
-          const SizedBox(height: 12),
-          KTextField(label: 'Last name', hint: 'Last name', controller: _last, capitalization: TextCapitalization.words),
-          const SizedBox(height: 4),
-          line(Icons.mail_rounded, 'Email (your login, so it stays as it is)', user.email ?? ''),
-          KTextField(label: 'Phone', hint: 'Phone', controller: _phone, keyboardType: TextInputType.phone),
-          const SizedBox(height: 12),
-          KTextField(label: 'Address', hint: 'Address', controller: _address, keyboardType: TextInputType.multiline, capitalization: TextCapitalization.words),
-          const SizedBox(height: 16),
-          Row(children: [
-            Expanded(child: KButton('Cancel', variant: ButtonVariant.soft, onPressed: () => setState(() => _editing = false))),
-            const SizedBox(width: 10),
-            Expanded(child: KButton('Save', onPressed: _saveEdit)),
-          ]),
-        ],
-      ]),
-    );
-  }
-
   @override
   void initState() {
     super.initState();
-    SharedPreferences.getInstance().then((p) {
-      final raw = p.getString(profileKey);
-      if (raw == null) return;
-      try {
-        final m = jsonDecode(raw) as Map<String, dynamic>;
-        if (mounted) {
-          setState(() {
-            _saved = m;
-            _photo = m['photoUri'] as String?;
-            _name = [m['firstName'], m['lastName']].where((x) => x != null && '$x'.isNotEmpty).join(' ');
-          });
-        }
-      } catch (_) {}
-    });
     PackageInfo.fromPlatform().then((i) {
       if (mounted) setState(() => _version = 'v${i.version} · build ${i.buildNumber}');
     }).catchError((_) {});
@@ -188,11 +42,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final c = context.ui;
     final user = context.watch<AuthState>().user;
     final bundle = context.watch<SyncState>().bundle;
-    final displayName = _name.isNotEmpty ? _name : (user?.name ?? (user?.email != null ? user!.email!.split('@').first : ''));
-    final photo = profilePhoto(_photo);
-    final tickets = context.watch<TicketsState>().tickets;
-    final details = _details(user, tickets);
-    final shownName = [details['firstName'], details['lastName']].where((x) => x != null && x.isNotEmpty).join(' ');
+    final profile = context.watch<ProfileState>();
+    final first = profile.firstName(user, context.watch<TicketsState>().tickets);
+    final photo = profilePhoto(profile.saved['photoUri'] as String?);
 
     Widget row(IconData icon, String title, String sub, String to) => KCard(
           onTap: () => context.push(to),
@@ -250,7 +102,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: photo == null ? Stack(alignment: Alignment.center, children: [const ManagedImage(slot: 'profile.avatar'), Icon(Icons.person_rounded, color: c.link, size: 38)]) : null,
             ),
             const SizedBox(height: 10),
-            Text('Hello${(shownName.isNotEmpty ? shownName : displayName).isNotEmpty ? ', ${shownName.isNotEmpty ? shownName : displayName}' : ''}', textAlign: TextAlign.center, style: TextStyle(fontFamily: Tokens.display, fontSize: 19.5, fontWeight: FontWeight.w800, color: c.text)),
+            Text('Hello${first.isNotEmpty ? ', $first' : ''}', textAlign: TextAlign.center, style: TextStyle(fontFamily: Tokens.display, fontSize: 19.5, fontWeight: FontWeight.w800, color: c.text)),
             const SizedBox(height: 2),
             Text(bundle?.branding?.appName ?? 'Kynren – The Storied Lands', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: c.sub)),
           ])
@@ -277,7 +129,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               KButton('Log in', full: true, variant: ButtonVariant.soft, onPressed: () => context.push('/auth')),
             ]),
           ),
-        if (user != null) _detailsCard(context, user, details),
         Row(children: [
           tile(Icons.confirmation_number_rounded, 'My tickets', () => context.push('/tickets')),
           const SizedBox(width: 12),

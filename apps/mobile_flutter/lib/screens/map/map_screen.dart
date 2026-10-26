@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../app/shell.dart' show navClearance;
 import '../../core/favorites.dart';
 import '../../core/format.dart';
@@ -16,14 +18,19 @@ import '../../ui/kimage.dart';
 import '../../ui/tap.dart';
 import 'map_logic.dart';
 import 'map_widgets.dart';
+import 'rotatable_viewer.dart';
 
 const _grass = Color(0xFFA9C97F);
+
+/// The "tap the map to explore" hint is for first-time visitors: shown once, for a few seconds, then never again.
+const _hintSeenKey = 'kynren_map_hint_seen';
+const _hintFor = Duration(seconds: 5);
 
 // Module-level so dismissing the "outside the park" banner sticks for the rest of this app session,
 // surviving tab switches, and only resets on an actual relaunch.
 bool _outsideBannerDismissed = false;
 
-/// The park map: a pan/zoom basemap with category filters, search, a "near you" list, shield markers that group
+/// The park map: a pan/zoom/rotate basemap with category filters, search, a "near you" list, shield markers that group
 /// into areas, a callout for the chosen place and a walking route from the guest's position.
 class MapScreen extends StatefulWidget {
   /// Deep links: focus a place by id ("Go to"), or a scanned spot as `type:id`.
@@ -42,10 +49,12 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
 
   final Set<Cat> _cats = {Cat.shows};
   Pin? _selected, _closing;
-  bool _searchOpen = true, _nearOpen = false, _hintDismissed = false;
+  bool _searchOpen = true, _nearOpen = false, _hintDismissed = false, _hintVisible = false;
+  Timer? _hintTimer;
   bool _bannerDismissed = _outsideBannerDismissed;
   String? _pendingSelect, _pendingSpot, _appliedFocus;
   double _zoom = 1;
+  bool _rotated = false;
   double _imgAspect = 0; // 0 until the basemap image has been measured
   String? _measuredUrl;
   Size _vp = Size.zero;
@@ -60,7 +69,21 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     super.initState();
     _view.addListener(_onView);
     _viewAnim.addListener(_tickView);
+    _showHintOnce();
     _handleParams();
+  }
+
+  Future<void> _showHintOnce() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      if (p.getBool(_hintSeenKey) ?? false) return;
+      await p.setBool(_hintSeenKey, true); // counted as seen as soon as it appears, so it never comes back
+    } catch (_) {
+      return; // can't remember it, so better not to nag
+    }
+    if (!mounted) return;
+    setState(() => _hintVisible = true);
+    _hintTimer = Timer(_hintFor, () => mounted ? setState(() => _hintVisible = false) : null);
   }
 
   @override
@@ -71,6 +94,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _hintTimer?.cancel();
     _view.dispose();
     _viewAnim.dispose();
     _popupIn.dispose();
@@ -81,7 +105,13 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
 
   void _onView() {
     final z = (_scale * 2).round() / 2;
-    if (z != _zoom) setState(() => _zoom = z);
+    final turned = _angle.abs() > 0.005;
+    if (z != _zoom || turned != _rotated) {
+      setState(() {
+        _zoom = z;
+        _rotated = turned;
+      });
+    }
   }
 
   // ------------------------------------------------------------------ view
@@ -95,15 +125,14 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
 
   double _clampScale(double s, double max) => s.clamp(minScale, max);
 
-  Matrix4 _matrix(double s, double tx, double ty) {
-    final fit = _fit;
-    return Matrix4.identity()
-      ..translateByDouble(clampAxis(tx, s, fit.width, _vp.width), clampAxis(ty, s, fit.height, _vp.height), 0, 1)
-      ..scaleByDouble(s, s, 1, 1);
-  }
+  double get _angle => viewAngle(_view.value);
+  Offset _screenOf(Offset content) => viewToScreen(_view.value, content);
+  Matrix4 _constrain(Matrix4 view) => clampView(view, _fit, _vp);
 
-  void _setView(double s, double tx, double ty, {bool animate = true, int ms = 220}) {
-    final target = _matrix(s, tx, ty);
+  /// Glide to the view that puts [content] at [screen] (the middle of the screen unless given). The map keeps the turn
+  /// it has, unless [angle] says otherwise (0 points it north again).
+  void _goTo(Offset content, double scale, double maxScale, {Offset? screen, double? angle, bool animate = true, int ms = 220}) {
+    final target = _constrain(composeView(scale: _clampScale(scale, maxScale), angle: angle ?? _angle, content: content, screen: screen ?? Offset(_vp.width / 2, _vp.height / 2)));
     if (!animate) {
       _view.value = target;
       return;
@@ -118,27 +147,23 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     final a = _from, b = _to;
     if (a == null || b == null) return;
     final t = Curves.easeInOut.transform(_viewAnim.value);
-    final m = Matrix4.zero();
-    for (var i = 0; i < 16; i++) {
-      m.storage[i] = a.storage[i] + (b.storage[i] - a.storage[i]) * t;
-    }
-    _view.value = m;
+    final s0 = a.getMaxScaleOnAxis(), s1 = b.getMaxScaleOnAxis(), a0 = viewAngle(a);
+    final s = s0 + (s1 - s0) * t;
+    final p = Offset.lerp(Offset(a.storage[12], a.storage[13]), Offset(b.storage[12], b.storage[13]), t)!;
+    _view.value = Matrix4.identity()
+      ..translateByDouble(p.dx, p.dy, 0, 1)
+      ..rotateZ(a0 + angleDelta(a0, viewAngle(b)) * t)
+      ..scaleByDouble(s, s, 1, 1);
   }
-
-  double _tx() => _view.value.getTranslation().x;
-  double _ty() => _view.value.getTranslation().y;
 
   /// Zoom to an exact target scale while keeping content point (x, y) at its current on-screen position.
   void _zoomKeeping(double x, double y, double target, double maxScale, {int ms = 220}) {
-    final s = _clampScale(target, maxScale);
-    _setView(s, (x * _scale + _tx()) - x * s, (y * _scale + _ty()) - y * s, ms: ms);
+    final at = Offset(x, y);
+    _goTo(at, target, maxScale, screen: _screenOf(at), ms: ms);
   }
 
   /// Bring a pin to the centre of the viewport and zoom in on it, whatever the earlier pan and zoom were.
-  void _focusPin(Pin pin, double target, double maxScale) {
-    final s = _clampScale(target, maxScale);
-    _setView(s, _vp.width / 2 - pin.x * s, _vp.height / 2 - pin.y * s);
-  }
+  void _focusPin(Pin pin, double target, double maxScale) => _goTo(Offset(pin.x, pin.y), target, maxScale);
 
   // ---------------------------------------------------------------- popup
 
@@ -359,7 +384,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         HapticFeedback.selectionClick();
         final need = cl.r != null ? (areaOpenPx / cl.r!) * 1.15 : 0.0;
         final s = math.min(maxScale, math.max(math.max(_zoom * 1.9, 2.4), need));
-        _setView(s, _vp.width / 2 - cl.x * s, _vp.height / 2 - cl.y * s);
+        _goTo(Offset(cl.x, cl.y), s, maxScale);
       }
 
       // ---- location
@@ -437,7 +462,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           if (widget.focus == null && widget.spot == null) {
             final z = _clampScale(cfg.initialZoom ?? 2, maxScale);
             final cp = cfg.centerLat != null && cfg.centerLng != null ? toXY(cfg.centerLat!, cfg.centerLng!) : Offset(fit.width / 2, fit.height / 2);
-            _setView(z, _vp.width / 2 - cp.dx * z, _vp.height / 2 - cp.dy * z, animate: false);
+            _goTo(cp, z, maxScale, angle: 0, animate: false);
           }
         }
         if (!ready) return;
@@ -492,8 +517,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           _zoomKeeping(selPin.x, selPin.y, s, maxScale, ms: 160);
         } else {
           // otherwise around the centre of the screen
-          final cx = (_vp.width / 2 - _tx()) / _scale, cy = (_vp.height / 2 - _ty()) / _scale;
-          _setView(s, _vp.width / 2 - cx * s, _vp.height / 2 - cy * s, ms: 160);
+          final mid = Offset(_vp.width / 2, _vp.height / 2);
+          _goTo(viewToContent(_view.value, mid), s, maxScale, screen: mid, ms: 160);
         }
       }
 
@@ -516,7 +541,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
 
       Widget callout() {
         final pin = selPin!;
-        final flipDown = pin.y * _scale + _ty() < 210; // not enough room above: flip below the pin
+        final flipDown = _screenOf(Offset(pin.x, pin.y)).dy < 210; // not enough room above: flip below the pin
         const h = calloutH + 11;
         return AnimatedBuilder(
           animation: Listenable.merge([_view, _popupIn]),
@@ -533,8 +558,11 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               top: pin.y - anchorY,
               width: calloutW,
               height: h,
-              child: Transform.scale(
-                scale: s,
+              child: Transform(
+                // upright and at a steady size, however the map is turned or zoomed
+                transform: Matrix4.identity()
+                  ..scaleByDouble(s, s, 1, 1)
+                  ..rotateZ(-_angle),
                 alignment: Alignment(0, anchorY / h * 2 - 1),
                 child: Opacity(opacity: opacity.clamp(0.0, 1.0), child: Transform.translate(offset: Offset(0, dy), child: Callout(pin: pin, distance: selectedDist, flipDown: flipDown, card: cpal.card, ink: cpal.ink, muted: cpal.muted, onOpen: openDetail, onClose: _dismissPopup))),
               ),
@@ -619,16 +647,16 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         clipBehavior: Clip.hardEdge,
         decoration: BoxDecoration(color: mapBg),
         child: Stack(fit: StackFit.expand, children: [
-          InteractiveViewer(
-            transformationController: _view,
-            constrained: false,
+          RotatableViewer(
+            controller: _view,
+            constrain: _constrain,
             minScale: minScale,
             maxScale: maxScale,
-            boundaryMargin: EdgeInsets.zero,
+            onInteract: () => _viewAnim.stop(),
             child: canvas,
           ),
-          // Edge-fade vignette, only at the default view (hidden once the guest zooms in).
-          if (mapImageUrl != null && _zoom <= (cfg?.initialZoom ?? 2) + 0.001) ...[edgeFade(true), edgeFade(false)],
+          // Edge-fade vignette, only at the default view (hidden once the guest zooms in or turns the map).
+          if (mapImageUrl != null && !_rotated && _zoom <= (cfg?.initialZoom ?? 2) + 0.001) ...[edgeFade(true), edgeFade(false)],
           if (locationBanner)
             Positioned(
               top: top + 78,
@@ -736,20 +764,29 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             top: top + 150,
             right: 16,
             child: Column(children: [
+              // appears once the map is turned; tap to point it north again
+              AnimatedBuilder(
+                animation: _view,
+                builder: (_, _) {
+                  final a = _angle;
+                  if (a.abs() < 0.005) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: roundBtn(Transform.rotate(angle: a, child: const Icon(Icons.navigation_rounded, color: Tokens.accent, size: 22)), 'Point the map north', () => _goTo(viewToContent(_view.value, Offset(_vp.width / 2, _vp.height / 2)), _scale, maxScale, angle: 0)),
+                  );
+                },
+              ),
               roundBtn(Text('＋', style: TextStyle(fontFamily: Tokens.display, fontSize: 17.5, fontWeight: FontWeight.w700, color: c.text)), 'Zoom in', () => zoomBy(_scale + 0.4)),
               const SizedBox(height: 10),
               roundBtn(Text('－', style: TextStyle(fontFamily: Tokens.display, fontSize: 17.5, fontWeight: FontWeight.w700, color: c.text)), 'Zoom out', () => zoomBy(_scale - 0.4)),
               const SizedBox(height: 10),
-              roundBtn(Icon(Icons.map_outlined, color: c.link, size: 20), 'Show the whole park', () => _setView(1, 0, 0)),
+              roundBtn(Icon(Icons.map_outlined, color: c.link, size: 20), 'Show the whole park', () => _goTo(Offset(fit.width / 2, fit.height / 2), 1, maxScale, angle: 0)),
               const SizedBox(height: 10),
-              roundBtn(Icon(Icons.my_location_rounded, color: c.link, size: 20), 'Centre on my location', () {
-                const s = 2.0;
-                _setView(s, _vp.width / 2 - youAreHere.dx * s, _vp.height / 2 - youAreHere.dy * s);
-              }),
+              roundBtn(Icon(Icons.my_location_rounded, color: c.link, size: 20), 'Centre on my location', () => _goTo(youAreHere, 2, maxScale)),
             ]),
           ),
           // "Tap the map to explore" hint, until the guest opens something
-          if (_selected == null && !_hintDismissed)
+          if (_selected == null && !_hintDismissed && _hintVisible)
             Positioned(
               top: top + 78,
               left: 0,

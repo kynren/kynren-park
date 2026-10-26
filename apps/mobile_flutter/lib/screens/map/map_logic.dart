@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'dart:ui';
+import 'package:flutter/widgets.dart' show Matrix4;
 import '../../core/location.dart';
 
 /// Fixed geographic bounds of the park: the SAME box the admin map editor uses to place hotspots, so a pin
@@ -144,3 +145,51 @@ double clampAxis(double t, double s, double contentLen, double vp) {
   if (len >= vp) return t.clamp(vp - len, 0.0);
   return (vp - len) / 2;
 }
+
+// ------------------------------------------------------------------ rotatable view
+// The map's view is one 2D transform: screen = T(t) * R(angle) * S(scale) * content. These helpers read and build it.
+
+double viewAngle(Matrix4 m) => math.atan2(m.storage[1], m.storage[0]);
+
+/// The view that puts [content] at [screen] with the given scale and rotation.
+Matrix4 composeView({required double scale, required double angle, required Offset content, required Offset screen}) {
+  final c = math.cos(angle) * scale, s = math.sin(angle) * scale;
+  final tx = screen.dx - (c * content.dx - s * content.dy);
+  final ty = screen.dy - (s * content.dx + c * content.dy);
+  return Matrix4.identity()
+    ..translateByDouble(tx, ty, 0, 1)
+    ..rotateZ(angle)
+    ..scaleByDouble(scale, scale, 1, 1);
+}
+
+Offset viewToScreen(Matrix4 m, Offset content) {
+  final k = m.storage;
+  return Offset(k[0] * content.dx + k[4] * content.dy + k[12], k[1] * content.dx + k[5] * content.dy + k[13]);
+}
+
+Offset viewToContent(Matrix4 m, Offset screen) {
+  final k = m.storage;
+  final det = k[0] * k[5] - k[4] * k[1];
+  if (det.abs() < 1e-12) return Offset.zero;
+  final x = screen.dx - k[12], y = screen.dy - k[13];
+  return Offset((k[5] * x - k[4] * y) / det, (k[0] * y - k[1] * x) / det);
+}
+
+/// Keep the map in view. Unrotated, the picture's edges stop at the screen's edges (see [clampAxis]); once rotated
+/// a rectangle no longer lines up with the screen, so the point at the middle of the screen is kept on the picture.
+Matrix4 clampView(Matrix4 m, Size canvas, Size vp) {
+  final s = m.getMaxScaleOnAxis(), a = viewAngle(m);
+  if (a.abs() < 1e-3) {
+    return Matrix4.identity()
+      ..translateByDouble(clampAxis(m.storage[12], s, canvas.width, vp.width), clampAxis(m.storage[13], s, canvas.height, vp.height), 0, 1)
+      ..scaleByDouble(s, s, 1, 1);
+  }
+  final mid = Offset(vp.width / 2, vp.height / 2);
+  final p = viewToContent(m, mid);
+  final q = Offset(p.dx.clamp(0.0, canvas.width), p.dy.clamp(0.0, canvas.height));
+  if (q == p) return m;
+  return composeView(scale: s, angle: a, content: q, screen: mid);
+}
+
+/// The shortest signed turn from [from] to [to], in radians.
+double angleDelta(double from, double to) => (to - from + math.pi) % (2 * math.pi) - math.pi;

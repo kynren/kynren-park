@@ -8,9 +8,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
 import '../core/api.dart';
 import '../core/auth.dart';
+import '../core/profile.dart';
+import '../core/tickets.dart';
 import '../core/theme.dart';
 import '../core/theme_mode.dart';
 import '../ui/controls.dart';
+import '../ui/details_card.dart';
 import '../ui/screen.dart';
 import '../ui/tap.dart';
 import 'profile_screen.dart';
@@ -22,7 +25,7 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final _first = TextEditingController(), _last = TextEditingController(), _phone = TextEditingController(), _address = TextEditingController(), _notes = TextEditingController();
+  final _notes = TextEditingController();
   String? _photo;
   bool _wheelchair = false, _audioDesc = false, _captioning = false, _bsl = false;
   bool _saved = false, _marketing = false, _exporting = false, _deleting = false;
@@ -37,10 +40,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (raw == null || !mounted) return;
       final m = jsonDecode(raw) as Map<String, dynamic>;
       setState(() {
-        _first.text = m['firstName'] as String? ?? '';
-        _last.text = m['lastName'] as String? ?? '';
-        _phone.text = m['phone'] as String? ?? '';
-        _address.text = m['address'] as String? ?? '';
         _notes.text = m['notes'] as String? ?? '';
         _photo = m['photoUri'] as String?;
         _wheelchair = m['wheelchair'] == true;
@@ -54,9 +53,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void dispose() {
     _savedTimer?.cancel();
-    for (final c in [_first, _last, _phone, _address, _notes]) {
-      c.dispose();
-    }
+    _notes.dispose();
     super.dispose();
   }
 
@@ -69,11 +66,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _save() async {
-    final p = await SharedPreferences.getInstance();
-    await p.setString(profileKey, jsonEncode({
-      'firstName': _first.text, 'lastName': _last.text, 'phone': _phone.text, 'address': _address.text, 'photoUri': _photo,
-      'wheelchair': _wheelchair, 'audioDesc': _audioDesc, 'captioning': _captioning, 'bsl': _bsl, 'notes': _notes.text,
-    }));
+    // merged over what is stored, so the details saved from the card above are kept
+    await context.read<ProfileState>().update({
+      'photoUri': _photo, 'wheelchair': _wheelchair, 'audioDesc': _audioDesc, 'captioning': _captioning, 'bsl': _bsl, 'notes': _notes.text,
+    });
     setState(() => _saved = true);
     _savedTimer?.cancel();
     _savedTimer = Timer(const Duration(milliseconds: 1800), () => mounted ? setState(() => _saved = false) : null);
@@ -165,7 +161,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final user = context.watch<AuthState>().user;
     final themePref = context.watch<ThemePref>();
     _loadConsent(user);
-    final initials = '${_first.text.isNotEmpty ? _first.text[0] : ''}${_last.text.isNotEmpty ? _last.text[0] : ''}'.toUpperCase();
+    final names = context.watch<ProfileState>().details(user, context.watch<TicketsState>().tickets);
+    final initials = '${names['firstName']!.isNotEmpty ? names['firstName']![0] : ''}${names['lastName']!.isNotEmpty ? names['lastName']![0] : ''}'.toUpperCase();
     final photo = profilePhoto(_photo);
 
     return KScreen(
@@ -199,12 +196,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Tap(onTap: _pickPhoto, child: Text('Change photo', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: c.link))),
         ]),
         const SizedBox(height: 10),
-        _section('Your details', [
-          KTextField(label: 'First name', hint: 'First name', controller: _first, onChanged: (_) => setState(() {})),
-          KTextField(label: 'Last name', hint: 'Last name', controller: _last, onChanged: (_) => setState(() {})),
-          KTextField(label: 'Phone', hint: 'Phone', controller: _phone, keyboardType: TextInputType.phone),
-          KTextField(label: 'Address', hint: 'Address', controller: _address, keyboardType: TextInputType.multiline),
-        ]),
+        const YourDetailsCard(labelOutside: true),
         const SizedBox(height: 10),
         _section('Accessibility', [
           _toggle('Step-free access needs', _wheelchair, (v) => setState(() => _wheelchair = v)),

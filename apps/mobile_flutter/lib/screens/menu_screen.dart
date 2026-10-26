@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../core/auth.dart';
+import '../core/profile.dart';
+import '../core/tickets.dart';
 import '../core/sync.dart';
 import '../core/theme.dart';
 import '../ui/controls.dart';
@@ -12,15 +14,17 @@ import '../ui/tap.dart';
 class _Entry {
   final String label, to;
   final IconData icon;
-  const _Entry(this.label, this.icon, this.to);
+  /// Needs an account: only shown once the guest has signed in.
+  final bool personal;
+  const _Entry(this.label, this.icon, this.to, {this.personal = false});
 }
 
 const _groups = [
   (title: 'Your visit', entries: [
-    _Entry('My tickets', Icons.confirmation_number_rounded, '/tickets'),
+    _Entry('My tickets', Icons.confirmation_number_rounded, '/tickets', personal: true),
     _Entry('Programme', Icons.calendar_month_rounded, '/shows'),
-    _Entry('My day', Icons.star_rounded, '/plan'),
-    _Entry('My orders', Icons.restaurant_rounded, '/orders'),
+    _Entry('My day', Icons.star_rounded, '/plan', personal: true),
+    _Entry('My orders', Icons.restaurant_rounded, '/orders', personal: true),
   ]),
   (title: 'Around the park', entries: [
     _Entry('Scan a code', Icons.qr_code_scanner_rounded, '/scan'),
@@ -30,10 +34,10 @@ const _groups = [
     _Entry('Notifications', Icons.notifications_rounded, '/notifications'),
   ]),
   (title: 'You', entries: [
-    _Entry('Find my bookings', Icons.search_rounded, '/find-bookings'),
+    _Entry('Find my bookings', Icons.search_rounded, '/find-bookings', personal: true),
     _Entry('Profile', Icons.person_rounded, '/profile'),
     _Entry('Language', Icons.language_rounded, '/language'),
-    _Entry('Settings', Icons.tune_rounded, '/settings'),
+    _Entry('Settings', Icons.tune_rounded, '/settings', personal: true),
   ]),
 ];
 
@@ -79,7 +83,7 @@ class _MenuScreenState extends State<MenuScreen> with SingleTickerProviderStateM
     final top = MediaQuery.paddingOf(context).top;
     final router = GoRouter.of(context);
     final hasPicture = hasSlotImage(context, 'header.menu');
-    final name = (user?.name?.trim().isNotEmpty ?? false) ? user!.name!.trim() : (user?.email != null ? user!.email!.split('@').first : '');
+    final name = user == null ? '' : context.watch<ProfileState>().firstName(user, context.watch<TicketsState>().tickets);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -138,11 +142,13 @@ class _MenuScreenState extends State<MenuScreen> with SingleTickerProviderStateM
                     padding: EdgeInsets.fromLTRB(0, 6, 0, MediaQuery.paddingOf(context).bottom + 24),
                     children: [
                       for (final g in _groups)
+                        if (g.entries.any((e) => !e.personal || user != null))
                         Padding(
                           padding: const EdgeInsets.only(top: 14),
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                             Padding(padding: const EdgeInsets.fromLTRB(22, 0, 22, 4), child: Text(g.title.toUpperCase(), style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.5, color: c.sub))),
                             for (final e in g.entries)
+                              if (!e.personal || user != null)
                               Tap(
                                 onTap: () => _close(() => router.push(e.to)),
                                 label: e.label,
