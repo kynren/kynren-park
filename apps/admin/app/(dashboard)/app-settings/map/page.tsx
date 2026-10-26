@@ -4,12 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { api, apiUpload, friendlyError } from '../../../../lib/api';
 import { confirmDelete, promptText } from '../../../../lib/confirm';
 import { uploadToast } from '../../../../lib/toast';
+import { findWalkways, walkGridPreview } from '../../../../lib/find-walkways';
+import type { WalkGrid } from '@kynren/shared';
 import { QrButton } from '../../../../components/QrButton';
 import { GalleryEditor } from '../../../../components/GalleryEditor';
 
 interface Poi { id: string; type: string; name: string; lat: number; lng: number; color: string | null; mapZone: string | null; image: string | null; description?: string | null; heroImage?: string | null; images?: string[]; openingHours?: string | null }
 interface MapConfig { markerColor: string; markerStyle: string; mapImageUrl: string | null; initialZoom?: number; maxZoom?: number; centerLat?: number | null; centerLng?: number | null; popupAnimation?: string }
-interface ParkMap { id: string; name: string; imageUrl: string | null; bgColor: string | null; isDefault: boolean }
+interface ParkMap { id: string; name: string; imageUrl: string | null; bgColor: string | null; isDefault: boolean; walkGrid?: WalkGrid | null }
 interface EntityLite { id: string; name: string; poiId: string | null; heroImage?: string | null; category?: string }
 type DragEntity = { kind: 'attraction' | 'restaurant' | 'shop' | 'facility'; id?: string; type?: string; name: string; heroImage?: string | null };
 
@@ -37,6 +39,8 @@ export default function MapEditor() {
   const [maps, setMaps] = useState<ParkMap[]>([]);
   const [newMapName, setNewMapName] = useState('');
   const [showLabels, setShowLabels] = useState(true);
+  const [showPaths, setShowPaths] = useState(true);
+  const [pathTol, setPathTol] = useState(20); // how far from the learnt path colours still counts as path
   const [selId, setSelId] = useState<string | null>(null);
   const [attractions, setAttractions] = useState<EntityLite[]>([]);
   const [restaurants, setRestaurants] = useState<EntityLite[]>([]);
@@ -118,6 +122,25 @@ export default function MapEditor() {
     catch (e) { setErr(friendlyError(e, 'Could not update the map image.')); }
     refreshMaps();
   }
+  // Looks at the map picture for its walkways (the colours under the placed hotspots are what paths look like) and saves
+  // the network with the map, so the app's directions follow the real paths.
+  async function findPaths(id: string, imageUrl: string) {
+    const places: [number, number][] = pois.map((p) => [(p.lng - PARK_BOUNDS.minLng) / (PARK_BOUNDS.maxLng - PARK_BOUNDS.minLng), (PARK_BOUNDS.maxLat - p.lat) / (PARK_BOUNDS.maxLat - PARK_BOUNDS.minLat)]);
+    const t = uploadToast('Finding the walkways…');
+    try {
+      const { grid, cells } = await findWalkways(imageUrl, places, pathTol);
+      if (cells === 0) { t.error('No walkways found. Place a few hotspots on paths, or raise the path colour match, then try again.'); return; }
+      t.label('Saving the walkways…');
+      await api(`/admin/maps/${id}`, { method: 'PATCH', body: JSON.stringify({ walkGrid: grid }) });
+      setErr(''); refreshMaps();
+      t.success('Walkways found and saved');
+    } catch (e) { t.error(friendlyError(e, 'Could not find the walkways.')); }
+  }
+  async function clearPaths(id: string) {
+    try { await api(`/admin/maps/${id}`, { method: 'PATCH', body: JSON.stringify({ walkGrid: null }) }); setErr(''); }
+    catch (e) { setErr(friendlyError(e, 'Could not clear the walkways.')); }
+    refreshMaps();
+  }
   async function deleteMap(id: string) {
     if (!(await confirmDelete('Delete this map?'))) return;
     try { await api(`/admin/maps/${id}`, { method: 'DELETE' }); setErr(''); }
@@ -187,6 +210,7 @@ export default function MapEditor() {
         await apiUpload(`/admin/maps/${uploadTarget.current}`, { imageUrl: url, bgColor: color }, { method: 'PATCH', onProgress: (p) => t.progress(p) });
         setErr(''); refreshMaps();
         t.success('Map uploaded');
+        findPaths(uploadTarget.current, url); // the new picture's walkways, found as soon as it is up
       } catch (err) { t.error(friendlyError(err, 'Could not upload the map.')); }
     }
   }
@@ -325,12 +349,16 @@ export default function MapEditor() {
   const entrance = pois.find((p) => p.type === 'ENTRANCE');
   const custPos = entrance ? proj(entrance) : { left: 50, top: 72 };
   const defaultMap = maps.find((m) => m.isDefault) ?? null;
+  const walkPreview = useMemo(() => (defaultMap?.walkGrid ? walkGridPreview(defaultMap.walkGrid) : null), [defaultMap?.walkGrid]);
 
   return (
     <div>
       <div className="page-actions">
         <div><h1>Map &amp; Hotspots</h1><p className="subtitle" style={{ margin: 0 }}>Scroll to zoom, drag to pan (when zoomed). Tap a hotspot to edit, press-hold to move, or click an empty spot to add one.</p></div>
-        <label className="checkline"><input type="checkbox" checked={showLabels} onChange={(e) => setShowLabels(e.target.checked)} /> Show labels</label>
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+          <label className="checkline"><input type="checkbox" checked={showPaths} onChange={(e) => setShowPaths(e.target.checked)} /> Show walkways</label>
+          <label className="checkline"><input type="checkbox" checked={showLabels} onChange={(e) => setShowLabels(e.target.checked)} /> Show labels</label>
+        </div>
       </div>
       {err && <div className="error" onClick={() => setErr('')} style={{ cursor: 'pointer' }}>{err}</div>}
 
@@ -341,6 +369,9 @@ export default function MapEditor() {
           <div ref={canvasRef} className="mapcanvas" style={{ overflow: 'hidden' }} onClick={onCanvasClick} onPointerDown={onCanvasPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp} onWheel={onWheelZoom} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
             <div style={{ position: 'absolute', inset: 0, transformOrigin: '0 0', transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}>
             {defaultMap?.imageUrl && <img src={defaultMap.imageUrl} alt="" onLoad={(e) => { const t = e.currentTarget; if (t.naturalWidth && t.naturalHeight) setMapAspect(t.naturalWidth / t.naturalHeight); }} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' }} />}
+            {showPaths && walkPreview && (
+              <img src={walkPreview} alt="" style={{ position: 'absolute', left: `${imgRect.ox * 100}%`, top: `${imgRect.oy * 100}%`, width: `${imgRect.w * 100}%`, height: `${imgRect.h * 100}%`, pointerEvents: 'none' }} />
+            )}
             <div className="grid" />
             {pois.map((p) => {
               const { left, top } = proj(p);
@@ -429,7 +460,10 @@ export default function MapEditor() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: 14 }}>{m.name} {m.isDefault && <span className="pillbadge on">Default</span>}</div>
                     <div style={{ fontSize: 12, color: 'var(--muted)', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>{m.imageUrl ? (m.imageUrl.startsWith('data:') ? 'Uploaded image' : m.imageUrl) : 'no image (illustrated map)'}</div>
+                    {m.imageUrl && <div style={{ fontSize: 12, color: m.walkGrid ? '#22b365' : 'var(--muted)' }}>{m.walkGrid ? 'Walkways found: directions follow them' : 'No walkways found yet: directions cut between places'}</div>}
                   </div>
+                  {m.imageUrl && <button className="tbtn" onClick={() => findPaths(m.id, m.imageUrl!)} title="Look at the picture for footpaths and roads">Find walkways</button>}
+                  {m.walkGrid && <button className="tbtn" onClick={() => clearPaths(m.id)}>Clear walkways</button>}
                   <button className="tbtn" onClick={() => triggerUpload(m.id)}>Upload</button>
                   <button className="tbtn" onClick={async () => { const u = await promptText('Image URL (leave blank to remove)', m.imageUrl ?? '', 'Map image URL'); if (u !== null) setMapImage(m.id, u.trim() || null); }}>URL</button>
                   {m.imageUrl && <button className="tbtn" onClick={() => setMapImage(m.id, null, null)}>Remove</button>}
@@ -438,6 +472,16 @@ export default function MapEditor() {
               ))}
             </div>
             <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={onFileChange} />
+            <div style={{ marginTop: 12, fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.5 }}>
+              <b>Walkways.</b> When a map is uploaded, its footpaths and roads are found automatically from the picture: the colour
+              under your hotspots is what a path looks like, so keep a few hotspots on paths. The app&rsquo;s directions then follow them.
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                Path colour match
+                <input type="range" min={10} max={34} value={pathTol} onChange={(e) => setPathTol(Number(e.target.value))} style={{ flex: 1 }} />
+                <span style={{ width: 22, textAlign: 'right' }}>{pathTol}</span>
+              </label>
+              Higher takes in more shades as path; lower is stricter. Press <b>Find walkways</b> to apply.
+            </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
               <input value={newMapName} onChange={(e) => setNewMapName(e.target.value)} placeholder="New map name" style={{ flex: 1 }} onKeyDown={(e) => e.key === 'Enter' && addMap()} />
               <button className="primary" onClick={addMap}>Add map</button>

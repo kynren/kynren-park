@@ -288,6 +288,7 @@ model ParkMap {
   name      String
   imageUrl  String?
   bgColor   String? // average colour of the image; fills the map screen edges
+  walkGrid  Json? // walkable cells found on the image, as a bit grid covering the picture (see @kynren/shared path-detect)
   isDefault Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

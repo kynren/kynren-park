@@ -189,14 +189,14 @@ class RoutePainter extends CustomPainter {
   final double scale;
   const RoutePainter(this.points, {this.scale = 1});
 
-  static const _stepPx = 30.0; // distance between footprints along the path, on screen
-  static const _sidePx = 6.5; // how far each foot sits to the side of the path
+  static const _stepPx = 21.0; // distance between footprints along the path, on screen
+  static const _sidePx = 4.2; // how far each foot sits to the side of the path
   static const _colour = Color(0xFF2B7FFF);
 
-  /// One footprint pointing up, about 12 by 27 px: a broad sole joined to a narrower heel, like a shoe print.
+  /// One footprint pointing up, about 8 by 18 px: a broad sole joined to a narrower heel, like a shoe print.
   static Path _foot() {
-    final sole = Path()..addOval(Rect.fromCenter(center: const Offset(0, -5), width: 12, height: 18));
-    final heel = Path()..addOval(Rect.fromCenter(center: const Offset(0, 7), width: 8, height: 10));
+    final sole = Path()..addOval(Rect.fromCenter(center: const Offset(0, -3.3), width: 8, height: 12));
+    final heel = Path()..addOval(Rect.fromCenter(center: const Offset(0, 4.6), width: 5.3, height: 6.6));
     return Path.combine(PathOperation.union, sole, heel);
   }
 
@@ -207,7 +207,7 @@ class RoutePainter extends CustomPainter {
     final step = _stepPx / scale;
     final side = _sidePx / scale;
     // stop a little short of the destination so the last foot is not hidden under its pin
-    final lead = 20 / scale;
+    final lead = 14 / scale;
 
     var total = 0.0;
     for (var i = 1; i < points.length; i++) {
@@ -219,7 +219,7 @@ class RoutePainter extends CustomPainter {
     final casing = Paint()
       ..color = Colors.white
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 3.2
+      ..strokeWidth = 2.2
       ..strokeJoin = StrokeJoin.round;
 
     var walked = 0.0; // distance along the whole path at the start of the current segment
@@ -315,7 +315,7 @@ class Callout extends StatelessWidget {
                 child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(pin.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: Tokens.display, fontWeight: FontWeight.w700, fontSize: 14.5, height: 18 / 14.5, color: ink)),
                   Padding(padding: const EdgeInsets.only(top: 2), child: Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, height: 16 / 12, color: muted))),
-                  Padding(padding: const EdgeInsets.only(top: 6), child: Text(pin.kind == PinKind.restaurant ? 'See the menu' : 'More information', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, decoration: TextDecoration.underline, color: ink))),
+                  Padding(padding: const EdgeInsets.only(top: 6), child: Text(pin.hint ?? (pin.kind == PinKind.restaurant ? 'See the menu' : 'More information'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, decoration: TextDecoration.underline, color: ink))),
                 ]),
               ),
               Positioned(

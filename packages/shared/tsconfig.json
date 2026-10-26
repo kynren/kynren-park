@@ -2,7 +2,10 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": "src",
+    // path-detect.ts is dense pixel arithmetic over typed arrays whose indices are always in range by construction;
+    // checking every read for undefined would bury the algorithm in non-null assertions.
+    "noUncheckedIndexedAccess": false
   },
   "include": ["src"]
 }

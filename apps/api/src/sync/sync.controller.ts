@@ -67,7 +67,7 @@ export class SyncController {
     // disabled means the app sees no steps at all, no mobile-side change needed.
     const walkthrough = (walkthroughConfig?.enabled ?? true) ? walkthroughSteps : [];
 
-    // The next date (from today) that actually has shows in the weekly
+    // The next date after today that actually has shows in the weekly
     // programme — used by the app's "programme available from" message instead
     // of a fixed season date. Respects the season opening if one is set.
     const programWeekdays = new Set(
@@ -76,6 +76,7 @@ export class SyncController {
     let nextProgramDate: string | null = null;
     if (programWeekdays.size > 0) {
       const cursor = new Date(`${day}T00:00:00.000Z`);
+      cursor.setUTCDate(cursor.getUTCDate() + 1); // always a later day, never today
       const seasonOpens = branding?.seasonOpens && /^\d{4}-\d{2}-\d{2}$/.test(branding.seasonOpens) ? new Date(`${branding.seasonOpens}T00:00:00.000Z`) : null;
       if (seasonOpens && cursor < seasonOpens) cursor.setTime(seasonOpens.getTime());
       for (let i = 0; i < 366; i++) {

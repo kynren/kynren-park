@@ -7,6 +7,10 @@ import '../../core/location.dart';
 /// placed in admin lands on the exact same map spot here (both map these bounds onto the base-map image rectangle).
 const parkBounds = (minLat: 54.668, maxLat: 54.675, minLng: -1.684, maxLng: -1.674);
 
+/// How long the map picture is on the ground, across and down, for turning positions on it into walking distances.
+final parkMetresAcross = (parkBounds.maxLng - parkBounds.minLng) * 111320 * math.cos((parkBounds.minLat + parkBounds.maxLat) / 2 * math.pi / 180);
+final parkMetresDown = (parkBounds.maxLat - parkBounds.minLat) * 110540;
+
 const areaOpenPx = 90.0; // an area stays grouped until its pins span more than this on screen
 const halfMileM = 804.672; // only show the location beacon within this distance of the park
 const minScale = 1.0;
@@ -14,10 +18,11 @@ const maxScaleCeiling = 12.0; // absolute ceiling; the effective max comes from 
 const calloutH = 104.0;
 const calloutW = 292.0;
 
-enum Cat { favorites, shows, restaurants, facilities }
+enum Cat { favorites, soon, shows, restaurants, facilities }
 
 const pills = [
   (key: Cat.favorites, label: 'Favourites', emoji: '♡'),
+  (key: Cat.soon, label: 'Soon', emoji: '⏱'),
   (key: Cat.shows, label: 'Shows', emoji: '🎭'),
   (key: Cat.restaurants, label: 'Restaurants', emoji: '🍴'),
   (key: Cat.facilities, label: 'Facilities', emoji: '🚻'),
@@ -36,11 +41,30 @@ const facilityTypes = {
   'INFO': (emoji: 'ℹ️', color: 0xFF6D5DF6),
 };
 
+/// Short names for the facility chips shown while the Facilities layer is on.
+const facilityLabels = {
+  'RESTROOM': 'Toilets',
+  'FIRST_AID': 'First aid',
+  'SHOP': 'Shops',
+  'PARKING': 'Parking',
+  'ACCESSIBILITY': 'Accessible',
+  'BABY_CHANGING': 'Baby changing',
+  'PICNIC': 'Picnic',
+  'ENTRANCE': 'Entrance',
+  'INFO': 'Info',
+};
+
+/// The marker for the car the guest saved. Its id is reserved; it is never a park place.
+const parkedCarId = 'parked-car';
+
 enum PinKind { show, evening, restaurant, facility }
 
 class Pin {
   final String id;
   final String? attractionId, slug, image, emoji, subtitle, nextTime, zone;
+
+  /// The callout's link text, when it should not be the usual "More information".
+  final String? hint;
   final double x, y;
   final double? lat, lng;
   final Color? color;
@@ -64,6 +88,7 @@ class Pin {
     this.subtitle,
     this.nextTime,
     this.zone,
+    this.hint,
   });
 }
 

@@ -10,6 +10,9 @@ import '../../core/favorites.dart';
 import '../../core/format.dart';
 import '../../core/location.dart';
 import '../../core/models.dart';
+import '../../core/parking.dart';
+import '../../core/walk_grid.dart';
+import '../../core/programme_logic.dart';
 import '../../core/sync.dart';
 import '../../core/theme.dart';
 import '../../ui/controls.dart';
@@ -48,6 +51,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   final _searchCtl = TextEditingController();
 
   final Set<Cat> _cats = {Cat.shows};
+  final Set<String> _facilityPicked = {}; // facility types chosen under Facilities; empty means all of them
+  ParkedSpot? _car;
   Pin? _selected, _closing;
   bool _searchOpen = true, _nearOpen = false, _hintDismissed = false, _hintVisible = false;
   Timer? _hintTimer;
@@ -71,6 +76,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     _viewAnim.addListener(_tickView);
     _showHintOnce();
     _handleParams();
+    loadParkedSpot().then((s) => mounted && s != null ? setState(() => _car = s) : null);
   }
 
   Future<void> _showHintOnce() async {
@@ -293,6 +299,14 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         if (cur == null || DateTime.parse(t).isBefore(DateTime.parse(cur))) nextBy[s.attractionId] = t;
       }
 
+      // Attractions that are on right now or start within the hour.
+      final soonIds = <String>{};
+      for (final s in bundle?.sessions ?? <Session>[]) {
+        if (s.status == 'CANCELLED') continue;
+        final start = DateTime.parse(s.revisedStart ?? s.startTime).millisecondsSinceEpoch;
+        if (DateTime.parse(s.endTime).millisecondsSinceEpoch > ref && start - ref <= soonMins * 60000) soonIds.add(s.attractionId);
+      }
+
       // ---- pins
       final pins = <Pin>[];
       if (_cats.contains(Cat.restaurants)) {
@@ -307,17 +321,19 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         for (final poi in pois) {
           final def = facilityTypes[poi.type];
           if (def == null) continue; // attractions and restaurants have their own filters
+          if (_facilityPicked.isNotEmpty && !_facilityPicked.contains(poi.type)) continue;
           final p = toXY(poi.lat, poi.lng);
           pins.add(Pin(id: poi.id, x: p.dx, y: p.dy, lat: poi.lat, lng: poi.lng, image: poi.image, kind: PinKind.facility, emoji: (poi.icon ?? '').isNotEmpty ? poi.icon : def.emoji, color: parseHex(poi.color, Color(def.color)), title: poi.name, subtitle: poi.type.replaceAll('_', ' ').toLowerCase(), zone: poi.mapZone));
         }
       }
-      final showAll = _cats.contains(Cat.shows), showFavs = _cats.contains(Cat.favorites);
-      if (showAll || showFavs) {
+      final showAll = _cats.contains(Cat.shows), showFavs = _cats.contains(Cat.favorites), showSoon = _cats.contains(Cat.soon);
+      bool keepShow(String id) => showAll || (showFavs && favs.contains(id)) || (showSoon && soonIds.contains(id));
+      if (showAll || showFavs || showSoon) {
         final day = (bundle?.attractions ?? <Attraction>[]).where((a) => a.category != 'EVENING_SHOW').toList();
         for (var i = 0; i < day.length; i++) {
           final a = day[i];
           if (a.poiId == null) continue;
-          if (!showAll && showFavs && !favs.contains(a.id)) continue; // favourites-only filter
+          if (!keepShow(a.id)) continue; // favourites-only and soon-only filters
           final poi = poiById[a.poiId];
           if (poi == null) continue;
           final p = toXY(poi.lat, poi.lng);
@@ -325,13 +341,20 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           pins.add(Pin(id: a.id, attractionId: a.id, x: p.dx, y: p.dy, lat: poi.lat, lng: poi.lng, slug: a.slug, image: (a.heroImage ?? '').isNotEmpty ? a.heroImage : poi.image, kind: PinKind.show, number: i + 1, title: a.name, subtitle: a.tagline, nextTime: nextBy[a.id], zone: poi.mapZone));
         }
         final evening = (bundle?.attractions ?? <Attraction>[]).where((a) => a.category == 'EVENING_SHOW').firstOrNull;
-        if (evening != null && evening.poiId != null && (showAll || favs.contains(evening.id))) {
+        if (evening != null && evening.poiId != null && keepShow(evening.id)) {
           final poi = poiById[evening.poiId];
           if (poi != null) {
             final p = toXY(poi.lat, poi.lng);
             pins.add(Pin(id: evening.id, attractionId: evening.id, x: p.dx, y: p.dy, lat: poi.lat, lng: poi.lng, slug: evening.slug, image: (evening.heroImage ?? '').isNotEmpty ? evening.heroImage : poi.image, kind: PinKind.evening, emoji: '🌙', title: evening.name, subtitle: evening.tagline, nextTime: nextBy[evening.id], zone: poi.mapZone));
           }
         }
+      }
+
+      // The saved car stays on the map whichever layers are on.
+      final car = _car;
+      if (car != null) {
+        final p = toXY(car.lat, car.lng);
+        pins.add(Pin(id: parkedCarId, x: p.dx, y: p.dy, lat: car.lat, lng: car.lng, kind: PinKind.facility, emoji: '🚗', color: const Color(0xFF1F7A5C), title: 'Your car', subtitle: 'Saved ${fmtRelative(car.savedAt)}', hint: 'Forget this spot'));
       }
 
       // The selected pin's current position (it re-projects when the map changes).
@@ -403,7 +426,22 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       List<Offset>? routePoints;
       double? routeMeters;
       final sel = _selected;
-      if (sel != null && sel.lat != null && locationReal && routeNodes.length >= 2) {
+      // Along the real footpaths the admin's map editor found on the picture, when there are any...
+      final walkGrid = bundle?.defaultMap?.walkGrid;
+      if (sel != null && locationReal && walkGrid != null && fit.width > 0 && fit.height > 0) {
+        final from = Offset(youAreHere.dx / fit.width, youAreHere.dy / fit.height), to = Offset(sel.x / fit.width, sel.y / fit.height);
+        // the search is not free, and the guest's position drifts a little every second: only redo it when the start or end moves to another cell
+        final key = '${identityHashCode(walkGrid)}:${walkGrid.cellOf(from)}>${walkGrid.cellOf(to)}';
+        if (key != _routeKey) {
+          _routeKey = key;
+          _route = walkGrid.route(from, to, metresAcross: parkMetresAcross, metresDown: parkMetresDown);
+        }
+        final r = _route!;
+        routePoints = smoothLine([for (final p in r.points) Offset(p.dx * fit.width, p.dy * fit.height)]);
+        routeMeters = r.metres;
+      }
+      // ...otherwise hopping between the park's places.
+      if (routePoints == null && sel != null && sel.lat != null && locationReal && routeNodes.length >= 2) {
         final target = Geo(sel.lat!, sel.lng!);
         final s = nearestNode(routeNodes, gps), g = nearestNode(routeNodes, target);
         final nodePath = s == g ? [g] : dijkstra(buildPoiGraph(routeNodes), routeNodes, s, g);
@@ -448,10 +486,70 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       void goToResult(String id, Cat kind) {
         setState(() {
           _cats.add(kind);
+          if (kind == Cat.facilities) _facilityPicked.clear(); // a type chip must not hide the place just asked for
           _pendingSelect = id;
           _searchCtl.clear();
         });
         FocusScope.of(context).unfocus();
+      }
+
+      // The closest toilets, first aid and food, for the guest standing in the park.
+      final quick = <({String id, Cat kind, String label, String emoji, double dist})>[];
+      if (locationReal) {
+        void nearest(String label, String emoji, Cat kind, Iterable<({String id, Poi poi})> from) {
+          ({String id, double d})? best;
+          for (final e in from) {
+            final d = distMeters(gps, Geo(e.poi.lat, e.poi.lng));
+            if (best == null || d < best.d) best = (id: e.id, d: d);
+          }
+          if (best != null) quick.add((id: best.id, kind: kind, label: label, emoji: emoji, dist: best.d));
+        }
+
+        nearest('Toilets', '🚻', Cat.facilities, [for (final p in pois) if (p.type == 'RESTROOM') (id: p.id, poi: p)]);
+        nearest('First aid', '⛑️', Cat.facilities, [for (final p in pois) if (p.type == 'FIRST_AID') (id: p.id, poi: p)]);
+        nearest('Food', '🍴', Cat.restaurants, [
+          for (final r in bundle?.restaurants ?? <Restaurant>[])
+            if (r.poiId != null && poiById[r.poiId] != null) (id: r.id, poi: poiById[r.poiId]!),
+        ]);
+      }
+
+      void parkingTap() {
+        HapticFeedback.selectionClick();
+        if (_car != null) {
+          setState(() => _pendingSelect = parkedCarId);
+          return;
+        }
+        final msg = ScaffoldMessenger.of(context);
+        msg.hideCurrentSnackBar();
+        // floats above the bottom bar instead of sliding over it
+        void say(String text) => msg.showSnackBar(SnackBar(content: Text(text), behavior: SnackBarBehavior.floating, margin: EdgeInsets.fromLTRB(16, 0, 16, barTop + 8)));
+        if (!locationReal) {
+          say('Turn on location while you’re in the park to save where you parked.');
+          return;
+        }
+        final spot = ParkedSpot(gps.lat, gps.lng, DateTime.now());
+        saveParkedSpot(spot);
+        setState(() => _car = spot);
+        say('Saved. Tap the P button any time to be walked back to your car.');
+      }
+
+      Future<void> forgetCar() async {
+        final ok = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Forget your parking spot?'),
+            content: const Text('The car marker comes off the map. You can save a new spot any time.'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Keep it')),
+              TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Forget')),
+            ],
+          ),
+        );
+        if (ok != true || !mounted) return;
+        await clearParkedSpot();
+        if (!mounted) return;
+        _dismissPopup();
+        setState(() => _car = null);
       }
 
       // ---- post-frame work: the opening view, and pending selections once the pins exist
@@ -497,6 +595,10 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       void openDetail() {
         final s = _selected;
         if (s == null) return;
+        if (s.id == parkedCarId) {
+          forgetCar();
+          return;
+        }
         if (s.kind == PinKind.restaurant && s.slug != null) {
           context.push('/restaurant/${s.slug}');
           return;
@@ -688,6 +790,15 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                 ]),
               ),
             ),
+          if (_cats.contains(Cat.soon) && !_cats.contains(Cat.shows) && !_cats.contains(Cat.favorites) && pins.where((p) => p.id != parkedCarId).isEmpty)
+            Positioned(
+              bottom: 300,
+              left: 24,
+              right: 24,
+              child: IgnorePointer(
+                child: Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: const Color(0xF7FFFFFF), borderRadius: BorderRadius.circular(12), boxShadow: const [BoxShadow(color: Color(0x2E000000), blurRadius: 8, offset: Offset(0, 3))]), child: const Text('Nothing is on or starting within the hour.', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFF2B2118), fontWeight: FontWeight.w600, fontSize: 13))),
+              ),
+            ),
           if (_cats.contains(Cat.favorites) && pins.isEmpty)
             Positioned(
               bottom: 300,
@@ -739,6 +850,25 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               ]),
               if (_nearOpen && q.isEmpty)
                 listCard([
+                  if (quick.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
+                      child: Wrap(spacing: 8, runSpacing: 8, children: [
+                        for (final n in quick)
+                          Tap(
+                            onTap: () {
+                              setState(() => _nearOpen = false);
+                              goToResult(n.id, n.kind);
+                            },
+                            label: 'Nearest ${n.label}, ${fmtDist(n.dist)}',
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(color: c.tint, borderRadius: BorderRadius.circular(999)),
+                              child: Text('${n.emoji} ${n.label} · ${fmtDist(n.dist)}', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: c.link)),
+                            ),
+                          ),
+                      ]),
+                    ),
                   Padding(padding: const EdgeInsets.fromLTRB(18, 14, 18, 4), child: Text(locationReal ? 'NEAR YOU' : 'AROUND THE PARK', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.4, color: c.sub))),
                   if (nearList.isEmpty)
                     Padding(padding: const EdgeInsets.all(16), child: Text('Nothing to show yet', style: TextStyle(fontSize: 13, color: c.sub)))
@@ -791,6 +921,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               roundBtn(Icon(Icons.map_outlined, color: c.link, size: 20), 'Show the whole park', () => _goTo(Offset(fit.width / 2, fit.height / 2), 1, maxScale, angle: 0)),
               const SizedBox(height: 10),
               roundBtn(Icon(Icons.my_location_rounded, color: c.link, size: 20), 'Centre on my location', () => _goTo(youAreHere, 2, maxScale)),
+              const SizedBox(height: 10),
+              roundBtn(Icon(Icons.local_parking_rounded, color: _car != null ? const Color(0xFF1F7A5C) : c.link, size: 22), _car != null ? 'Take me to my car' : 'Save where I parked', parkingTap),
             ]),
           ),
           // "Tap the map to explore" hint, until the guest opens something
@@ -810,13 +942,49 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           if (_selected != null && selectedDist != null)
             Positioned(
               left: 14,
-              bottom: barTop + 56,
+              bottom: barTop + 56 + (_cats.contains(Cat.facilities) ? 46 : 0),
               child: IgnorePointer(
                 child: Container(padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 16), decoration: BoxDecoration(color: c.card, borderRadius: BorderRadius.circular(999), boxShadow: const [BoxShadow(color: Color(0x2E000000), blurRadius: 5, offset: Offset(0, 2))]), child: Text('🚶 ${walkMins(selectedDist)} min walk', style: TextStyle(color: c.text, fontWeight: FontWeight.w800, fontSize: 13))),
               ),
             ),
+          // Facility types, while the Facilities layer is on: pick toilets, first aid and so on.
+          if (_cats.contains(Cat.facilities))
+            Positioned(
+              key: const ValueKey('facility-chips'),
+              left: 0,
+              right: 0,
+              bottom: barTop + 56,
+              child: SizedBox(
+                height: 38,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  children: [
+                    for (final t in facilityLabels.keys)
+                      if (pois.any((p) => p.type == t))
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Tap(
+                            onTap: () {
+                              setState(() => _facilityPicked.contains(t) ? _facilityPicked.remove(t) : _facilityPicked.add(t));
+                              _dismissPopup();
+                            },
+                            label: facilityLabels[t],
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 13),
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(color: _facilityPicked.contains(t) ? c.primary : c.card, borderRadius: BorderRadius.circular(999), boxShadow: softShadow(dark)),
+                              child: Text('${facilityTypes[t]!.emoji} ${facilityLabels[t]}', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5, color: _facilityPicked.contains(t) ? Colors.white : c.text)),
+                            ),
+                          ),
+                        ),
+                  ],
+                ),
+              ),
+            ),
           // Bottom: the layer filters
           Positioned(
+            key: const ValueKey('layer-pills'),
             left: 0,
             right: 0,
             bottom: barTop + 8,
@@ -854,4 +1022,6 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   }
 
   Offset? _lastDoubleTap;
+  String? _routeKey; // which walk _route is the answer for
+  WalkRoute? _route;
 }

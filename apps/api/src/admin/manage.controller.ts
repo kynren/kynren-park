@@ -1,5 +1,7 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Put, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { Prisma } from '@kynren/db';
+import { parseWalkGrid } from '@kynren/shared';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RequirePermission } from '../common/decorators.js';
 import { PermissionsGuard } from '../common/guards.js';
@@ -557,6 +559,17 @@ export class ManageController {
     const data = pick(b, ['name']);
     if (b.imageUrl !== undefined) data.imageUrl = b.imageUrl || null; // null clears the image
     if (b.bgColor !== undefined) data.bgColor = b.bgColor || null; // edge fill colour
+    // The walkable area belongs to one picture: a new or removed image drops the old one unless a fresh one comes with it.
+    if (b.imageUrl !== undefined) data.walkGrid = Prisma.DbNull;
+    if (b.walkGrid !== undefined) {
+      if (b.walkGrid === null) {
+        data.walkGrid = Prisma.DbNull;
+      } else {
+        const grid = parseWalkGrid(b.walkGrid);
+        if (!grid) throw new BadRequestException('walkGrid is not a valid walkable-area grid');
+        data.walkGrid = grid as unknown as Prisma.InputJsonValue;
+      }
+    }
     return this.prisma.parkMap.update({ where: { id }, data });
   }
 

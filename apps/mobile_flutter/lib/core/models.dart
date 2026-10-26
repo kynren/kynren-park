@@ -1,4 +1,5 @@
 // Bundle shape: mirrors GET /api/sync/bundle (see apps/mobile/lib/sync.tsx).
+import 'walk_grid.dart';
 
 typedef Json = Map<String, dynamic>;
 
@@ -51,12 +52,16 @@ class ParkMap {
   final String id, name;
   final String? imageUrl, bgColor;
   final bool isDefault;
+
+  /// The footpaths and roads the admin's map editor found on the picture; directions follow them. Null when none were found.
+  final WalkGrid? walkGrid;
   ParkMap.fromJson(Json j)
       : id = j['id'] as String,
         name = j['name'] as String,
         imageUrl = _s(j['imageUrl']),
         bgColor = _s(j['bgColor']),
-        isDefault = j['isDefault'] == true;
+        isDefault = j['isDefault'] == true,
+        walkGrid = WalkGrid.fromJson(j['walkGrid']);
 }
 
 class Branding {

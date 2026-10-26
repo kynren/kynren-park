@@ -3,3 +3,4 @@
 // Server code imports it from '@kynren/shared/crypto'.
 export * from './dto.js';
 export * from './itinerary.js';
+export * from './path-detect.js';
