@@ -23,6 +23,7 @@ import { StatusModule } from './status/status.module.js';
 import { SmeetzModule } from './smeetz/smeetz.module.js';
 import { ShuttleModule } from './shuttle/shuttle.module.js';
 import { WeatherModule } from './weather/weather.module.js';
+import { MediaModule } from './media/media.module.js';
 import { HealthController } from './health/health.controller.js';
 import { JwtAuthGuard } from './common/guards.js';
 
@@ -55,6 +56,7 @@ import { JwtAuthGuard } from './common/guards.js';
     SmeetzModule,
     ShuttleModule,
     WeatherModule,
+    MediaModule,
   ],
   controllers: [HealthController],
   providers: [
