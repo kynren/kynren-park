@@ -19,6 +19,7 @@ import '../ui/kimage.dart';
 import '../ui/managed_image.dart';
 import '../ui/reveal.dart';
 import '../ui/skeleton.dart';
+import '../ui/status_bar.dart';
 import '../ui/screen.dart';
 import '../ui/show_widgets.dart';
 import '../ui/tap.dart';
@@ -395,7 +396,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final bandHeight = top + 270;
     final hasBarPicture = hasSlotImage(context, 'header.home');
 
-    return Scaffold(
+    return StatusBarIcons(
+      light: true,
+      child: Scaffold(
       backgroundColor: c.screen,
       body: Stack(
         fit: StackFit.expand,
@@ -474,6 +477,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ]),
           ),
         ],
+      ),
       ),
     );
   }

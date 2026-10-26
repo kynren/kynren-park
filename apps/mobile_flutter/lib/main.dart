@@ -14,6 +14,7 @@ import 'core/push.dart';
 import 'core/restaurant_favs.dart';
 import 'core/sync.dart';
 import 'core/tickets.dart';
+import 'ui/status_bar.dart';
 import 'core/theme.dart';
 import 'core/theme_mode.dart';
 
@@ -124,7 +125,10 @@ class _KynrenAppState extends State<KynrenApp> {
             themeMode: context.watch<ThemePref>().mode,
             routerConfig: router,
             // The launch splash, announcements and first-time cards sit above every screen.
-            builder: (context, child) => Stack(fit: StackFit.expand, children: [child ?? const SizedBox.shrink(), const AnnouncementMegaphone(), const WalkthroughOverlay(), const LoadingOverlay()]),
+            builder: (context, child) => StatusBarIcons(
+              light: Theme.of(context).brightness == Brightness.dark,
+              child: Stack(fit: StackFit.expand, children: [child ?? const SizedBox.shrink(), const AnnouncementMegaphone(), const WalkthroughOverlay(), const LoadingOverlay()]),
+            ),
           );
         },
       ),

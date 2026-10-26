@@ -3,6 +3,7 @@ import '../app/shell.dart' show navClearance;
 import '../core/theme.dart';
 import 'managed_image.dart';
 import 'screen_header.dart';
+import 'status_bar.dart';
 import 'top_bar.dart';
 
 /// The picture the admin has set behind a whole page (System → App Images → Page backgrounds),
@@ -107,13 +108,16 @@ class _KScreenState extends State<KScreen> {
       ],
     );
     if (w.onRefresh != null) list = RefreshIndicator(onRefresh: w.onRefresh!, edgeOffset: MediaQuery.paddingOf(context).top + 60, child: list);
-    return Scaffold(
-      backgroundColor: c.screen,
-      body: Stack(fit: StackFit.expand, children: [
-        if (w.page != null) PageBackdrop(w.page!),
-        Positioned.fill(child: list),
-        KTopBar(title: w.title, offset: _offset, back: w.back, onBack: w.onBack, right: w.right, showBell: w.page != 'notifications'),
-      ]),
+    return StatusBarIcons(
+      light: true,
+      child: Scaffold(
+        backgroundColor: c.screen,
+        body: Stack(fit: StackFit.expand, children: [
+          if (w.page != null) PageBackdrop(w.page!),
+          Positioned.fill(child: list),
+          KTopBar(title: w.title, offset: _offset, back: w.back, onBack: w.onBack, right: w.right, showBell: w.page != 'notifications'),
+        ]),
+      ),
     );
   }
 }

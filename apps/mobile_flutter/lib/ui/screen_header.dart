@@ -48,7 +48,7 @@ class ScreenHeader extends StatelessWidget {
                 children: [
                   SizedBox(height: MediaQuery.paddingOf(context).top + 60),
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(22, 10, 22, 34),
+                    padding: const EdgeInsets.fromLTRB(22, 24, 22, 50),
                     child: SizedBox(
                       width: double.infinity,
                       child: Column(
@@ -63,10 +63,10 @@ class ScreenHeader extends StatelessWidget {
                               style: const TextStyle(
                                 fontFamily: Tokens.display,
                                 color: Colors.white,
-                                fontSize: 32,
+                                fontSize: 20,
                                 fontWeight: FontWeight.w800,
-                                height: 36 / 32,
-                                letterSpacing: -0.8,
+                                height: 26 / 20,
+                                letterSpacing: -0.4,
                               ),
                             ),
                           ),

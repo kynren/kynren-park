@@ -5,6 +5,7 @@ import '../core/theme.dart';
 import 'header_art.dart';
 import 'kimage.dart';
 import 'tap.dart';
+import 'status_bar.dart';
 import 'top_bar.dart';
 
 // Shared visual language for the show / restaurant / shop / facility detail pages: a full-bleed photo
@@ -96,7 +97,9 @@ class _DetailPageState extends State<DetailPage> {
     final images = widget.images, colors = widget.colors;
     final hasPhoto = images.isNotEmpty;
     final heroH = hasPhoto ? detailHeroHeight : top + 230;
-    return Scaffold(
+    return StatusBarIcons(
+      light: true,
+      child: Scaffold(
       backgroundColor: c.screen,
       body: Stack(fit: StackFit.expand, children: [
         ListView(
@@ -135,10 +138,13 @@ class _DetailPageState extends State<DetailPage> {
             ),
           ],
         ),
+        // a soft fade under the status bar, so its white icons read on a bright picture
+        Positioned(top: 0, left: 0, right: 0, height: top + 56, child: const IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0x73000000), Color(0x00000000)]))))),
         // the hero is tall, so the bar only turns solid once the sheet has covered most of it
         KTopBar(title: widget.title, offset: _offset + 140 - (heroH - top - 80), back: true),
         if (widget.bottom != null) Positioned(left: 16, right: 16, bottom: MediaQuery.paddingOf(context).bottom + 12, child: widget.bottom!),
       ]),
+      ),
     );
   }
 }
