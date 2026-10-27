@@ -9,6 +9,8 @@ export function normaliseEmail(raw: unknown): string {
 
 export interface GuestTicket {
   barcode: string | null;
+  /** What the ticket's QR code holds, where Smeetz gave it: the app draws this, and falls back to the barcode without it. */
+  qr: string | null;
   status: string | null;
   night: string | null;
   holder: string | null;
@@ -55,6 +57,7 @@ export interface MirrorOrderRow {
     itemStatus: string | null;
     showDate: Date | null;
     barcode: string | null;
+    qrCode: string | null;
     voucherCode: string | null;
     voucherStatus: string | null;
     membershipCode: string | null;
@@ -87,6 +90,7 @@ export function toGuestOrder(order: MirrorOrderRow): GuestOrder {
     const status = row.itemStatus ?? row.voucherStatus ?? row.membershipStatus;
     line.tickets.push({
       barcode: row.barcode ?? row.voucherCode ?? row.membershipCode,
+      qr: row.qrCode ? row.qrCode : null, // '' means Smeetz was asked and has none
       status,
       night: row.showDate ? day(row.showDate) : null,
       holder: [row.guestFirstName, row.guestLastName].filter(Boolean).join(' ') || null,
@@ -136,6 +140,7 @@ export type LineInput = {
   availabilityId: string | null;
   unitId: string | null;
   barcode: string | null;
+  qrCode: string | null;
   voucherCode: string | null;
   voucherStatus: string | null;
   membershipCode: string | null;
@@ -153,6 +158,7 @@ const EMPTY: Omit<LineInput, 'kind' | 'itemName'> = {
   availabilityId: null,
   unitId: null,
   barcode: null,
+  qrCode: null,
   voucherCode: null,
   voucherStatus: null,
   membershipCode: null,
@@ -187,6 +193,7 @@ export function flattenLines(order: RawSmeetzOrder): LineInput[] {
         availabilityId: str(u.availabilityId),
         unitId: str(u.id),
         barcode: str(u.barcode),
+        qrCode: str(u.token), // the same value as the one-order call's tickets[].qrCode
         guestFirstName: str(obj(u.guest).firstName),
         guestLastName: str(obj(u.guest).lastName),
       });
@@ -228,6 +235,8 @@ export function flattenLines(order: RawSmeetzOrder): LineInput[] {
 
 export type OrderDetail = {
   customer: { name: string | null; company: string | null; email: string | null; phone: string | null; address: string | null };
+  /** Each ticket's QR payload, keyed by the ticket unit's id. */
+  tickets: { uuid: string; qrCode: string | null }[];
 };
 
 const text = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : typeof v === 'number' ? String(v) : null);
@@ -240,5 +249,9 @@ export function parseOrderDetail(body: unknown): OrderDetail | null {
   const name = [text(c.firstName), text(c.lastName)].filter(Boolean).join(' ') || null;
   // street, city, postcode, country - whatever of them Smeetz has
   const address = [text(c.address), text(c.city), text(c.zipCode), text(c.country)].filter(Boolean).join(', ') || null;
-  return { customer: { name, company: text(c.company), email: text(c.email), phone: text(c.phone), address } };
+  const tickets = list(data.tickets).flatMap((t) => {
+    const uuid = text(t.uuid);
+    return uuid ? [{ uuid, qrCode: text(t.qrCode) }] : [];
+  });
+  return { customer: { name, company: text(c.company), email: text(c.email), phone: text(c.phone), address }, tickets };
 }

@@ -7,7 +7,7 @@ import { backoffMs, failureForStatus, filterLooksBroken, parseRetryAfter, should
 test('every kind of unit becomes a flat line, and a surprising type costs a value rather than the order', () => {
   const lines = flattenLines({
     items: {
-      tickets: [{ optionId: 'o1', optionName: 'Night Show', priceName: 'Adult', units: [{ id: 7, barcode: 'BC1', itemStatus: 'VALID', priceValue: 30, availabilityId: 55, guest: { firstName: 'Ann', lastName: 'Guest' } }, { id: 'u2', priceValue: 'thirty' }] }],
+      tickets: [{ optionId: 'o1', optionName: 'Night Show', priceName: 'Adult', units: [{ id: 7, barcode: 'BC1', token: 'TOK-QR-1', itemStatus: 'VALID', priceValue: 30, availabilityId: 55, guest: { firstName: 'Ann', lastName: 'Guest' } }, { id: 'u2', priceValue: 'thirty' }] }],
       retails: [{ retailName: 'Programme', quantity: 2, itemStatus: 'PAID' }, {}],
       vouchers: [{ name: 'Gift', units: [{ id: 'v1', code: 'GIFT1', voucherStatus: 'ACTIVE' }] }, { name: 'Empty gift' }],
       memberships: [{ optionName: 'Annual', priceName: 'Family', optionId: 'm1', units: [{ id: 99, membershipCode: 'MEM1', membershipStatus: 'ACTIVE' }] }],
@@ -26,7 +26,7 @@ test('every kind of unit becomes a flat line, and a surprising type costs a valu
   assert.deepEqual(flattenLines({}), []);
 });
 
-const row = (over: Record<string, unknown>) => ({ kind: 'TICKET', itemName: 'Night Show', priceName: 'Adult', priceValue: 30, quantity: 1, itemStatus: 'VALID', showDate: null, barcode: null, voucherCode: null, voucherStatus: null, membershipCode: null, membershipStatus: null, guestFirstName: null, guestLastName: null, ...over });
+const row = (over: Record<string, unknown>) => ({ kind: 'TICKET', itemName: 'Night Show', priceName: 'Adult', priceValue: 30, quantity: 1, itemStatus: 'VALID', showDate: null, barcode: null, qrCode: null, voucherCode: null, voucherStatus: null, membershipCode: null, membershipStatus: null, guestFirstName: null, guestLastName: null, ...over });
 
 test('what a guest sees: lines grouped by kind and price tier, live tickets counted, cancelled ones not charged', () => {
   const night = new Date('2026-10-30T00:00:00Z');
@@ -108,4 +108,20 @@ test('dates go to Smeetz as plain days, and an ignored date filter is recognised
   assert.equal(filterLooksBroken('2026-10-23', ['2026-10-24T01:00:00Z']), true);
   assert.equal(filterLooksBroken('2026-10-23', ['2026-10-01T01:00:00Z']), false);
   assert.equal(filterLooksBroken('2026-10-23', []), false);
+});
+
+test('a ticket\'s QR payload is the per-ticket token, kept apart from the barcode, and reaches the guest only when there is one', () => {
+  const lines = flattenLines({ items: { tickets: [{ optionName: 'Night Show', units: [{ id: 'u1', barcode: 'BC1', token: 'TOKEN-ONE' }, { id: 'u2', barcode: 'BC2' }] }] } });
+  assert.equal(lines[0].barcode, 'BC1');
+  assert.equal(lines[0].qrCode, 'TOKEN-ONE');
+  assert.equal(lines[1].qrCode, null, 'no token, nothing invented');
+
+  const g = toGuestOrder({ reference: 'R', status: 'COMPLETED', currency: 'GBP', smeetzCreatedAt: new Date('2026-10-01T10:00:00Z'), lines: [row({ barcode: 'BC1', qrCode: 'TOKEN-ONE' }), row({ barcode: 'BC2', qrCode: null }), row({ barcode: 'BC3', qrCode: '' })] } as any);
+  assert.deepEqual(g.lines[0].tickets.map((t: any) => [t.barcode, t.qr]), [['BC1', 'TOKEN-ONE'], ['BC2', null], ['BC3', null]], "'' means Smeetz was asked and has none: the app gets null");
+});
+
+test('the one-order call gives each ticket\'s QR payload by the ticket\'s id', () => {
+  const detail = parseOrderDetail({ data: { customer: { firstName: 'Pat', email: 'p@example.org' }, tickets: [{ uuid: 'u1', qrCode: 'QR-1', voucher: '' }, { uuid: 'u2' }, { qrCode: 'orphan' }] } })!;
+  assert.deepEqual(detail.tickets, [{ uuid: 'u1', qrCode: 'QR-1' }, { uuid: 'u2', qrCode: null }], 'a ticket with no id is dropped');
+  assert.deepEqual(parseOrderDetail({ data: { customer: { firstName: 'Pat' } } })!.tickets, []);
 });

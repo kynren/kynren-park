@@ -214,3 +214,34 @@ test('an upcoming ticket gets its night from the availability look-up', { skip }
   assert.deepEqual(orders[0].nights, [when.toISOString().slice(0, 10)]);
   assert.equal(orders[0].lines[0].tickets[0].night, when.toISOString().slice(0, 10));
 });
+
+test('a mirrored ticket gets its QR payload from Smeetz the first time it is looked at, once, and never from a stranger\'s order', { skip }, async () => {
+  await sync.upsertOrder(order(1, { customerId: 'c-pat' })); // mirrored before the QR payload was kept: qrCode is null
+  await directory.rememberBuyer(uuid(1), { name: 'Pat Buyer', email: 'pat@example.org' });
+  assert.equal((await prisma.smeetzOrderLine.findFirst({ where: { orderId: uuid(1) } })).qrCode, null);
+
+  script = (c) => (c.path === `/v1/order/${uuid(1)}` ? { ok: true, data: { data: { customer: { firstName: 'Pat', email: 'pat@example.org' }, tickets: [{ uuid: 'u1', qrCode: 'QR-FROM-SMEETZ' }] } } } : { ok: false, failure: { kind: 'notFound', status: 404 } });
+  const first = await directory.lookup('pat@example.org');
+  assert.equal(first.orders[0].lines[0].tickets[0].qr, 'QR-FROM-SMEETZ');
+  assert.equal(first.orders[0].lines[0].tickets[0].barcode, 'BC1', 'the barcode stays as it was');
+  assert.equal(calls.length, 1);
+
+  await directory.lookup('pat@example.org');
+  assert.equal(calls.length, 1, 'kept: not read again');
+
+  // Smeetz unreachable: the guest still gets their order, without a payload (the app falls back to the barcode)
+  await sync.upsertOrder(order(2, { customerId: 'c-pat' }));
+  script = () => ({ ok: false, failure: { kind: 'network', message: 'down' } });
+  const down = await directory.lookup('pat@example.org');
+  const two = down.orders.find((o: any) => o.reference === 'REF2');
+  assert.equal(two.lines[0].tickets[0].qr, null);
+  assert.equal(two.lines[0].tickets[0].barcode, 'BC2');
+
+  // Smeetz answers but has no payload for the ticket: remembered as "none", not asked again
+  script = () => ({ ok: true, data: { data: { customer: { firstName: 'Pat' }, tickets: [] } } });
+  calls = [];
+  await directory.lookup('pat@example.org');
+  await directory.lookup('pat@example.org');
+  assert.equal(calls.length, 1);
+  assert.equal((await prisma.smeetzOrderLine.findFirst({ where: { orderId: uuid(2) } })).qrCode, '');
+});

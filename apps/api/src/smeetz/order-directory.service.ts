@@ -1,10 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { SmeetzReadClient } from './smeetz-read.client.js';
-import { SMEETZ_ORDER_ID } from './smeetz-config.js';
+import { GONE, SMEETZ_ORDER_ID } from './smeetz-config.js';
 import { normaliseEmail, parseOrderDetail, toGuestOrder, type GuestBuyer, type GuestOrder } from './order-shape.js';
 
 const MAX_ORDERS = 50;
+
+/** How many orders' QR payloads one lookup will fetch from Smeetz for the first time; the rest follow on the next look. */
+const MAX_QR_FILLS = 8;
 
 /**
  * Who bought what, from the local mirror of Smeetz's orders and the buyer index beside it. This is what an emailed code is
@@ -37,10 +40,43 @@ export class SmeetzOrderDirectory {
       take: MAX_ORDERS,
     });
 
+    await this.fillQrCodes(rows);
+
     // The most recently read order with a value wins; any of them may be missing.
     const pick = (get: (b: (typeof bought)[number]) => string | null) => bought.map(get).find((v) => v && v.trim())?.trim() ?? null;
     const buyer: GuestBuyer = { name: pick((b) => b.name), phone: pick((b) => b.phone), address: pick((b) => b.address) };
     return { orders: rows.map((r) => toGuestOrder(r)), buyer };
+  }
+
+  /**
+   * The payload in a ticket's QR code is on Smeetz's order (the one-order call, the same value as the order list's per-ticket
+   * token). Orders mirrored before it was kept have none, so the first time a guest's tickets are asked for, the orders with a
+   * live ticket for an upcoming night are read once and what they say is kept ('' records "Smeetz has none", so it is not asked
+   * again). A Smeetz that cannot be reached costs nothing: the app falls back to the ticket's barcode.
+   */
+  private async fillQrCodes(
+    rows: { id: string; lines: { id: string; kind: string; unitId: string | null; itemStatus: string | null; showDate: Date | null; qrCode: string | null }[] }[],
+  ): Promise<void> {
+    const since = new Date(Date.now() - 36 * 3600 * 1000); // a night that ended last night may still be scanned at the gate
+    const needs = (l: (typeof rows)[number]['lines'][number]) => l.kind === 'TICKET' && Boolean(l.unitId) && l.qrCode === null && !GONE.test(l.itemStatus ?? '') && (!l.showDate || l.showDate >= since);
+    const todo = rows.filter((r) => SMEETZ_ORDER_ID.test(r.id) && r.lines.some(needs)).slice(0, MAX_QR_FILLS);
+    for (let i = 0; i < todo.length; i += 4) {
+      await Promise.all(
+        todo.slice(i, i + 4).map(async (order) => {
+          const result = await this.smeetz.get<unknown>('api', `/v1/order/${order.id}`, { locale: 'en' });
+          if (!result.ok) return;
+          const detail = parseOrderDetail(result.data);
+          if (!detail) return;
+          const byUnit = new Map(detail.tickets.map((t) => [t.uuid, t.qrCode]));
+          for (const line of order.lines) {
+            if (line.kind !== 'TICKET' || !line.unitId || line.qrCode !== null) continue;
+            const qr = byUnit.get(line.unitId) ?? '';
+            await this.prisma.smeetzOrderLine.update({ where: { id: line.id }, data: { qrCode: qr } });
+            line.qrCode = qr;
+          }
+        }),
+      );
+    }
   }
 
   async ordersForEmail(email: string): Promise<GuestOrder[]> {

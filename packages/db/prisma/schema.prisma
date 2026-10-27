@@ -829,6 +829,7 @@ model SmeetzOrderLine {
 
   unitId        String?
   barcode       String?
+  qrCode        String? // what the ticket's QR code holds (Smeetz's per-ticket token); '' = looked, Smeetz has none; null = not looked yet
   voucherCode   String?
   voucherStatus String?
   membershipCode   String?
