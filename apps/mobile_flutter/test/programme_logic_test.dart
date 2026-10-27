@@ -83,4 +83,55 @@ void main() {
       expect(ParkedSpot.fromJson('{"lat":"x"}'), isNull);
     });
   });
+
+  group('planning my day', () {
+    final a = session('a', '10:00', '10:30', attraction: 'x');
+    final b = session('b', '10:25', '10:50', attraction: 'y');
+    final c = session('c', '10:55', '11:20', attraction: 'z');
+    final d = session('d', '13:00', '13:30', attraction: 'w');
+
+    test('the picks come back in the order they start, with an overlap and a tight gap flagged and a roomy one not', () {
+      final plan = planMyDay([d, c, b, a]);
+      expect(plan.ordered.map((s) => s.id), ['a', 'b', 'c', 'd']);
+      expect(plan.notes.length, 2);
+      expect(plan.notes[0].clash, isTrue);
+      expect(plan.notes[0].gapMins, -5);
+      expect(dayNoteText(plan.notes[0]), 'Overlaps Show x');
+      expect(plan.notes[1].clash, isFalse);
+      expect(plan.notes[1].gapMins, 5);
+      expect(dayNoteText(plan.notes[1]), 'Only 5 min after Show y');
+    });
+
+    test('back to back is said plainly, and a cancelled time is not planned', () {
+      final next = session('n', '10:30', '10:40', attraction: 'q');
+      expect(dayNoteText(planMyDay([a, next]).notes.single), 'Starts as Show x ends');
+      expect(planMyDay([a, session('k', '10:40', '11:00', status: 'CANCELLED')]).ordered.map((s) => s.id), ['a']);
+      expect(planMyDay(const []).ordered, isEmpty);
+    });
+
+    test('a delayed show is planned from its new start', () {
+      final late = session('l', '09:00', '09:30', revised: '10:20', attraction: 'v');
+      final plan = planMyDay([a, late]);
+      expect(plan.ordered.map((s) => s.id), ['a', 'l']);
+      expect(plan.notes.single.clash, isTrue);
+      expect(sessionTimeText(late), '10:20');
+    });
+  });
+
+  group('sharing the programme', () {
+    test('lists each show with its times, a long-running one as a range, and leaves out what is cancelled', () {
+      final many = [for (var h = 10; h < 15; h++) session('m$h', '$h:00', '$h:20', attraction: 'm')];
+      final text = programmeText('Today', [
+        (name: 'Vikings', sessions: [session('a', '10:00', '10:30'), session('b', '12:00', '12:30', revised: '12:10')]),
+        (name: 'Falconry', sessions: many),
+        (name: 'Gone', sessions: [session('g', '11:00', '11:30', status: 'CANCELLED')]),
+      ]);
+      expect(text.split('\n'), ['Today', '10:00, 12:10  Vikings', '10:00–14:20  Falconry (all day)']);
+    });
+
+    test('my day lists the picks with start and end', () {
+      expect(myDayText('My day', [session('a', '10:00', '10:30', attraction: 'x')]), 'My day\n10:00–10:30  Show x');
+      expect(sessionMins(session('a', '10:00', '10:30')), 30);
+    });
+  });
 }

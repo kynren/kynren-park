@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:storiedlands/app/router.dart';
 import 'package:storiedlands/core/format.dart';
 import 'package:storiedlands/main.dart';
+import 'package:storiedlands/ui/tap.dart';
 
 class _FakePathProvider extends Fake with MockPlatformInterfaceMixin implements PathProviderPlatform {
   final String dir;
@@ -72,11 +73,40 @@ void main() {
     expect(find.textContaining('Starts in'), findsWidgets); // the show 25 minutes away is "soon"
     expect(find.text('Nothing is on or starting within the hour.'), findsNothing);
 
-    await tester.ensureVisible(find.text('Favourites')); // the chips scroll sideways, and the test font is wide
-    await tester.pump();
+    await tester.drag(find.text('On now & soon'), const Offset(-300, 0)); // the chips scroll sideways, and the test font is wide
+    await _settle(tester, 4);
     await tester.tap(find.text('Favourites'));
     await _settle(tester, 6);
     expect(find.textContaining('No favourites on today'), findsOneWidget);
+
+    // a show time opens what can be done with it, and picking it builds "My day"
+    await tester.drag(find.text('Favourites'), const Offset(600, 0));
+    await _settle(tester, 4);
+    await tester.tap(find.text('All'));
+    await _settle(tester, 6);
+    expect(find.textContaining('My day ·'), findsNothing);
+    final time = find.byWidgetPredicate((w) => w is Tap && (w.label ?? '').endsWith(', details')).first;
+    await tester.ensureVisible(time);
+    await tester.pump();
+    await tester.tap(time);
+    await _settle(tester, 6);
+    expect(find.text('Add to my day'), findsOneWidget);
+    expect(find.text('Add to calendar'), findsOneWidget);
+    expect(find.text('Find it on the map'), findsOneWidget);
+    await tester.tap(find.text('Add to my day'));
+    await _settle(tester, 4);
+    expect(find.textContaining('In my day'), findsOneWidget); // the sheet reflects the pick at once
+    await tester.tapAt(const Offset(20, 60)); // outside the sheet: closes it
+    await _settle(tester, 6);
+    expect(find.text('My day · 1 show'), findsOneWidget);
+    expect(find.textContaining('My day (1)'), findsOneWidget);
+    expect(find.text('Add all to calendar'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('Clear'));
+    await tester.pump();
+    await tester.tap(find.text('Clear'));
+    await _settle(tester, 4);
+    expect(find.textContaining('My day ·'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(seconds: 30));

@@ -62,6 +62,22 @@ class LocationState extends ChangeNotifier with SafeNotify {
     }
   }
 
+  /// Turn location on from a button: ask for permission, or, when it has been refused for good or the phone's location
+  /// switch is off, take the guest to the setting that fixes it.
+  Future<void> enable() async {
+    try {
+      if (await Geolocator.checkPermission() == LocationPermission.deniedForever) {
+        await Geolocator.openAppSettings();
+        return;
+      }
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        await Geolocator.openLocationSettings();
+        return;
+      }
+    } catch (_) {/* not available on every platform: asking below still works */}
+    await start();
+  }
+
   void _set(Position p) {
     gps = Geo(p.latitude, p.longitude);
     notifyListeners();

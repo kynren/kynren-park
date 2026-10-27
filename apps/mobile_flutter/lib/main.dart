@@ -12,6 +12,7 @@ import 'core/preferences.dart';
 import 'core/profile.dart';
 import 'core/push.dart';
 import 'core/restaurant_favs.dart';
+import 'core/saved_dishes.dart';
 import 'core/sync.dart';
 import 'core/tickets.dart';
 import 'ui/status_bar.dart';
@@ -35,6 +36,7 @@ class _KynrenAppState extends State<KynrenApp> {
   final _favs = FavoritesState();
   final _prefs = PreferencesState();
   final _restaurantFavs = RestaurantFavs();
+  final _savedDishes = SavedDishes();
   final _i18n = I18nState();
   final _themePref = ThemePref();
   final _unread = UnreadNotifications();
@@ -61,6 +63,7 @@ class _KynrenAppState extends State<KynrenApp> {
     _prefs.load();
     _profile.load();
     _restaurantFavs.load();
+    _savedDishes.load();
     _i18n.load();
     _themePref.load();
     _location.start();
@@ -85,6 +88,7 @@ class _KynrenAppState extends State<KynrenApp> {
     _favs.dispose();
     _prefs.dispose();
     _restaurantFavs.dispose();
+    _savedDishes.dispose();
     _i18n.dispose();
     _themePref.dispose();
     _unread.dispose();
@@ -103,6 +107,7 @@ class _KynrenAppState extends State<KynrenApp> {
         ChangeNotifierProvider.value(value: _favs),
         ChangeNotifierProvider.value(value: _prefs),
         ChangeNotifierProvider.value(value: _restaurantFavs),
+        ChangeNotifierProvider.value(value: _savedDishes),
         ChangeNotifierProvider.value(value: _i18n),
         ChangeNotifierProvider.value(value: _themePref),
         ChangeNotifierProvider.value(value: _unread),

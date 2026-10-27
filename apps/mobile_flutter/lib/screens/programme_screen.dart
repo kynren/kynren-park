@@ -3,11 +3,15 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../app/shell.dart' show navClearance;
+import '../core/auth.dart';
 import '../core/calendar.dart';
 import '../core/favorites.dart';
 import '../core/format.dart';
+import '../core/location.dart';
 import '../core/models.dart';
+import '../core/my_day.dart';
 import '../core/notifications.dart';
 import '../core/programme_logic.dart';
 import '../core/sync.dart';
@@ -18,6 +22,7 @@ import '../ui/reveal.dart';
 import '../ui/skeleton.dart';
 import '../ui/screen.dart';
 import '../ui/tap.dart';
+import 'map/map_logic.dart' show walkMinsToPoi;
 
 // Screen edge, then the card's own padding: the ruler and every show's timeline sit inside identical
 // cards, so their hours line up.
@@ -44,11 +49,12 @@ class ProgrammeScreen extends StatefulWidget {
   State<ProgrammeScreen> createState() => _ProgrammeScreenState();
 }
 
-enum _Filter { all, soon, favourites, day, evening }
+enum _Filter { all, soon, mine, favourites, day, evening }
 
 const _filterLabels = {
   _Filter.all: 'All',
   _Filter.soon: 'On now & soon',
+  _Filter.mine: 'My day',
   _Filter.favourites: 'Favourites',
   _Filter.day: 'Daytime',
   _Filter.evening: 'Evening',
@@ -57,6 +63,7 @@ const _filterLabels = {
 class _ProgrammeScreenState extends State<ProgrammeScreen> {
   Timer? _tick;
   _Filter _filter = _Filter.all;
+  Set<String> _mine = {}; // the show times this guest picked for today
 
   @override
   void initState() {
@@ -67,6 +74,9 @@ class _ProgrammeScreenState extends State<ProgrammeScreen> {
       final today = ukTodayStr();
       if (sync.date != today) sync.setDate(today);
       context.read<UnreadNotifications>().refresh();
+      loadMyDay(today).then((ids) {
+        if (mounted && ids.isNotEmpty) setState(() => _mine = {..._mine, ...ids});
+      });
     });
     // Re-check which sessions have finished once a minute so a show drops off on its own.
     _tick = Timer.periodic(const Duration(minutes: 1), (_) => setState(() {}));
@@ -86,10 +96,81 @@ class _ProgrammeScreenState extends State<ProgrammeScreen> {
     }
   }
 
+  void _toggleMine(Session s) {
+    setState(() => _mine = _mine.contains(s.id) ? _mine.difference({s.id}) : {..._mine, s.id});
+    saveMyDay(ukTodayStr(), _mine);
+  }
+
+  void _clearMine() {
+    setState(() {
+      _mine = {};
+      if (_filter == _Filter.mine) _filter = _Filter.all;
+    });
+    saveMyDay(ukTodayStr(), _mine);
+  }
+
+  Future<void> _share(String text) async {
+    try {
+      await SharePlus.instance.share(ShareParams(text: text));
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Couldn’t open sharing. Try again.')));
+    }
+  }
+
+  Future<void> _addAllToCalendar(List<Session> sessions) async {
+    try {
+      await addSessionsToCalendar(sessions);
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Couldn’t open your calendar. Try again.')));
+    }
+  }
+
+  int? _walkTo(Attraction a, Geo? from, List<Poi> pois) => walkMinsToPoi(from, a.poiId, pois);
+
+  void _openSession(Session s, Attraction a, {int? walk}) {
+    final c = context.ui;
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: c.card,
+      isScrollControlled: true,
+      builder: (sheet) => StatefulBuilder(
+        builder: (sheet, setSheet) => _SessionSheet(
+          session: s,
+          attraction: a,
+          walk: walk,
+          picked: _mine.contains(s.id),
+          onPick: () {
+            _toggleMine(s);
+            setSheet(() {});
+          },
+          onCalendar: () {
+            Navigator.pop(sheet);
+            _addToCalendar(s);
+          },
+          onMap: () {
+            Navigator.pop(sheet);
+            context.go('/map?focus=${a.id}');
+          },
+          onOpen: () {
+            Navigator.pop(sheet);
+            context.push('/attraction/${a.slug}');
+          },
+          onShare: () {
+            Navigator.pop(sheet);
+            _share('${a.name} · ${fmtTime(s.revisedStart ?? s.startTime)} today at Kynren – The Storied Lands');
+          },
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = context.ui;
     final bundle = context.watch<SyncState>().bundle;
+    final gps = context.watch<LocationState>().gps;
+    final user = context.watch<AuthState>().user;
     final unread = context.watch<UnreadNotifications>().count;
     final today = ukTodayStr();
     final trackW = MediaQuery.sizeOf(context).width - (_edge + _cardPad) * 2;
@@ -141,11 +222,15 @@ class _ProgrammeScreenState extends State<ProgrammeScreen> {
     final lines = {for (final r in allRows) r.a.id: runLine(byAttraction[r.a.id] ?? const [], nowDt)};
     final upNext = nextUp(lines);
     final upAttraction = upNext == null ? null : allRows.where((r) => r.a.id == upNext.attractionId).firstOrNull?.a;
+    final plan = planMyDay(sessions.where((x) => _mine.contains(x.id)));
+    final mineIds = {for (final x in sessions.where((x) => _mine.contains(x.id))) x.attractionId};
+    final pois = bundle?.pois ?? const <Poi>[];
     final rows = allRows.where((r) {
       final l = lines[r.a.id];
       return switch (_filter) {
         _Filter.all => true,
         _Filter.soon => l != null && (l.live || l.soon),
+        _Filter.mine => mineIds.contains(r.a.id),
         _Filter.favourites => favs.contains(r.a.id),
         _Filter.day => r.a.category != 'EVENING_SHOW',
         _Filter.evening => r.a.category == 'EVENING_SHOW',
@@ -187,6 +272,18 @@ class _ProgrammeScreenState extends State<ProgrammeScreen> {
               onTap: () => context.push('/attraction/${upAttraction.slug}'),
               onMap: () => context.go('/map?focus=${upAttraction.id}'),
               onCalendar: () => _addToCalendar(upNext.line.session),
+              walk: _walkTo(upAttraction, gps, pois),
+            ),
+          ),
+        if (plan.ordered.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(_edge, 14, _edge, 0),
+            child: _MyDayCard(
+              plan: plan,
+              onRemove: _toggleMine,
+              onCalendar: () => _addAllToCalendar(plan.ordered),
+              onShare: () => _share(myDayText('My day at Kynren – The Storied Lands · ${_fmtDate(today)}', plan.ordered)),
+              onClear: _clearMine,
             ),
           ),
         if (ruler != null)
@@ -204,7 +301,13 @@ class _ProgrammeScreenState extends State<ProgrammeScreen> {
                     Container(width: 8, height: 8, decoration: const BoxDecoration(color: Tokens.danger, shape: BoxShape.circle)),
                     const SizedBox(width: 5),
                     Text('Now ${fmtTime(nowDt.toIso8601String())}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: c.sub)),
+                    const SizedBox(width: 10),
                   ],
+                  Tap(
+                    onTap: () => _share(programmeText('Kynren – The Storied Lands · Today ${_fmtDate(today)}', [for (final r in allRows) (name: r.a.name, sessions: byAttraction[r.a.id] ?? const <Session>[])])),
+                    label: 'Share today’s programme',
+                    child: Icon(Icons.ios_share_rounded, color: c.link, size: 20),
+                  ),
                 ]),
                 const SizedBox(height: 6),
                 SizedBox(
@@ -259,7 +362,7 @@ class _ProgrammeScreenState extends State<ProgrammeScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         alignment: Alignment.center,
                         decoration: BoxDecoration(color: _filter == f ? c.primary : c.card, borderRadius: BorderRadius.circular(999), border: Border.all(color: _filter == f ? c.primary : c.line)),
-                        child: Text(_filterLabels[f]!, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _filter == f ? Colors.white : c.text)),
+                        child: Text(f == _Filter.mine && plan.ordered.isNotEmpty ? 'My day (${plan.ordered.length})' : _filterLabels[f]!, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _filter == f ? Colors.white : c.text)),
                       ),
                     ),
                   ),
@@ -275,7 +378,8 @@ class _ProgrammeScreenState extends State<ProgrammeScreen> {
             alignment: Alignment.center,
             child: Text(
               switch (_filter) {
-                _Filter.favourites => 'No favourites on today. Open a show and tap ♡ to keep it here.',
+                _Filter.favourites => 'No favourites on today. Tap ♡ on a show to keep it here.',
+                _Filter.mine => 'Nothing picked yet. Tap a show time and choose “Add to my day”.',
                 _Filter.soon => 'Nothing is on or starting within the hour.',
                 _ => 'Nothing to show here today.',
               },
@@ -315,7 +419,11 @@ class _ProgrammeScreenState extends State<ProgrammeScreen> {
                   badge: rows[i].badge,
                   sessions: byAttraction[rows[i].a.id] ?? const [],
                   line: lines[rows[i].a.id],
-                  onTime: _addToCalendar,
+                  mine: _mine,
+                  walk: _walkTo(rows[i].a, gps, pois),
+                  fav: favs.contains(rows[i].a.id),
+                  onFav: () => user == null ? context.push('/auth') : context.read<FavoritesState>().toggle(rows[i].a.id),
+                  onTime: (s) => _openSession(s, rows[i].a, walk: _walkTo(rows[i].a, gps, pois)),
                   pos: pos,
                   trackW: trackW,
                   contentW: contentW,
@@ -334,11 +442,15 @@ class _ProgramRow extends StatelessWidget {
   final String badge;
   final List<Session> sessions;
   final RunLine? line;
+  final Set<String> mine;
+  final int? walk;
+  final bool fav;
+  final VoidCallback onFav;
   final void Function(Session) onTime;
   final double Function(int) pos;
   final double trackW, contentW;
   final VoidCallback onTap, onMap;
-  const _ProgramRow({required this.attraction, required this.badge, required this.sessions, required this.line, required this.onTime, required this.pos, required this.trackW, required this.contentW, required this.onTap, required this.onMap});
+  const _ProgramRow({required this.attraction, required this.badge, required this.sessions, required this.line, required this.mine, required this.walk, required this.fav, required this.onFav, required this.onTime, required this.pos, required this.trackW, required this.contentW, required this.onTap, required this.onMap});
 
   @override
   Widget build(BuildContext context) {
@@ -364,10 +476,14 @@ class _ProgramRow extends StatelessWidget {
       track = Stack(children: [
         Positioned(
           left: left,
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            timeLabel('From ${fmtTime(a.startTime)} to ${fmtTime(b.endTime)}', c.text),
-            Container(width: width, height: 11, decoration: BoxDecoration(color: c.primary, borderRadius: BorderRadius.circular(6))),
-          ]),
+          child: Tap(
+            onTap: () => onTime(line?.session ?? a),
+            label: 'Details for ${attraction.name}',
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              timeLabel('From ${fmtTime(a.startTime)} to ${fmtTime(b.endTime)}', c.text),
+              Container(width: width, height: 11, decoration: BoxDecoration(color: c.primary, borderRadius: BorderRadius.circular(6))),
+            ]),
+          ),
         ),
       ]);
     } else {
@@ -379,14 +495,15 @@ class _ProgramRow extends StatelessWidget {
             final x = pos(startMin);
             final pw = math.max(30.0, math.min(pos(startMin + durSpan) - x, 120.0));
             final dead = s.status == 'CANCELLED';
+            final picked = mine.contains(s.id);
             return Positioned(
               left: math.max(0.0, x),
               child: Tap(
-                onTap: dead ? null : () => onTime(s),
-                label: 'Add ${fmtTime(s.revisedStart ?? s.startTime)} to your calendar',
+                onTap: () => onTime(s),
+                label: '${fmtTime(s.revisedStart ?? s.startTime)}, ${picked ? 'in your day' : 'details'}',
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  timeLabel(fmtTime(s.revisedStart ?? s.startTime), dead ? Tokens.danger : c.text),
-                  Opacity(opacity: dead ? 0.5 : 1, child: Container(width: pw, height: 11, decoration: BoxDecoration(color: dead ? Tokens.danger : c.primary, borderRadius: BorderRadius.circular(6)))),
+                  timeLabel('${picked ? '✓ ' : ''}${fmtTime(s.revisedStart ?? s.startTime)}', dead ? Tokens.danger : c.text),
+                  Opacity(opacity: dead ? 0.5 : 1, child: Container(width: pw, height: 11, decoration: BoxDecoration(color: dead ? Tokens.danger : picked ? Tokens.gold : c.primary, borderRadius: BorderRadius.circular(6)))),
                 ]),
               ),
             );
@@ -424,7 +541,7 @@ class _ProgramRow extends StatelessWidget {
                       ),
                     ],
                   ]),
-                  Padding(padding: const EdgeInsets.only(top: 2), child: Text('${attraction.durationMins} mins · ${sessions.length} ${sessions.length == 1 ? 'time' : 'times'}', style: TextStyle(fontSize: 12.5, color: c.sub))),
+                  Padding(padding: const EdgeInsets.only(top: 2), child: Text('${attraction.durationMins} mins · ${sessions.length} ${sessions.length == 1 ? 'time' : 'times'}${walk == null ? '' : ' · $walk min walk'}', style: TextStyle(fontSize: 12.5, color: c.sub))),
                   if (status != null)
                     Padding(padding: const EdgeInsets.only(top: 3), child: Text(status.$1, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: status.$2)))
                   else if (line != null && (line!.live || line!.soon))
@@ -440,6 +557,12 @@ class _ProgramRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 12),
+            Tap(
+              onTap: onFav,
+              label: fav ? 'Remove ${attraction.name} from your favourites' : 'Add ${attraction.name} to your favourites',
+              child: Container(width: 38, height: 38, decoration: BoxDecoration(color: c.tint, shape: BoxShape.circle), child: Icon(fav ? Icons.favorite_rounded : Icons.favorite_border_rounded, color: fav ? Tokens.danger : c.link, size: 19)),
+            ),
+            const SizedBox(width: 8),
             Tap(
               onTap: onMap,
               label: 'Show ${attraction.name} on the map',
@@ -469,7 +592,8 @@ class _UpNextCard extends StatelessWidget {
   final Attraction attraction;
   final RunLine line;
   final VoidCallback onTap, onMap, onCalendar;
-  const _UpNextCard({required this.attraction, required this.line, required this.onTap, required this.onMap, required this.onCalendar});
+  final int? walk;
+  const _UpNextCard({required this.attraction, required this.line, required this.onTap, required this.onMap, required this.onCalendar, this.walk});
 
   @override
   Widget build(BuildContext context) {
@@ -492,7 +616,7 @@ class _UpNextCard extends StatelessWidget {
               const SizedBox(height: 3),
               Text(attraction.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: Tokens.display, fontSize: 17, fontWeight: FontWeight.w700, color: c.text)),
               const SizedBox(height: 2),
-              Text(line.live || line.soon ? line.text : '${line.text} today', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: c.sub)),
+              Text('${line.live || line.soon ? line.text : '${line.text} today'}${walk == null ? '' : ' · $walk min walk'}', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: c.sub)),
             ]),
           ),
         ),
@@ -500,6 +624,120 @@ class _UpNextCard extends StatelessWidget {
         if (!line.live) ...[action(Icons.event_available_outlined, 'Add ${attraction.name} to your calendar', onCalendar), const SizedBox(width: 8)],
         action(Icons.place_outlined, 'Show ${attraction.name} on the map', onMap),
       ]),
+    );
+  }
+}
+
+/// The show times a guest picked for today, in order, with a warning wherever two of them overlap or leave too little
+/// time to walk from one to the next.
+class _MyDayCard extends StatelessWidget {
+  final ({List<Session> ordered, List<DayNote> notes}) plan;
+  final void Function(Session) onRemove;
+  final VoidCallback onCalendar, onShare, onClear;
+  const _MyDayCard({required this.plan, required this.onRemove, required this.onCalendar, required this.onShare, required this.onClear});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.ui;
+    final noteFor = {for (final n in plan.notes) n.second.id: n};
+    Widget action(IconData icon, String label, VoidCallback onTap) => Tap(
+          onTap: onTap,
+          label: label,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(color: c.tint, borderRadius: BorderRadius.circular(999)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(icon, color: c.link, size: 16),
+              const SizedBox(width: 6),
+              Text(label, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: c.link)),
+            ]),
+          ),
+        );
+    return KCard(
+      padding: const EdgeInsets.all(_cardPad),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.star_rounded, color: Tokens.gold, size: 20),
+          const SizedBox(width: 8),
+          Expanded(child: Text('My day · ${plan.ordered.length} ${plan.ordered.length == 1 ? 'show' : 'shows'}', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: c.text))),
+        ]),
+        const SizedBox(height: 8),
+        for (final s in plan.ordered) ...[
+          Row(children: [
+            SizedBox(width: 52, child: Text(sessionTimeText(s), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: c.text))),
+            Expanded(child: Text(s.attractionName, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: c.text))),
+            Tap(onTap: () => onRemove(s), label: 'Remove ${s.attractionName} from my day', child: Padding(padding: const EdgeInsets.all(6), child: Icon(Icons.close_rounded, size: 18, color: c.sub))),
+          ]),
+          if (noteFor[s.id] != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 52, bottom: 4),
+              child: Row(children: [
+                Icon(Icons.warning_amber_rounded, size: 15, color: noteFor[s.id]!.clash ? Tokens.danger : Tokens.warn),
+                const SizedBox(width: 5),
+                Expanded(child: Text(dayNoteText(noteFor[s.id]!), style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: noteFor[s.id]!.clash ? Tokens.danger : c.sub))),
+              ]),
+            ),
+        ],
+        const SizedBox(height: 8),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          action(Icons.event_available_outlined, 'Add all to calendar', onCalendar),
+          action(Icons.ios_share_rounded, 'Share', onShare),
+          action(Icons.delete_outline_rounded, 'Clear', onClear),
+        ]),
+      ]),
+    );
+  }
+}
+
+/// What a guest can do with one show time.
+class _SessionSheet extends StatelessWidget {
+  final Session session;
+  final Attraction attraction;
+  final int? walk;
+  final bool picked;
+  final VoidCallback onPick, onCalendar, onMap, onOpen, onShare;
+  const _SessionSheet({required this.session, required this.attraction, required this.walk, required this.picked, required this.onPick, required this.onCalendar, required this.onMap, required this.onOpen, required this.onShare});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.ui;
+    final s = session;
+    final moved = s.revisedStart != null && s.revisedStart != s.startTime;
+    final dead = s.status == 'CANCELLED';
+    Widget item(IconData icon, String label, VoidCallback onTap, {Color? color}) => Tap(
+          onTap: onTap,
+          label: label,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 11),
+            child: Row(children: [
+              Container(width: 38, height: 38, decoration: BoxDecoration(color: c.tint, shape: BoxShape.circle), child: Icon(icon, color: color ?? c.link, size: 19)),
+              const SizedBox(width: 14),
+              Expanded(child: Text(label, style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: c.text))),
+            ]),
+          ),
+        );
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(_edge, 0, _edge, 12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          Text(attraction.name, style: TextStyle(fontFamily: Tokens.display, fontSize: 20, fontWeight: FontWeight.w700, color: c.text)),
+          const SizedBox(height: 4),
+          Text('${sessionTimeText(s)} – ${fmtTime(s.endTime)} · ${sessionMins(s)} mins${walk == null ? '' : ' · $walk min walk'}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: c.sub)),
+          if (dead || moved || s.status == 'DELAYED' || (s.note ?? '').isNotEmpty) ...[
+            const SizedBox(height: 8),
+            if (dead) const Text('This time is cancelled.', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Tokens.danger)),
+            if (!dead && moved) Text('Moved from ${fmtTime(s.startTime)}.', style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Tokens.warn)),
+            if (!dead && !moved && s.status == 'DELAYED') const Text('This show is delayed.', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Tokens.warn)),
+            if ((s.note ?? '').isNotEmpty) Text(s.note!, style: TextStyle(fontSize: 13.5, color: c.sub)),
+          ],
+          const SizedBox(height: 6),
+          if (!dead) item(picked ? Icons.check_circle_rounded : Icons.star_border_rounded, picked ? 'In my day · tap to remove' : 'Add to my day', onPick, color: picked ? Tokens.gold : null),
+          if (!dead) item(Icons.event_available_outlined, 'Add to calendar', onCalendar),
+          item(Icons.place_outlined, 'Find it on the map', onMap),
+          item(Icons.ios_share_rounded, 'Share this time', onShare),
+          item(Icons.info_outline_rounded, 'About the show', onOpen),
+        ]),
+      ),
     );
   }
 }

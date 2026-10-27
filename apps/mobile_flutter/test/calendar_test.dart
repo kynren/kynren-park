@@ -30,4 +30,13 @@ void main() {
     final ics = sessionIcs(_session(revised: '2026-10-23T10:45:00.000Z'));
     expect(ics, contains('DTSTART:20261023T104500\r\n'));
   });
+
+  test('several show times become one calendar file with an event and a reminder each', () {
+    final ics = sessionsIcs([_session(), _session(start: '2026-10-23T14:00:00.000Z')]);
+    expect('BEGIN:VEVENT'.allMatches(ics).length, 2);
+    expect('TRIGGER:-PT15M'.allMatches(ics).length, 2);
+    expect('BEGIN:VCALENDAR'.allMatches(ics).length, 1);
+    expect(ics, contains('DTSTART:20261023T140000\r\n'));
+    expect(ics.endsWith('END:VCALENDAR\r\n'), isTrue);
+  });
 }

@@ -1,7 +1,10 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../../core/format.dart';
 import '../../core/theme.dart';
 import '../../ui/cover.dart';
+import '../../ui/kimage.dart';
+import '../../ui/tap.dart';
 import 'map_logic.dart';
 
 /// Pins keep a constant screen size, and stay upright, inside the zoomed and turned canvas: each marker is a real-sized
@@ -278,13 +281,128 @@ class _ArrowPainter extends CustomPainter {
 }
 
 /// The callout over a selected pin: picture, name, distance or next show time, and a link through to the detail page.
+/// What the card needs to know about a picture to lay it out: its shape, and the flat colour round its edge if it has one.
+class _Look {
+  final double aspect;
+  final Color? edge;
+  const _Look(this.aspect, this.edge);
+}
+
+final _looks = <String, _Look>{}; // each picture's look, once known
+
+/// Reads a picture's shape and edge colour once it has loaded (and remembers them), so the card can be laid out to suit it.
+class _PictureShape extends StatefulWidget {
+  final String? url;
+  final Widget Function(double? aspect, Color? edge) builder;
+  const _PictureShape({required this.url, required this.builder});
+  @override
+  State<_PictureShape> createState() => _PictureShapeState();
+}
+
+class _PictureShapeState extends State<_PictureShape> {
+  _Look? _look;
+  ImageStream? _stream;
+  ImageStreamListener? _listener;
+
+  @override
+  void initState() {
+    super.initState();
+    _measure();
+  }
+
+  @override
+  void didUpdateWidget(_PictureShape old) {
+    super.didUpdateWidget(old);
+    if (old.url != widget.url) _measure();
+  }
+
+  void _stop() {
+    if (_listener != null) _stream?.removeListener(_listener!);
+    _stream = null;
+    _listener = null;
+  }
+
+  void _measure() {
+    _stop();
+    final url = widget.url;
+    _look = url == null || url.isEmpty ? null : _looks[url];
+    if (url == null || url.isEmpty || _look != null) return;
+    // a small copy is enough to tell the shape, and spares decoding a big picture twice
+    final stream = kImageProvider(url, cacheWidth: 120).resolve(ImageConfiguration.empty);
+    late final ImageStreamListener listener;
+    listener = ImageStreamListener((info, _) async {
+      _stop();
+      final image = info.image;
+      Color? edge;
+      try {
+        final bytes = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+        if (bytes != null) edge = uniformEdgeColour(bytes.buffer.asUint8List(), image.width, image.height);
+      } catch (_) {/* no colour: the card falls back to a box of the picture's own shape */}
+      final look = _Look(image.width / image.height, edge);
+      _looks[url] = look;
+      if (mounted && widget.url == url) setState(() => _look = look);
+    }, onError: (_, _) => _stop());
+    _stream = stream;
+    _listener = listener;
+    stream.addListener(listener);
+  }
+
+  @override
+  void dispose() {
+    _stop();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(_look?.aspect, _look?.edge);
+}
+
+/// The notice at the top of the map when the guest's position is not known: location is off, or they are away from the park.
+class LocationNotice extends StatelessWidget {
+  final bool awayFromPark;
+  final VoidCallback onEnable, onClose;
+  const LocationNotice({super.key, required this.awayFromPark, required this.onEnable, required this.onClose});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.ui;
+    final dark = context.isDark;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
+      decoration: BoxDecoration(color: c.card, borderRadius: BorderRadius.circular(18), boxShadow: softShadow(dark)),
+      child: Row(children: [
+        Container(width: 38, height: 38, decoration: BoxDecoration(color: c.tint, shape: BoxShape.circle), child: Icon(awayFromPark ? Icons.map_outlined : Icons.location_off_rounded, color: c.link, size: 20)),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(awayFromPark ? 'You seem to be outside the park' : 'Location is off', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, height: 18 / 14, color: c.text)),
+            Text(awayFromPark ? 'Distances and walking directions work once you arrive.' : 'Turn it on to see where you are and how far things are.', style: TextStyle(fontSize: 12.5, height: 17 / 12.5, color: c.sub)),
+          ]),
+        ),
+        if (!awayFromPark) ...[
+          const SizedBox(width: 8),
+          Tap(
+            onTap: onEnable,
+            label: 'Turn on location',
+            child: Container(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8), decoration: BoxDecoration(color: c.primary, borderRadius: BorderRadius.circular(999)), child: const Text('Turn on', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Colors.white))),
+          ),
+        ],
+        Tap(onTap: onClose, label: 'Dismiss', child: Padding(padding: const EdgeInsets.all(8), child: Icon(Icons.close_rounded, size: 18, color: c.sub))),
+      ]),
+    );
+  }
+}
+
 class Callout extends StatelessWidget {
   final Pin pin;
   final double? distance;
   final bool flipDown;
+
+  /// How far the pointer sits from the middle of the card, sideways: the card may have slid along to stay on the screen.
+  final double arrowOffset;
   final Color card, ink, muted;
   final VoidCallback onOpen, onClose;
-  const Callout({super.key, required this.pin, required this.distance, required this.flipDown, required this.card, required this.ink, required this.muted, required this.onOpen, required this.onClose});
+  const Callout({super.key, required this.pin, required this.distance, required this.flipDown, this.arrowOffset = 0, required this.card, required this.ink, required this.muted, required this.onOpen, required this.onClose});
 
   @override
   Widget build(BuildContext context) {
@@ -301,12 +419,33 @@ class Callout extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(color: card, borderRadius: BorderRadius.circular(14), boxShadow: const [BoxShadow(color: Color(0x3D000000), blurRadius: 16, offset: Offset(0, 8))]),
         child: Row(children: [
-          Cover(
-            image: pin.image,
-            color: pin.kind == PinKind.evening ? const Color(0xFF6E1423) : pin.kind == PinKind.restaurant ? featureGradient['restaurants']![0] : Tokens.brand,
-            icon: pin.kind == PinKind.restaurant ? Icons.restaurant_rounded : Icons.calendar_month_rounded,
+          // the whole picture is shown: edge to edge when it is about the slot's shape, otherwise in a box of its own shape
+          SizedBox(
+            width: calloutSlotW,
             height: calloutH,
-            width: 96,
+            child: _PictureShape(
+              url: pin.image,
+              builder: (aspect, edge) {
+                final box = calloutPictureBox(aspect);
+                // a logo on a flat background: the whole slot takes the background's colour and the whole logo sits on it,
+                // so the picture fills the slot with nothing showing round it
+                if (!box.bleed && edge != null && pin.image != null) {
+                  return ColoredBox(color: edge, child: KImage(pin.image!, fit: BoxFit.contain, cacheWidth: 900));
+                }
+                return Center(
+                  child: Cover(
+                    image: pin.image,
+                    color: pin.kind == PinKind.evening ? const Color(0xFF6E1423) : pin.kind == PinKind.restaurant ? featureGradient['restaurants']![0] : Tokens.brand,
+                    icon: pin.kind == PinKind.restaurant ? Icons.restaurant_rounded : Icons.calendar_month_rounded,
+                    height: box.h,
+                    width: box.w,
+                    radius: box.bleed ? 0 : 12,
+                    fit: box.bleed ? BoxFit.cover : BoxFit.contain,
+                    underlay: false,
+                  ),
+                );
+              },
+            ),
           ),
           Expanded(
             child: Stack(children: [
@@ -332,7 +471,9 @@ class Callout extends StatelessWidget {
         ]),
       ),
     );
-    final arrow = CustomPaint(size: const Size(18, 11), painter: _ArrowPainter(card, flipDown));
+    // kept on the card (clear of its rounded corners), however far the card has slid
+    final reach = calloutW / 2 - 28;
+    final arrow = Transform.translate(offset: Offset(arrowOffset.clamp(-reach, reach).toDouble(), 0), child: CustomPaint(size: const Size(18, 11), painter: _ArrowPainter(card, flipDown)));
     return Column(mainAxisSize: MainAxisSize.min, children: flipDown ? [arrow, body] : [body, arrow]);
   }
 }

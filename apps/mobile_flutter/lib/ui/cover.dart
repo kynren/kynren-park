@@ -19,6 +19,7 @@ Color parseHex(String? hex, Color fallback) {
 ///
 /// The whole picture is shown with nothing cropped: it is fitted inside the box and the space left
 /// over is filled with a soft, dimmed copy of the same picture, so there are no bare bars.
+/// With [fit] set to [BoxFit.cover] the picture instead fills the box edge to edge (the edges that do not fit are trimmed).
 class Cover extends StatelessWidget {
   final String? image;
   final Color color;
@@ -26,6 +27,10 @@ class Cover extends StatelessWidget {
   final double? height, width;
   final double radius;
   final bool art;
+  final BoxFit fit;
+
+  /// With a fitted picture ([BoxFit.contain]), whether the space round it is filled with a blurred copy. Without it, the picture is just drawn.
+  final bool underlay;
   final Widget? child;
   const Cover({
     super.key,
@@ -36,6 +41,8 @@ class Cover extends StatelessWidget {
     this.width,
     this.radius = 0,
     this.art = true,
+    this.fit = BoxFit.contain,
+    this.underlay = true,
     this.child,
   });
 
@@ -50,7 +57,9 @@ class Cover extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            if (image != null && image!.isNotEmpty) ...[
+            if (image != null && image!.isNotEmpty && (fit != BoxFit.contain || !underlay))
+              KImage(image!, fit: fit, cacheWidth: 900, placeholder: (_) => const Skeleton(radius: 0))
+            else if (image != null && image!.isNotEmpty) ...[
               ImageFiltered(
                 imageFilter: ui.ImageFilter.blur(sigmaX: 22, sigmaY: 22),
                 child: KImage(image!, cacheWidth: 120),

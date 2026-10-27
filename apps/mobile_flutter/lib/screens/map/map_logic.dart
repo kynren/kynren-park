@@ -1,7 +1,9 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui';
 import 'package:flutter/widgets.dart' show Matrix4;
 import '../../core/location.dart';
+import '../../core/models.dart' show Poi;
 
 /// Fixed geographic bounds of the park: the SAME box the admin map editor uses to place hotspots, so a pin
 /// placed in admin lands on the exact same map spot here (both map these bounds onto the base-map image rectangle).
@@ -17,6 +19,65 @@ const minScale = 1.0;
 const maxScaleCeiling = 12.0; // absolute ceiling; the effective max comes from the admin map config
 const calloutH = 104.0;
 const calloutW = 292.0;
+
+/// The colour round the edge of a picture, when the edge is one flat colour (a logo on a plain background): then the slot
+/// beside the picture can be filled with that colour and the whole picture sits on it, seamlessly. Null when the edge is
+/// busy (a photo) or see-through. [rgba] is the picture's pixels, four bytes each, row by row.
+Color? uniformEdgeColour(Uint8List rgba, int w, int h, {int tolerance = 28}) {
+  if (w < 2 || h < 2 || rgba.length < w * h * 4) return null;
+  final samples = <int>[]; // pixel indexes along the border, about 24 along each side
+  void side(int count, int Function(int) at) {
+    final step = math.max(1, count ~/ 24);
+    for (var i = 0; i < count; i += step) {
+      samples.add(at(i));
+    }
+  }
+
+  side(w, (x) => x); // top
+  side(w, (x) => (h - 1) * w + x); // bottom
+  side(h, (y) => y * w); // left
+  side(h, (y) => y * w + w - 1); // right
+  var r = 0, g = 0, b = 0, a = 0;
+  for (final p in samples) {
+    r += rgba[p * 4];
+    g += rgba[p * 4 + 1];
+    b += rgba[p * 4 + 2];
+    a += rgba[p * 4 + 3];
+  }
+  final n = samples.length;
+  if (a / n < 235) return null; // see-through: the card shows through, so there is no colour to match
+  final mr = r ~/ n, mg = g ~/ n, mb = b ~/ n;
+  for (final p in samples) {
+    if ((rgba[p * 4] - mr).abs() > tolerance || (rgba[p * 4 + 1] - mg).abs() > tolerance || (rgba[p * 4 + 2] - mb).abs() > tolerance) return null;
+  }
+  return Color.fromARGB(255, mr, mg, mb);
+}
+
+/// How far to slide the place card sideways, in screen pixels, so that it stays inside the screen when its marker is near
+/// an edge: the card is centred on the marker, then held [margin] pixels in from each side.
+double calloutShift(double markerX, double viewportW, {double margin = 12}) {
+  final want = markerX - calloutW / 2;
+  final left = want.clamp(margin, math.max(margin, viewportW - margin - calloutW)).toDouble();
+  return left - want;
+}
+
+/// The picture slot on the left of the place card. It never grows: the text beside it keeps its room.
+const calloutSlotW = 96.0;
+const _slotInset = 8.0;
+
+/// The picture's box inside the slot, for a picture of this shape (width over height; null while it is not known yet).
+/// A picture close to the slot's own shape fills the slot edge to edge. Any other shape (a wide logo, a tall banner) gets
+/// a box of its own shape, centred in the slot with a margin, so the whole picture shows and nothing needs filling round it.
+({double w, double h, bool bleed}) calloutPictureBox(double? aspect) {
+  const slot = calloutSlotW / calloutH;
+  if (aspect == null || !aspect.isFinite || aspect <= 0 || (aspect >= slot * 0.85 && aspect <= slot * 1.25)) {
+    return (w: calloutSlotW, h: calloutH, bleed: true);
+  }
+  const availW = calloutSlotW - _slotInset * 2, availH = calloutH - _slotInset * 2;
+  final wide = aspect >= availW / availH;
+  final w = wide ? availW : availH * aspect, h = wide ? availW / aspect : availH;
+  return (w: w.clamp(40.0, availW).toDouble(), h: h.clamp(28.0, availH).toDouble(), bleed: false);
+}
 
 enum Cat { favorites, soon, shows, restaurants, facilities }
 
@@ -103,6 +164,16 @@ class Cluster {
 
 String fmtDist(double m) => m < 1000 ? '${(m / 10).round() * 10} m' : '${(m / 1000).toStringAsFixed(1)} km';
 int walkMins(double m) => math.max(1, (m / 80).round()); // ~80 m/min stroll
+
+/// Minutes to walk from [from] to the park spot [poiId], when the guest is in the park (within 2.5 km, with a little extra
+/// for paths that are not a straight line). Null when their position or the spot is unknown.
+int? walkMinsToPoi(Geo? from, String? poiId, List<Poi> pois) {
+  if (from == null || poiId == null) return null;
+  final poi = pois.where((p) => p.id == poiId).firstOrNull;
+  if (poi == null) return null;
+  final m = distMeters(from, Geo(poi.lat, poi.lng));
+  return m > 2500 ? null : walkMins(m * 1.25);
+}
 
 /// A k-nearest-neighbour graph over the POIs, so a route hops between real park spots (following the walkable
 /// network) rather than cutting a straight line.

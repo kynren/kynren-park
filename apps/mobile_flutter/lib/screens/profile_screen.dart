@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import '../core/auth.dart';
+import '../core/eat_logic.dart';
 import '../core/profile.dart';
 import '../core/sync.dart';
 import '../core/tickets.dart';
@@ -120,8 +121,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 10),
               check('Bring your bookings in by email'),
               const SizedBox(height: 10),
-              check('Order ahead and track your order'),
-              const SizedBox(height: 10),
+              if (onlineOrderingOpen) ...[check('Order ahead and track your order'), const SizedBox(height: 10)],
               check('Get reminders before each show'),
               const SizedBox(height: 20),
               KButton('Create an account', full: true, onPressed: () => context.push('/auth')),
@@ -136,7 +136,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ]),
         row(Icons.favorite_rounded, 'My favourites', 'Your saved shows and activities', '/favorites'),
         row(Icons.check_rounded, 'I did it', 'Everything you\'ve marked as seen', '/seen'),
-        row(Icons.restaurant_rounded, 'My orders', 'Track food you\'ve ordered ahead', '/orders'),
+        if (onlineOrderingOpen) row(Icons.restaurant_rounded, 'My orders', 'Track food you\'ve ordered ahead', '/orders'),
         if (user != null) row(Icons.tune_rounded, 'Account settings', 'Personal info, accessibility, theme', '/settings'),
         if (user != null)
           KButton('Log out', full: true, variant: ButtonVariant.soft, onPressed: () async {

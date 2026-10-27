@@ -55,7 +55,15 @@ class PassCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(22), border: Border.all(color: c.line)),
-              child: QrImageView(data: code, size: qrSize, padding: EdgeInsets.zero, backgroundColor: Colors.white),
+              child: QrImageView(
+                data: code,
+                size: qrSize,
+                padding: EdgeInsets.zero,
+                backgroundColor: Colors.white,
+                // square modules: the most reliable thing for a gate scanner to read
+                eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.square, color: Colors.black),
+                dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.square, color: Colors.black),
+              ),
             ),
             if (footer != null) Padding(padding: const EdgeInsets.only(top: 14), child: Text(footer!, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: c.text))),
             ?child,

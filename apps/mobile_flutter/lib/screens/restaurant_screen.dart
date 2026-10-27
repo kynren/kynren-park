@@ -1,13 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../core/api.dart';
 import '../core/auth.dart';
+import '../core/eat_logic.dart';
 import '../core/format.dart';
+import '../core/location.dart';
+import '../core/models.dart';
+import '../core/restaurant_favs.dart';
+import '../core/saved_dishes.dart';
 import '../core/sync.dart';
 import '../core/theme.dart';
 import '../ui/detail_kit.dart';
 import '../ui/tap.dart';
+import 'map/map_logic.dart' show walkMinsToPoi;
 
 // How far ahead a guest can choose to pick up their order. The API stores whatever pickupSlot it is
 // given with no server-side check against opening hours (those are a freeform admin string), so these
@@ -25,7 +32,17 @@ class _RestaurantScreenState extends State<RestaurantScreen> {
   final Map<String, int> _qty = {};
   int _pickupOffset = 30;
   bool _submitting = false;
+  String _diet = ''; // the dietary filter on the menu; empty shows every dish
+  bool _byPrice = false;
   final _menuKey = GlobalKey();
+
+  Future<void> _shareMenu(Restaurant r) async {
+    try {
+      await SharePlus.instance.share(ShareParams(text: menuText(r)));
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Couldn’t open sharing. Try again.')));
+    }
+  }
 
   void _bump(String id, int delta) => setState(() => _qty[id] = ((_qty[id] ?? 0) + delta).clamp(0, 999));
 
@@ -38,7 +55,25 @@ class _RestaurantScreenState extends State<RestaurantScreen> {
     if (restaurant == null) return NotFound('Outlet not found.', loading: bundle == null);
 
     final images = restaurant.images.isNotEmpty ? restaurant.images : (restaurant.heroImage != null ? [restaurant.heroImage!] : <String>[]);
-    final canOrder = restaurant.clickCollect != false && restaurant.menuItems.isNotEmpty;
+    final canOrder = onlineOrderingOpen && restaurant.clickCollect != false && restaurant.menuItems.isNotEmpty;
+    final favs = context.watch<RestaurantFavs>();
+    final saved = context.watch<SavedDishes>();
+    final gps = context.watch<LocationState>().gps;
+    final walk = walkMinsToPoi(gps, restaurant.poiId, bundle!.pois);
+    final hours = parseHours(restaurant.openingHours);
+    final ukMin = ukNow();
+    final state = hours == null ? null : openState(hours, ukMin.hour * 60 + ukMin.minute);
+    final stateColor = switch (state?.kind) {
+      OpenKind.open => Tokens.ok,
+      OpenKind.closingSoon => Tokens.warn,
+      OpenKind.closed => Tokens.danger,
+      _ => c.sub,
+    };
+    final diets = dietsOnMenu(restaurant.menuItems);
+    if (_diet.isNotEmpty && !diets.contains(_diet)) _diet = '';
+    final items = [for (final m in restaurant.menuItems) if (_diet.isEmpty || itemHasDiet(m, _diet)) m];
+    if (_byPrice) items.sort((a, b) => a.priceCents.compareTo(b.priceCents));
+    final range = priceRange(restaurant.menuItems);
     final count = _qty.values.fold(0, (a, b) => a + b);
     final total = restaurant.menuItems.fold(0, (sum, m) => sum + (_qty[m.id] ?? 0) * m.priceCents);
 
@@ -115,7 +150,27 @@ class _RestaurantScreenState extends State<RestaurantScreen> {
         SheetTitle(restaurant.name),
         if ((restaurant.description ?? '').isNotEmpty)
           Padding(padding: const EdgeInsets.only(top: 16), child: Text(restaurant.description!, style: TextStyle(color: c.sub, fontSize: 14.5, height: 21 / 14.5))),
-        if ((restaurant.cuisine ?? '').isNotEmpty) Padding(padding: const EdgeInsets.only(top: 14), child: Wrap(children: [TagChip(icon: '🍴', label: restaurant.cuisine!)])),
+        if ((restaurant.cuisine ?? '').isNotEmpty || range != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 14),
+            child: Wrap(spacing: 8, runSpacing: 8, children: [
+              if ((restaurant.cuisine ?? '').isNotEmpty) TagChip(icon: '🍴', label: restaurant.cuisine!),
+              if (range != null) TagChip(icon: '£', label: range),
+            ]),
+          ),
+        if (state != null || walk != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 14),
+            child: Row(children: [
+              if (state != null) ...[
+                Container(width: 9, height: 9, decoration: BoxDecoration(color: stateColor, shape: BoxShape.circle)),
+                const SizedBox(width: 7),
+                Flexible(child: Text(state.text, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: stateColor))),
+              ],
+              if (walk != null) Text('${state != null ? ' · ' : ''}$walk min walk', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: c.sub)),
+            ]),
+          ),
+        // ActionPill fills its share of a row, so the four actions sit two to a row
         Padding(
           padding: const EdgeInsets.only(top: 18),
           child: Row(children: [
@@ -127,6 +182,18 @@ class _RestaurantScreenState extends State<RestaurantScreen> {
             }),
           ]),
         ),
+        Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: Row(children: [
+            ActionPill(
+              icon: favs.ids.contains(restaurant.id) ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+              label: favs.ids.contains(restaurant.id) ? 'Saved' : 'Save',
+              onTap: () => favs.toggle(restaurant.id),
+            ),
+            const SizedBox(width: 10),
+            if (restaurant.menuItems.isNotEmpty) ActionPill(icon: Icons.ios_share_rounded, label: 'Share menu', onTap: () => _shareMenu(restaurant)) else const Expanded(child: SizedBox()),
+          ]),
+        ),
         if ((restaurant.openingHours ?? '').isNotEmpty) ...[
           const SectionLabel('Schedules'),
           Align(
@@ -134,21 +201,52 @@ class _RestaurantScreenState extends State<RestaurantScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 16),
               decoration: BoxDecoration(color: c.tint, borderRadius: BorderRadius.circular(999)),
-              child: Text('From ${restaurant.openingHours}', style: TextStyle(color: c.link, fontWeight: FontWeight.w700, fontSize: 13.5)),
+              // read from the text so the times always have a clean dash between them; text we cannot read is shown as typed
+              child: Text(hours != null ? 'Today ${hoursText(hours)}' : 'From ${restaurant.openingHours}', style: TextStyle(color: c.link, fontWeight: FontWeight.w700, fontSize: 13.5)),
             ),
           ),
         ],
         KeyedSubtree(key: _menuKey, child: const SectionLabel('Menu')),
+        if (restaurant.menuItems.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Wrap(spacing: 8, runSpacing: 8, children: [
+              for (final d in diets)
+                Tap(
+                  onTap: () => setState(() => _diet = _diet == d ? '' : d),
+                  label: _diet == d ? 'Show every dish' : 'Only $d dishes',
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
+                    decoration: BoxDecoration(color: _diet == d ? c.primary : c.soft, borderRadius: BorderRadius.circular(999)),
+                    child: Text(d, style: TextStyle(color: _diet == d ? Colors.white : c.text, fontWeight: FontWeight.w700, fontSize: 13)),
+                  ),
+                ),
+              if (restaurant.menuItems.length > 2)
+                Tap(
+                  onTap: () => setState(() => _byPrice = !_byPrice),
+                  label: _byPrice ? 'Back to menu order' : 'Sort by price',
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
+                    decoration: BoxDecoration(color: _byPrice ? c.primary : c.soft, borderRadius: BorderRadius.circular(999)),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.swap_vert_rounded, size: 16, color: _byPrice ? Colors.white : c.text),
+                      const SizedBox(width: 4),
+                      Text('Price: low to high', style: TextStyle(color: _byPrice ? Colors.white : c.text, fontWeight: FontWeight.w700, fontSize: 13)),
+                    ]),
+                  ),
+                ),
+            ]),
+          ),
         if (restaurant.menuItems.isEmpty)
           const Muted('Menu coming soon.')
         else
-          for (var i = 0; i < restaurant.menuItems.length; i++)
+          for (var i = 0; i < items.length; i++)
             () {
-              final m = restaurant.menuItems[i];
+              final m = items[i];
               final n = _qty[m.id] ?? 0;
               return Container(
                 padding: const EdgeInsets.symmetric(vertical: 15),
-                decoration: BoxDecoration(border: i == restaurant.menuItems.length - 1 ? null : Border(bottom: BorderSide(color: c.line, width: 0.5))),
+                decoration: BoxDecoration(border: i == items.length - 1 ? null : Border(bottom: BorderSide(color: c.line, width: 0.5))),
                 child: Row(children: [
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -159,18 +257,26 @@ class _RestaurantScreenState extends State<RestaurantScreen> {
                         Padding(
                           padding: const EdgeInsets.only(top: 6),
                           child: Wrap(spacing: 8, runSpacing: 6, children: [
-                            for (final t in m.dietaryTags)
+                            for (final t in dietsOf(m))
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                 decoration: BoxDecoration(color: c.soft, borderRadius: BorderRadius.circular(999)),
-                                child: Text(t.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Tokens.ok)),
+                                child: Text(t, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Tokens.ok)),
                               ),
                           ]),
                         ),
                     ]),
                   ),
+                  Tap(
+                    onTap: () => saved.toggle(m.id),
+                    label: saved.ids.contains(m.id) ? 'Remove ${m.name} from saved dishes' : 'Save ${m.name}',
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Icon(saved.ids.contains(m.id) ? Icons.favorite_rounded : Icons.favorite_border_rounded, size: 21, color: saved.ids.contains(m.id) ? Tokens.danger : c.link),
+                    ),
+                  ),
                   if (canOrder) ...[
-                    const SizedBox(width: 14),
+                    const SizedBox(width: 6),
                     if (n == 0)
                       Tap(
                         onTap: () => _bump(m.id, 1),
@@ -187,6 +293,12 @@ class _RestaurantScreenState extends State<RestaurantScreen> {
                 ]),
               );
             }(),
+        if (restaurant.menuItems.isNotEmpty && items.isEmpty) Muted('No $_diet dishes on this menu.'),
+        if (restaurant.menuItems.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 14),
+            child: Muted('Allergies or intolerances? Please tell a member of the team before you eat. The labels above are a guide.'),
+          ),
         if (canOrder) ...[
           const SectionLabel('Order ahead'),
           const Muted('Pick a collection time — pay at the outlet, no card needed now.'),
@@ -204,8 +316,7 @@ class _RestaurantScreenState extends State<RestaurantScreen> {
                 ),
             ]),
           ),
-        ] else
-          Padding(padding: const EdgeInsets.only(top: 20), child: Center(child: Text('Order ahead isn’t available here — pay at the outlet.', style: TextStyle(color: c.sub, fontSize: 12)))),
+        ],
       ],
     );
   }

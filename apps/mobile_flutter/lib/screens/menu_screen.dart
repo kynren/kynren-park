@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../core/auth.dart';
+import '../core/eat_logic.dart';
 import '../core/profile.dart';
 import '../core/tickets.dart';
 import '../core/sync.dart';
@@ -19,12 +20,12 @@ class _Entry {
   const _Entry(this.label, this.icon, this.to, {this.personal = false});
 }
 
-const _groups = [
+final _groups = [
   (title: 'Your visit', entries: [
-    _Entry('My tickets', Icons.confirmation_number_rounded, '/tickets', personal: true),
-    _Entry('Programme', Icons.calendar_month_rounded, '/shows'),
-    _Entry('My day', Icons.star_rounded, '/plan', personal: true),
-    _Entry('My orders', Icons.restaurant_rounded, '/orders', personal: true),
+    const _Entry('My tickets', Icons.confirmation_number_rounded, '/tickets', personal: true),
+    const _Entry('Programme', Icons.calendar_month_rounded, '/shows'),
+    const _Entry('My day', Icons.star_rounded, '/plan', personal: true),
+    if (onlineOrderingOpen) const _Entry('My orders', Icons.restaurant_rounded, '/orders', personal: true),
   ]),
   (title: 'Around the park', entries: [
     _Entry('Scan a code', Icons.qr_code_scanner_rounded, '/scan'),

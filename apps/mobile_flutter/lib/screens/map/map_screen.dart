@@ -657,6 +657,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             final anchorY = flipDown ? -50.0 : h + 50;
             final opacity = popupAnim == 'none' ? 1.0 : popupAnim == 'fade' ? t : math.min(1.0, t * 1.6);
             final dy = popupAnim == 'slide' ? (1 - t) * 20 : 0.0;
+            // near the edge of the screen the card slides in to stay on it, and its pointer stays on the marker
+            final dx = calloutShift(_screenOf(Offset(pin.x, pin.y)).dx, _vp.width);
             return Positioned(
               left: pin.x - calloutW / 2,
               top: pin.y - anchorY,
@@ -668,7 +670,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                   ..scaleByDouble(s, s, 1, 1)
                   ..rotateZ(-_angle),
                 alignment: Alignment(0, anchorY / h * 2 - 1),
-                child: Opacity(opacity: opacity.clamp(0.0, 1.0), child: Transform.translate(offset: Offset(0, dy), child: Callout(pin: pin, distance: selectedDist, flipDown: flipDown, card: cpal.card, ink: cpal.ink, muted: cpal.muted, onOpen: openDetail, onClose: _dismissPopup))),
+                child: Opacity(opacity: opacity.clamp(0.0, 1.0), child: Transform.translate(offset: Offset(dx, dy), child: Callout(pin: pin, distance: selectedDist, flipDown: flipDown, arrowOffset: -dx, card: cpal.card, ink: cpal.ink, muted: cpal.muted, onOpen: openDetail, onClose: _dismissPopup))),
               ),
             );
           },
@@ -772,22 +774,13 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               top: top + 78,
               left: 14,
               right: 66,
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                decoration: BoxDecoration(color: const Color(0xEB0F0F0F), borderRadius: BorderRadius.circular(12)),
-                child: Row(children: [
-                  const Text('📱', style: TextStyle(fontSize: 18)),
-                  const SizedBox(width: 12),
-                  Expanded(child: Text(gps != null ? 'You seem to be outside the park' : 'Turn on location to see where you are and how far things are', style: const TextStyle(color: Color(0xFFF0A8A8), fontSize: 14, fontWeight: FontWeight.w600))),
-                  const SizedBox(width: 12),
-                  GestureDetector(
-                    onTap: () => setState(() {
-                      _outsideBannerDismissed = true;
-                      _bannerDismissed = true;
-                    }),
-                    child: const Text('✕', style: TextStyle(color: Color(0xFFF0A8A8), fontSize: 16, fontWeight: FontWeight.w700)),
-                  ),
-                ]),
+              child: LocationNotice(
+                awayFromPark: gps != null,
+                onEnable: () => context.read<LocationState>().enable(),
+                onClose: () => setState(() {
+                  _outsideBannerDismissed = true;
+                  _bannerDismissed = true;
+                }),
               ),
             ),
           if (_cats.contains(Cat.soon) && !_cats.contains(Cat.shows) && !_cats.contains(Cat.favorites) && pins.where((p) => p.id != parkedCarId).isEmpty)

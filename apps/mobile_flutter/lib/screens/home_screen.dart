@@ -7,6 +7,7 @@ import '../app/shell.dart' show navClearance;
 import '../core/api.dart';
 import '../core/auth.dart';
 import '../core/favorites.dart';
+import '../core/eat_logic.dart';
 import '../core/format.dart';
 import '../core/models.dart';
 import '../core/preferences.dart';
@@ -250,7 +251,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ? _PromoCard(width: promoWidth, image: showImage, icon: Icons.confirmation_number_rounded, color: featureGradient['tickets']![1], title: 'My tickets', text: 'Your QR codes and bookings, ready for the gate.', action: 'Open', onTap: () => go('/tickets'))
                     : _PromoCard(width: promoWidth, image: showImage, icon: Icons.person_rounded, color: Tokens.brand, title: 'Your tickets', text: 'Sign in to bring your bookings into the app, with reminders before each show.', action: 'Sign in', onTap: () => go('/auth')),
                 const SizedBox(width: 14),
-                _PromoCard(width: promoWidth, image: foodImage, icon: Icons.restaurant_rounded, color: featureGradient['restaurants']![0], title: 'Order food', text: 'Order ahead and collect without the queue.', action: 'Order now', onTap: () => context.go('/food')),
+                _PromoCard(width: promoWidth, image: foodImage, icon: Icons.restaurant_rounded, color: featureGradient['restaurants']![0], title: onlineOrderingOpen ? 'Order food' : 'Eat and drink', text: onlineOrderingOpen ? 'Order ahead and collect without the queue.' : 'See the menus, what is open now and the dietary choices.', action: onlineOrderingOpen ? 'Order now' : 'See menus', onTap: () => context.go('/food')),
               ]),
             ),
           );
@@ -298,7 +299,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     tile('Shows', upcoming.isNotEmpty ? '${upcoming.length} coming up today' : 'The full programme', showImage, featureGradient['programme']![0], Icons.calendar_month_rounded, () => go('/shows')),
                     tile('Attractions', 'Find your way around', attractionImage, Tokens.brand, Icons.place_rounded, () => context.go('/map')),
-                    tile('Restaurants', 'Menus and order ahead', foodImage, featureGradient['restaurants']![0], Icons.restaurant_rounded, () => context.go('/food')),
+                    tile('Restaurants', onlineOrderingOpen ? 'Menus and order ahead' : 'Menus and opening times', foodImage, featureGradient['restaurants']![0], Icons.restaurant_rounded, () => context.go('/food')),
                     tile('Shops', 'Gifts and souvenirs', shopImage, const Color(0xFF4B5D73), Icons.storefront_rounded, () => context.go('/search?filter=shop')),
                   ],
                 ),

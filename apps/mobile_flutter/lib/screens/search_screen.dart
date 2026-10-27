@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/favorites.dart';
+import '../core/eat_logic.dart';
 import '../core/format.dart';
 import '../core/location.dart';
 import '../core/models.dart';
@@ -61,14 +62,14 @@ const _quick = [
 ];
 
 // What the search box can take the guest to besides places, found by the words people use for them.
-const _pages = [
+final _pages = [
   _Page('Programme', 'What is on, and when', Icons.calendar_month_rounded, '/shows', ['programme', 'program', 'schedule', 'timetable', 'times', 'showtimes', 'today']),
   _Page('My tickets', 'Your QR codes', Icons.confirmation_number_rounded, '/tickets', ['tickets', 'ticket', 'qr', 'code', 'booking', 'entry']),
   _Page('Shuttle', 'Timetable and stops', Icons.directions_bus_rounded, '/shuttle', ['shuttle', 'bus', 'transport', 'stops', 'travel']),
   _Page('Accessibility', 'Step-free routes and support', Icons.accessible_rounded, '/accessibility', ['accessibility', 'accessible', 'wheelchair', 'disabled', 'stepfree', 'help', 'support']),
   _Page('Plan my day', 'A route through the shows', Icons.route_rounded, '/plan', ['plan', 'itinerary', 'route', 'day', 'schedule']),
   _Page('Park map', 'Find your way around', Icons.map_rounded, '/map', ['map', 'directions', 'navigate', 'find', 'where'], tab: true),
-  _Page('My orders', 'Food and shop orders', Icons.receipt_long_rounded, '/orders', ['orders', 'order', 'receipt', 'purchase']),
+  if (onlineOrderingOpen) _Page('My orders', 'Food and shop orders', Icons.receipt_long_rounded, '/orders', ['orders', 'order', 'receipt', 'purchase']),
   _Page('Notifications', 'News from the park', Icons.notifications_none_rounded, '/notifications', ['notifications', 'alerts', 'news', 'messages']),
 ];
 
