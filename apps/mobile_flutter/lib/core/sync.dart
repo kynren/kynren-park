@@ -9,6 +9,7 @@ import 'package:socket_io_client/socket_io_client.dart' as io;
 import 'api.dart';
 import 'format.dart';
 import 'models.dart';
+import 'picture_warmup.dart';
 import 'safe_notify.dart';
 
 String _bundleKey(String date) => 'kynren_bundle_$date';
@@ -112,6 +113,7 @@ class SyncState extends ChangeNotifier with SafeNotify {
       if (res.statusCode == 304) {
         lastSynced = DateTime.now();
         notifyListeners();
+        _warmPictures();
         return;
       }
       if (res.statusCode != 200) {
@@ -126,12 +128,28 @@ class SyncState extends ChangeNotifier with SafeNotify {
       await p.setString('${_bundleKey(date)}_at', lastSynced!.toIso8601String());
       final newEtag = res.headers['etag'];
       if (newEtag != null) await p.setString(_etagKey(date), newEtag);
+      _warmPictures();
     } catch (e) {
       // Offline: keep serving the cached bundle.
       online = false;
       if (kDebugMode) debugPrint('sync refresh failed: $e');
     }
     notifyListeners();
+  }
+
+  /// Fetches the bundle's pictures into the disk cache in the background, so a first launch that later goes offline still
+  /// has them. One pass at a time, and a picture already tried this run is not tried again.
+  bool _warming = false;
+  final _warmed = <String>{};
+
+  void _warmPictures() {
+    final raw = _raw;
+    if (_warming || raw == null || !warmingPicturesIsWanted) return;
+    final todo = pictureUrls(raw).where((u) => !_warmed.contains(u)).toList();
+    if (todo.isEmpty) return;
+    _warming = true;
+    _warmed.addAll(todo);
+    warmPictureCache(todo).whenComplete(() => _warming = false);
   }
 
   // Connects once (not keyed on the date): a reconnect briefly flips `online` and can drop an
