@@ -198,12 +198,26 @@ class ShopItem {
   final String id, name;
   final String? description, image;
   final int priceCents;
+
+  /// False when the shop has marked it out of stock.
+  final bool available;
+
+  /// What tells this price from the product's others ("Adult", "Child"), when the shop lists one product at several prices.
+  final String? variant;
   ShopItem.fromJson(Json j)
       : id = j['id'] as String,
         name = j['name'] as String,
         description = _s(j['description']),
         image = _s(j['image']),
-        priceCents = (j['priceCents'] as num?)?.toInt() ?? 0;
+        priceCents = (j['priceCents'] as num?)?.toInt() ?? 0,
+        available = j['available'] as bool? ?? true,
+        variant = _variantName(j['variants']);
+}
+
+/// The first variant's name, from a list like [{"name": "Adult"}]. Anything else (the data also holds an empty {}) is none.
+String? _variantName(Object? v) {
+  if (v is! List || v.isEmpty || v.first is! Map) return null;
+  return _s((v.first as Map)['name']);
 }
 
 class Shop {

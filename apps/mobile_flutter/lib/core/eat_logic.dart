@@ -131,14 +131,18 @@ bool isSweet(MenuItem m) {
 
 bool restaurantHasSweet(Restaurant r) => r.menuItems.any(isSweet);
 
-String _pounds(int cents) => cents % 100 == 0 ? '£${cents ~/ 100}' : '£${(cents / 100).toStringAsFixed(2)}';
+/// A price as the shops and menus write it: £15, or £1.50.
+String poundsShort(int cents) => cents % 100 == 0 ? '£${cents ~/ 100}' : '£${(cents / 100).toStringAsFixed(2)}';
 
-/// "£5.50 – £14.50" across a menu's priced dishes, or just the one price. Null when nothing is priced.
-String? priceRange(Iterable<MenuItem> items) {
-  final prices = [for (final m in items) if (m.priceCents > 0) m.priceCents]..sort();
+/// "£5.50 – £14.50" across prices in pence, or just the one price. Null when none is above zero.
+String? priceRangeOfCents(Iterable<int> cents) {
+  final prices = [for (final p in cents) if (p > 0) p]..sort();
   if (prices.isEmpty) return null;
-  return prices.first == prices.last ? _pounds(prices.first) : '${_pounds(prices.first)} – ${_pounds(prices.last)}';
+  return prices.first == prices.last ? poundsShort(prices.first) : '${poundsShort(prices.first)} – ${poundsShort(prices.last)}';
 }
+
+/// The same across a menu's priced dishes.
+String? priceRange(Iterable<MenuItem> items) => priceRangeOfCents(items.map((m) => m.priceCents));
 
 /// A menu as plain text for sharing.
 String menuText(Restaurant r) {
@@ -148,6 +152,6 @@ String menuText(Restaurant r) {
     if (h != null) 'Open ${hoursText(h)}',
     '',
     for (final m in r.menuItems)
-      '${m.name}${m.priceCents > 0 ? ' · ${_pounds(m.priceCents)}' : ''}${m.dietaryTags.isEmpty ? '' : ' (${m.dietaryTags.map(dietLabel).join(', ')})'}',
+      '${m.name}${m.priceCents > 0 ? ' · ${poundsShort(m.priceCents)}' : ''}${m.dietaryTags.isEmpty ? '' : ' (${m.dietaryTags.map(dietLabel).join(', ')})'}',
   ].join('\n').trim();
 }

@@ -10,6 +10,7 @@ import '../core/favorites.dart';
 import '../core/eat_logic.dart';
 import '../core/format.dart';
 import '../core/models.dart';
+import '../core/offline.dart';
 import '../core/preferences.dart';
 import '../core/sync.dart';
 import '../core/theme.dart';
@@ -123,6 +124,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // Quick actions sit right under the search, and the next show right after the welcome, whatever layout admin saved.
     final fullOrder = ['quick', for (final k in order) ...[k, if (k == 'welcome') 'nextUp']];
     if (!order.contains('welcome')) fullOrder.insert(1, 'nextUp');
+    fullOrder.insert(1, 'offline');
     // Pictures for the promo cards come from the park's own content, so they stay current.
     String? firstImage(Iterable<String?> xs) => xs.firstWhere((x) => x != null && x.isNotEmpty, orElse: () => null);
     final showImage = firstImage((bundle?.attractions ?? []).where((a) => a.category == 'EVENING_SHOW').map((a) => a.heroImage));
@@ -157,6 +159,7 @@ class _HomeScreenState extends State<HomeScreen> {
             (label: 'Map', icon: Icons.map_rounded, to: '/map', tab: true),
             (label: 'Eat', icon: Icons.restaurant_rounded, to: '/food', tab: true),
             (label: 'My day', icon: Icons.event_available_rounded, to: '/plan', tab: false),
+            (label: 'Essentials', icon: Icons.wc_rounded, to: '/essentials', tab: false),
             (label: 'Shuttle', icon: Icons.directions_bus_rounded, to: '/shuttle', tab: false),
             (label: 'Access', icon: Icons.accessible_rounded, to: '/accessibility', tab: false),
           ];
@@ -182,6 +185,20 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                   ),
+              ]),
+            ),
+          );
+        case 'offline':
+          if (sync.online) return null;
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(color: c.card, borderRadius: BorderRadius.circular(16), border: Border.all(color: c.line)),
+              child: Row(children: [
+                Icon(Icons.cloud_off_rounded, size: 19, color: c.sub),
+                const SizedBox(width: 10),
+                Expanded(child: Text(offlineNote(sync.lastSynced, DateTime.now())!, style: TextStyle(fontSize: 13, height: 18 / 13, fontWeight: FontWeight.w600, color: c.sub))),
               ]),
             ),
           );
@@ -300,7 +317,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     tile('Shows', upcoming.isNotEmpty ? '${upcoming.length} coming up today' : 'The full programme', showImage, featureGradient['programme']![0], Icons.calendar_month_rounded, () => go('/shows')),
                     tile('Attractions', 'Find your way around', attractionImage, Tokens.brand, Icons.place_rounded, () => context.go('/map')),
                     tile('Restaurants', onlineOrderingOpen ? 'Menus and order ahead' : 'Menus and opening times', foodImage, featureGradient['restaurants']![0], Icons.restaurant_rounded, () => context.go('/food')),
-                    tile('Shops', 'Gifts and souvenirs', shopImage, const Color(0xFF4B5D73), Icons.storefront_rounded, () => context.go('/search?filter=shop')),
+                    tile('Shops', 'Gifts and souvenirs', shopImage, const Color(0xFF4B5D73), Icons.storefront_rounded, () => context.push('/shops')),
                   ],
                 ),
               ),

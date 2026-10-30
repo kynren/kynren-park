@@ -133,6 +133,8 @@ List<BoxShadow> softShadow(bool dark, {int level = 1, bool up = false}) {
 
 const featureGradient = {
   'restaurants': [Color(0xFFB03A2E), Color(0xFFE5793A)],
+  'shops': [Color(0xFF2F3E52), Color(0xFF5B7390)],
+  'essentials': [Color(0xFF1F5F5B), Color(0xFF3E9C8E)],
   'tickets': [Color(0xFF0F2A21), Color(0xFF2F5C46)],
   'programme': [Color(0xFFB4650F), Color(0xFFF0A744)],
 };

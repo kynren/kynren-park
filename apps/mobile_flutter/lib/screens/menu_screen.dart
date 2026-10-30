@@ -29,6 +29,7 @@ final _groups = [
   ]),
   (title: 'Around the park', entries: [
     _Entry('Scan a code', Icons.qr_code_scanner_rounded, '/scan'),
+    _Entry('Park essentials', Icons.wc_rounded, '/essentials'),
     _Entry('Shuttle', Icons.directions_bus_rounded, '/shuttle'),
     _Entry('Accessibility', Icons.accessible_rounded, '/accessibility'),
     _Entry('Favourites', Icons.favorite_rounded, '/favorites'),

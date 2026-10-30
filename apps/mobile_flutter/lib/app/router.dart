@@ -17,6 +17,8 @@ import '../screens/scan_screen.dart';
 import '../screens/search_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/shop_facility_screens.dart';
+import '../screens/shops_screen.dart';
+import '../screens/essentials_screen.dart';
 import '../screens/tickets_screens.dart';
 import 'shell.dart';
 
@@ -38,6 +40,8 @@ final router = GoRouter(
     GoRoute(path: '/attraction/:slug', builder: (_, state) => AttractionScreen(slug: state.pathParameters['slug']!)),
     GoRoute(path: '/restaurant/:slug', builder: (_, state) => RestaurantScreen(slug: state.pathParameters['slug']!)),
     GoRoute(path: '/restaurants', builder: (_, state) => RestaurantsScreen(slot: state.uri.queryParameters['slot'])),
+    GoRoute(path: '/shops', builder: (_, _) => const ShopsScreen()),
+    GoRoute(path: '/essentials', builder: (_, _) => const EssentialsScreen()),
     GoRoute(path: '/shop/:slug', builder: (_, state) => ShopScreen(slug: state.pathParameters['slug']!)),
     GoRoute(path: '/shows', builder: (_, _) => const ProgrammeScreen()),
     GoRoute(path: '/plan', builder: (_, _) => const PlanScreen()),

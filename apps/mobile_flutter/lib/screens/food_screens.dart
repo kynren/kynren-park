@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -12,6 +11,8 @@ import '../core/saved_dishes.dart';
 import '../core/sync.dart';
 import '../core/theme.dart';
 import '../ui/controls.dart';
+import '../ui/filter_chips.dart';
+import '../ui/minute_tick.dart';
 import '../ui/restaurant_card.dart';
 import '../ui/reveal.dart';
 import '../ui/skeleton.dart';
@@ -24,30 +25,6 @@ const _slots = [
   (slot: 'dinner', label: 'Dinner', icon: Icons.star_rounded),
   (slot: 'sweet', label: 'Sweet break', icon: Icons.favorite_rounded),
 ];
-
-int _nowMinute() {
-  final n = ukNow();
-  return n.hour * 60 + n.minute;
-}
-
-/// Re-reads the clock once a minute so "Open now" and "Closing soon" stay true while the screen is open.
-mixin _MinuteTick<T extends StatefulWidget> on State<T> {
-  Timer? _timer;
-
-  @override
-  void initState() {
-    super.initState();
-    _timer = Timer.periodic(const Duration(minutes: 1), (_) {
-      if (mounted) setState(() {});
-    });
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-}
 
 class _RestaurantList extends StatelessWidget {
   final List<Restaurant> restaurants;
@@ -62,7 +39,7 @@ class _RestaurantList extends StatelessWidget {
     final favs = context.watch<RestaurantFavs>();
     final gps = context.watch<LocationState>().gps;
     final pois = context.watch<SyncState>().bundle?.pois ?? const <Poi>[];
-    final nowMin = _nowMinute();
+    final nowMin = nowMinute();
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
       child: Column(children: [
@@ -83,42 +60,6 @@ class _RestaurantList extends StatelessWidget {
             ),
           ),
       ]),
-    );
-  }
-}
-
-/// A row of filter chips: the chosen one is filled.
-class _FilterChips extends StatelessWidget {
-  final List<String> labels;
-  final String chosen;
-  final void Function(String) onPick;
-  const _FilterChips({required this.labels, required this.chosen, required this.onPick});
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.ui;
-    return SizedBox(
-      height: 40,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        children: [
-          for (final l in labels)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Tap(
-                onTap: () => onPick(l),
-                label: l,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(color: chosen == l ? c.primary : c.card, borderRadius: BorderRadius.circular(999), border: Border.all(color: chosen == l ? c.primary : c.line)),
-                  child: Text(l, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: chosen == l ? Colors.white : c.text)),
-                ),
-              ),
-            ),
-        ],
-      ),
     );
   }
 }
@@ -177,7 +118,7 @@ class FoodScreen extends StatefulWidget {
   State<FoodScreen> createState() => _FoodScreenState();
 }
 
-class _FoodScreenState extends State<FoodScreen> with _MinuteTick {
+class _FoodScreenState extends State<FoodScreen> with MinuteTick {
   String _filter = 'All';
 
   @override
@@ -189,7 +130,7 @@ class _FoodScreenState extends State<FoodScreen> with _MinuteTick {
     final savedIds = context.watch<SavedDishes>().ids;
     final gps = context.watch<LocationState>().gps;
     final pois = bundle?.pois ?? const <Poi>[];
-    final nowMin = _nowMinute();
+    final nowMin = nowMinute();
 
     int? walk(Restaurant r) => walkMinsToPoi(gps, r.poiId, pois);
     final diets = dietsOnMenu([for (final r in all) ...r.menuItems]);
@@ -275,7 +216,7 @@ class _FoodScreenState extends State<FoodScreen> with _MinuteTick {
         if (saved.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 16), child: _SavedDishes(dishes: saved)),
         if (all.isNotEmpty) ...[
           const SizedBox(height: 16),
-          _FilterChips(labels: labels, chosen: _filter, onPick: (l) => setState(() => _filter = l)),
+          FilterChips(labels: labels, chosen: _filter, onPick: (l) => setState(() => _filter = l)),
         ],
         const Padding(padding: EdgeInsets.only(top: 18), child: SectionHeader('Our restaurants')),
         _RestaurantList(
@@ -303,7 +244,7 @@ class RestaurantsScreen extends StatefulWidget {
   State<RestaurantsScreen> createState() => _RestaurantsScreenState();
 }
 
-class _RestaurantsScreenState extends State<RestaurantsScreen> with _MinuteTick {
+class _RestaurantsScreenState extends State<RestaurantsScreen> with MinuteTick {
   @override
   Widget build(BuildContext context) {
     final slot = widget.slot;
