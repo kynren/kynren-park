@@ -7,6 +7,7 @@ import '../core/eat_logic.dart';
 import '../core/format.dart';
 import '../core/location.dart';
 import '../core/models.dart';
+import '../core/park_geo.dart';
 import '../core/programme_logic.dart';
 import '../core/restaurant_favs.dart';
 import '../core/search_logic.dart';
@@ -180,11 +181,11 @@ class _SearchScreenState extends State<SearchScreen> {
     // How far each place is, for a guest who is in the park.
     final pois = {for (final p in sync.bundle?.pois ?? <Poi>[]) p.id: p};
     Geo? centre;
-    if (pois.isNotEmpty) centre = Geo(pois.values.fold(0.0, (s, p) => s + p.lat) / pois.length, pois.values.fold(0.0, (s, p) => s + p.lng) / pois.length);
+    if (pois.isNotEmpty) centre = groundOfMapFrame(Geo(pois.values.fold(0.0, (s, p) => s + p.lat) / pois.length, pois.values.fold(0.0, (s, p) => s + p.lng) / pois.length));
     final inPark = gps != null && centre != null && distMeters(gps, centre) <= halfMileM;
     double? distOf(_Result r) {
       final p = r.poiId == null ? null : pois[r.poiId];
-      return inPark && p != null ? distMeters(gps, Geo(p.lat, p.lng)) : null;
+      return inPark && p != null ? metresToPlace(gps, p.lat, p.lng) : null;
     }
 
     // Best match first; or, when asked, nearest first.

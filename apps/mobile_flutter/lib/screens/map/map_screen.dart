@@ -10,6 +10,7 @@ import '../../core/favorites.dart';
 import '../../core/format.dart';
 import '../../core/location.dart';
 import '../../core/models.dart';
+import '../../core/park_geo.dart';
 import '../../core/parking.dart';
 import '../../core/walk_grid.dart';
 import '../../core/programme_logic.dart';
@@ -353,8 +354,9 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       // The saved car stays on the map whichever layers are on.
       final car = _car;
       if (car != null) {
-        final p = toXY(car.lat, car.lng);
-        pins.add(Pin(id: parkedCarId, x: p.dx, y: p.dy, lat: car.lat, lng: car.lng, kind: PinKind.facility, emoji: '🚗', color: const Color(0xFF1F7A5C), title: 'Your car', subtitle: 'Saved ${fmtRelative(car.savedAt)}', hint: 'Forget this spot'));
+        final at = mapFrameOf(Geo(car.lat, car.lng)); // saved from the phone's GPS: put it on the picture the way the guest's own dot is
+        final p = toXY(at.lat, at.lng);
+        pins.add(Pin(id: parkedCarId, x: p.dx, y: p.dy, lat: at.lat, lng: at.lng, kind: PinKind.facility, emoji: '🚗', color: const Color(0xFF1F7A5C), title: 'Your car', subtitle: 'Saved ${fmtRelative(car.savedAt)}', hint: 'Forget this spot'));
       }
 
       // The selected pin's current position (it re-projects when the map changes).
@@ -413,16 +415,19 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       }
 
       // ---- location
-      final locationReal = gps != null && inBounds(gps.lat, gps.lng);
+      // The guest's GPS fix in the frame the places are stored in: through the landmarks staff marked in the admin when
+      // there are any, so the dot lands where they really are on the picture.
+      final gpsMap = gps == null ? null : mapFrameOf(gps);
+      final locationReal = gps != null && gpsMap != null && inBounds(gpsMap.lat, gpsMap.lng);
       final entrance = pois.where((p) => p.type == 'ENTRANCE').firstOrNull;
       Geo? parkCenter;
-      if (pois.isNotEmpty) parkCenter = Geo(pois.fold(0.0, (s, p) => s + p.lat) / pois.length, pois.fold(0.0, (s, p) => s + p.lng) / pois.length);
+      if (pois.isNotEmpty) parkCenter = groundOfMapFrame(Geo(pois.fold(0.0, (s, p) => s + p.lat) / pois.length, pois.fold(0.0, (s, p) => s + p.lng) / pois.length));
       final distToPark = gps != null && parkCenter != null ? distMeters(gps, parkCenter) : null;
       final showMe = distToPark != null && distToPark <= halfMileM;
-      final Offset youAreHere = locationReal ? toXY(gps.lat, gps.lng) : entrance != null ? toXY(entrance.lat, entrance.lng) : Offset(_vp.width / 2, _vp.height * 0.7);
+      final Offset youAreHere = locationReal ? toXY(gpsMap.lat, gpsMap.lng) : entrance != null ? toXY(entrance.lat, entrance.lng) : Offset(_vp.width / 2, _vp.height * 0.7);
 
       // ---- route: the guest → nearest spot → … → destination, following the path network (not a straight line)
-      final routeNodes = [for (final p in pois) Geo(p.lat, p.lng)];
+      final routeNodes = [for (final p in pois) groundOfMapFrame(Geo(p.lat, p.lng))]; // real positions, so distances are real metres
       List<Offset>? routePoints;
       double? routeMeters;
       final sel = _selected;
@@ -434,7 +439,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         final key = '${identityHashCode(walkGrid)}:${walkGrid.cellOf(from)}>${walkGrid.cellOf(to)}';
         if (key != _routeKey) {
           _routeKey = key;
-          _route = walkGrid.route(from, to, metresAcross: parkMetresAcross, metresDown: parkMetresDown);
+          _route = walkGrid.route(from, to, metresAcross: pictureMetresAcross, metresDown: pictureMetresDown);
         }
         final r = _route!;
         routePoints = smoothLine([for (final p in r.points) Offset(p.dx * fit.width, p.dy * fit.height)]);
@@ -442,11 +447,11 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       }
       // ...otherwise hopping between the park's places.
       if (routePoints == null && sel != null && sel.lat != null && locationReal && routeNodes.length >= 2) {
-        final target = Geo(sel.lat!, sel.lng!);
+        final target = groundOfMapFrame(Geo(sel.lat!, sel.lng!));
         final s = nearestNode(routeNodes, gps), g = nearestNode(routeNodes, target);
         final nodePath = s == g ? [g] : dijkstra(buildPoiGraph(routeNodes), routeNodes, s, g);
         if (s >= 0 && g >= 0 && nodePath != null) {
-          final pts = [youAreHere, for (final i in nodePath) toXY(routeNodes[i].lat, routeNodes[i].lng)];
+          final pts = [youAreHere, for (final i in nodePath) toXY(pois[i].lat, pois[i].lng)];
           if ((pts.last - Offset(sel.x, sel.y)).distance > 2) pts.add(Offset(sel.x, sel.y));
           var meters = distMeters(gps, routeNodes[s]);
           for (var i = 0; i < nodePath.length - 1; i++) {
@@ -472,7 +477,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       void addNear(String id, Cat kind, String title, String? poiId) {
         final p = poiId == null ? null : poiById[poiId];
         if (p == null) return;
-        nearby.add((id: id, kind: kind, title: title, zone: p.mapZone, dist: locationReal ? distMeters(gps, Geo(p.lat, p.lng)) : null));
+        nearby.add((id: id, kind: kind, title: title, zone: p.mapZone, dist: locationReal ? metresToPlace(gps, p.lat, p.lng) : null));
       }
       for (final a in bundle?.attractions ?? <Attraction>[]) {
         addNear(a.id, Cat.shows, a.name, a.poiId);
@@ -499,7 +504,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         void nearest(String label, String emoji, Cat kind, Iterable<({String id, Poi poi})> from) {
           ({String id, double d})? best;
           for (final e in from) {
-            final d = distMeters(gps, Geo(e.poi.lat, e.poi.lng));
+            final d = metresToPlace(gps, e.poi.lat, e.poi.lng);
             if (best == null || d < best.d) best = (id: e.id, d: d);
           }
           if (best != null) quick.add((id: best.id, kind: kind, label: label, emoji: emoji, dist: best.d));

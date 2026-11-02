@@ -1,7 +1,7 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Put, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { Prisma } from '@kynren/db';
-import { parseWalkGrid } from '@kynren/shared';
+import { fitGeoCalibration, parseWalkGrid } from '@kynren/shared';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RequirePermission } from '../common/decorators.js';
 import { PermissionsGuard } from '../common/guards.js';
@@ -561,6 +561,18 @@ export class ManageController {
     if (b.bgColor !== undefined) data.bgColor = b.bgColor || null; // edge fill colour
     // The walkable area belongs to one picture: a new or removed image drops the old one unless a fresh one comes with it.
     if (b.imageUrl !== undefined) data.walkGrid = Prisma.DbNull;
+    // Likewise the landmarks: they were marked on the old picture.
+    if (b.imageUrl !== undefined) data.geoCalibration = Prisma.DbNull;
+    if (b.geoCalibration !== undefined) {
+      if (b.geoCalibration === null) {
+        data.geoCalibration = Prisma.DbNull;
+      } else {
+        // Only the landmarks are taken from the request; the fit is always worked out here.
+        const fit = fitGeoCalibration(Array.isArray(b.geoCalibration?.points) ? b.geoCalibration.points : []);
+        if (!fit.ok) throw new BadRequestException(fit.error);
+        data.geoCalibration = fit.calibration as unknown as Prisma.InputJsonValue;
+      }
+    }
     if (b.walkGrid !== undefined) {
       if (b.walkGrid === null) {
         data.walkGrid = Prisma.DbNull;

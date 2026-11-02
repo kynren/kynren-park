@@ -284,14 +284,15 @@ model PointOfInterest {
 // Park base maps. Admin can add several; exactly one is the default that the
 // mobile app displays. Image can be changed or removed (illustrated fallback).
 model ParkMap {
-  id        String   @id @default(cuid())
-  name      String
-  imageUrl  String?
-  bgColor   String? // average colour of the image; fills the map screen edges
-  walkGrid  Json? // walkable cells found on the image, as a bit grid covering the picture (see @kynren/shared path-detect)
-  isDefault Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String   @id @default(cuid())
+  name           String
+  imageUrl       String?
+  bgColor        String? // average colour of the image; fills the map screen edges
+  walkGrid       Json? // walkable cells found on the image, as a bit grid covering the picture (see @kynren/shared path-detect)
+  geoCalibration Json? // landmarks tying the picture to real coordinates, with the fit the app uses (see @kynren/shared geo-calibration)
+  isDefault      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@index([isDefault])
 }
@@ -827,11 +828,11 @@ model SmeetzOrderLine {
   availabilityId String?
   showDate       DateTime? // the night, once the slot could be resolved (upcoming slots only)
 
-  unitId        String?
-  barcode       String?
-  qrCode        String? // what the ticket's QR code holds (Smeetz's per-ticket token); '' = looked, Smeetz has none; null = not looked yet
-  voucherCode   String?
-  voucherStatus String?
+  unitId           String?
+  barcode          String?
+  qrCode           String? // what the ticket's QR code holds (Smeetz's per-ticket token); '' = looked, Smeetz has none; null = not looked yet
+  voucherCode      String?
+  voucherStatus    String?
   membershipCode   String?
   membershipStatus String?
 

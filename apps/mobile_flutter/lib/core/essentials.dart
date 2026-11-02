@@ -1,6 +1,7 @@
 import '../screens/map/map_logic.dart' show walkMins;
 import 'location.dart';
 import 'models.dart';
+import 'park_geo.dart';
 
 /// The kinds of place that are not an attraction, a shop or a restaurant: what a guest looks for when they need something.
 /// Listed in the order they are shown; any other type the park adds follows these.
@@ -69,7 +70,7 @@ List<SpotGroup> essentialGroups(Iterable<Poi> pois, Geo? from) {
   final byType = <String, List<Spot>>{};
   for (final p in pois) {
     if (_ownScreens.contains(p.type) || (p.lat == 0 && p.lng == 0)) continue;
-    byType.putIfAbsent(p.type, () => []).add(Spot(p, from == null ? null : distMeters(from, Geo(p.lat, p.lng))));
+    byType.putIfAbsent(p.type, () => []).add(Spot(p, from == null ? null : metresToPlace(from, p.lat, p.lng)));
   }
   for (final spots in byType.values) {
     if (from != null) spots.sort((a, b) => a.meters!.compareTo(b.meters!));

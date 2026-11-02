@@ -5,13 +5,22 @@ import { api, apiUpload, friendlyError } from '../../../../lib/api';
 import { confirmDelete, promptText } from '../../../../lib/confirm';
 import { uploadToast } from '../../../../lib/toast';
 import { findWalkways, walkGridPreview } from '../../../../lib/find-walkways';
-import type { WalkGrid } from '@kynren/shared';
+import { fitGeoCalibration, type GeoCalibration, type GeoPoint, type WalkGrid } from '@kynren/shared';
 import { QrButton } from '../../../../components/QrButton';
 import { GalleryEditor } from '../../../../components/GalleryEditor';
 
 interface Poi { id: string; type: string; name: string; lat: number; lng: number; color: string | null; mapZone: string | null; image: string | null; description?: string | null; heroImage?: string | null; images?: string[]; openingHours?: string | null }
 interface MapConfig { markerColor: string; markerStyle: string; mapImageUrl: string | null; initialZoom?: number; maxZoom?: number; centerLat?: number | null; centerLng?: number | null; popupAnimation?: string }
-interface ParkMap { id: string; name: string; imageUrl: string | null; bgColor: string | null; isDefault: boolean; walkGrid?: WalkGrid | null }
+interface ParkMap { id: string; name: string; imageUrl: string | null; bgColor: string | null; isDefault: boolean; walkGrid?: WalkGrid | null; geoCalibration?: GeoCalibration | null }
+// A landmark being marked: where it is on the picture (fractions) and its real coordinates as typed or pasted ("54.67349, -1.68041").
+interface Landmark { key: string; u: number; v: number; label: string; coords: string }
+// Reads "lat, lng" the way Google Maps copies it. Null when it is not two numbers that could be a position.
+function readCoords(text: string): { lat: number; lng: number } | null {
+  const n = text.match(/-?\d+(?:\.\d+)?/g);
+  if (!n || n.length !== 2) return null;
+  const lat = Number(n[0]), lng = Number(n[1]);
+  return Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : null;
+}
 interface EntityLite { id: string; name: string; poiId: string | null; heroImage?: string | null; category?: string }
 type DragEntity = { kind: 'attraction' | 'restaurant' | 'shop' | 'facility'; id?: string; type?: string; name: string; heroImage?: string | null };
 
@@ -46,6 +55,9 @@ export default function MapEditor() {
   const [restaurants, setRestaurants] = useState<EntityLite[]>([]);
   const [shops, setShops] = useState<EntityLite[]>([]);
   const [mapAspect, setMapAspect] = useState<number | null>(null); // natural aspect of the base map image
+  const [landmarks, setLandmarks] = useState<Landmark[]>([]); // the real-world position card's draft
+  const [placing, setPlacing] = useState(false); // the next click on the picture marks a landmark instead of adding a hotspot
+  const [geoBusy, setGeoBusy] = useState(false);
   const [err, setErr] = useState('');
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragId = useRef<string | null>(null);
@@ -140,6 +152,23 @@ export default function MapEditor() {
     try { await api(`/admin/maps/${id}`, { method: 'PATCH', body: JSON.stringify({ walkGrid: null }) }); setErr(''); }
     catch (e) { setErr(friendlyError(e, 'Could not clear the walkways.')); }
     refreshMaps();
+  }
+  // The picture's position on the ground: the landmarks marked on it and their real coordinates. The fit is shown as it
+  // is typed; the server works it out again from the landmarks when saved.
+  const geoPoints = landmarks.map((l) => { const c = readCoords(l.coords); return c ? ({ u: l.u, v: l.v, lat: c.lat, lng: c.lng, ...(l.label.trim() ? { label: l.label.trim() } : {}) } as GeoPoint) : null; });
+  const geoFit = landmarks.length >= 3 && geoPoints.every(Boolean) ? fitGeoCalibration(geoPoints as GeoPoint[]) : null;
+  async function saveGeo(id: string) {
+    if (!geoFit?.ok) return;
+    setGeoBusy(true);
+    try { await api(`/admin/maps/${id}`, { method: 'PATCH', body: JSON.stringify({ geoCalibration: { points: geoPoints } }) }); setErr(''); refreshMaps(); }
+    catch (e) { setErr(friendlyError(e, 'Could not save the position.')); }
+    setGeoBusy(false);
+  }
+  async function clearGeo(id: string) {
+    setGeoBusy(true);
+    try { await api(`/admin/maps/${id}`, { method: 'PATCH', body: JSON.stringify({ geoCalibration: null }) }); setErr(''); setLandmarks([]); refreshMaps(); }
+    catch (e) { setErr(friendlyError(e, 'Could not clear the position.')); }
+    setGeoBusy(false);
   }
   async function deleteMap(id: string) {
     if (!(await confirmDelete('Delete this map?'))) return;
@@ -245,6 +274,16 @@ export default function MapEditor() {
     const fy = Math.min(1, Math.max(0, (cy / r.height - imgRect.oy) / imgRect.h));
     return { lat: bounds.maxLat - fy * (bounds.maxLat - bounds.minLat), lng: bounds.minLng + fx * (bounds.maxLng - bounds.minLng) };
   };
+  // The same, as fractions across and down the picture itself (what a landmark is stored as).
+  const unprojFraction = (clientX: number, clientY: number) => {
+    const r = canvasRef.current!.getBoundingClientRect();
+    const cx = (clientX - r.left - view.x) / view.zoom;
+    const cy = (clientY - r.top - view.y) / view.zoom;
+    return {
+      fx: Math.min(1, Math.max(0, (cx / r.width - imgRect.ox) / imgRect.w)),
+      fy: Math.min(1, Math.max(0, (cy / r.height - imgRect.oy) / imgRect.h)),
+    };
+  };
   // Zoom toward a point (px within the canvas), keeping that point stable.
   function zoomAt(px: number, py: number, factor: number) {
     setView((v) => {
@@ -277,6 +316,12 @@ export default function MapEditor() {
     // Allow clicks on the canvas, the grid overlay, or the base-map image itself.
     const t = e.target as HTMLElement;
     if (t !== canvasRef.current && !t.classList.contains('grid') && t.tagName !== 'IMG') return;
+    if (placing) { // a landmark for the real-world position, not a hotspot
+      const { fx, fy } = unprojFraction(e.clientX, e.clientY);
+      setLandmarks((l) => [...l, { key: `n${Date.now()}`, u: fx, v: fy, label: '', coords: '' }]);
+      setPlacing(false);
+      return;
+    }
     createAt(e.clientX, e.clientY);
   }
   function onPointerMove(e: React.PointerEvent) {
@@ -350,6 +395,15 @@ export default function MapEditor() {
   const custPos = entrance ? proj(entrance) : { left: 50, top: 72 };
   const defaultMap = maps.find((m) => m.isDefault) ?? null;
   const walkPreview = useMemo(() => (defaultMap?.walkGrid ? walkGridPreview(defaultMap.walkGrid) : null), [defaultMap?.walkGrid]);
+  // The saved landmarks become the draft whenever the saved position changes (a different map, a save, a new picture).
+  const savedGeoKey = JSON.stringify(defaultMap?.geoCalibration?.points ?? null);
+  useEffect(() => {
+    const saved = (JSON.parse(savedGeoKey) as GeoPoint[] | null) ?? [];
+    setLandmarks(saved.map((p, i) => ({ key: `s${i}`, u: p.u, v: p.v, label: p.label ?? '', coords: `${p.lat}, ${p.lng}` })));
+    setPlacing(false);
+  }, [savedGeoKey, defaultMap?.id]);
+  const geoSaved = defaultMap?.geoCalibration ?? null;
+  const geoUnsaved = JSON.stringify(geoPoints) !== JSON.stringify(geoSaved?.points.map((p) => ({ u: p.u, v: p.v, lat: p.lat, lng: p.lng, ...(p.label ? { label: p.label } : {}) })) ?? []);
 
   return (
     <div>
@@ -366,7 +420,7 @@ export default function MapEditor() {
         {/* Map on the left, place-on-map palette on the right. */}
         <div style={{ display: 'flex', gap: 16, alignItems: 'stretch', flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', flex: '1 1 440px', minWidth: 0 }}>
-          <div ref={canvasRef} className="mapcanvas" style={{ overflow: 'hidden' }} onClick={onCanvasClick} onPointerDown={onCanvasPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp} onWheel={onWheelZoom} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
+          <div ref={canvasRef} className="mapcanvas" style={{ overflow: 'hidden', cursor: placing ? 'crosshair' : undefined }} onClick={onCanvasClick} onPointerDown={onCanvasPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp} onWheel={onWheelZoom} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
             <div style={{ position: 'absolute', inset: 0, transformOrigin: '0 0', transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}>
             {defaultMap?.imageUrl && <img src={defaultMap.imageUrl} alt="" onLoad={(e) => { const t = e.currentTarget; if (t.naturalWidth && t.naturalHeight) setMapAspect(t.naturalWidth / t.naturalHeight); }} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' }} />}
             {showPaths && walkPreview && (
@@ -393,6 +447,10 @@ export default function MapEditor() {
                 </div>
               );
             })}
+            {/* Landmarks for the real-world position */}
+            {landmarks.map((l, i) => (
+              <div key={l.key} title={l.label || `Landmark ${i + 1}`} style={{ position: 'absolute', left: `${(imgRect.ox + l.u * imgRect.w) * 100}%`, top: `${(imgRect.oy + l.v * imgRect.h) * 100}%`, transform: 'translate(-50%, -50%)', pointerEvents: 'none', width: 22, height: 22, borderRadius: 4, background: '#d6336c', border: '2px solid #fff', boxShadow: '0 1px 4px rgba(0,0,0,.4)', color: '#fff', fontSize: 12, fontWeight: 800, display: 'grid', placeItems: 'center', zIndex: 4 }}>{i + 1}</div>
+            ))}
             {/* Customer marker preview */}
             <div className="custmark" style={{ left: `${custPos.left}%`, top: `${custPos.top}%`, background: config.markerColor, boxShadow: `0 0 0 6px ${config.markerColor}40` }} />
             </div>{/* /zoom-pan transform */}
@@ -486,6 +544,54 @@ export default function MapEditor() {
               <input value={newMapName} onChange={(e) => setNewMapName(e.target.value)} placeholder="New map name" style={{ flex: 1 }} onKeyDown={(e) => e.key === 'Enter' && addMap()} />
               <button className="primary" onClick={addMap}>Add map</button>
             </div>
+          </div>
+
+          <div className="editcard">
+            <h3 style={{ margin: 0 }}>Real-world position</h3>
+            {!defaultMap?.imageUrl ? (
+              <p className="hint" style={{ margin: '6px 0 0' }}>Upload a map picture first.</p>
+            ) : (
+              <>
+                <p style={{ margin: '8px 0 4px', fontSize: 13, fontWeight: 700, color: geoSaved ? '#22b365' : 'var(--muted)' }}>
+                  {geoSaved
+                    ? `Set from ${geoSaved.points.length} landmarks: the picture covers ${geoSaved.metresAcross} m × ${geoSaved.metresDown} m, typically ${geoSaved.rmsMetres} m out (worst ${geoSaved.maxMetres} m)`
+                    : 'Not set: the app assumes the picture covers a fixed patch of ground, so a guest’s dot can land in the wrong place'}
+                </p>
+                <p style={{ color: 'var(--muted)', fontSize: 12.5, lineHeight: 1.5, margin: '0 0 10px' }}>
+                  Tell the app where the picture really is. Pick <b>3 to 6 landmarks</b> you can find on Google Maps (the entrance, a car park corner, the arena),
+                  spread across the picture and not in a line. For each: press <b>Mark on picture</b>, click the landmark, then in Google Maps right-click the same
+                  spot, click the numbers at the top of the menu to copy them, and paste them here. Your hotspots stay exactly where they are on the picture.
+                </p>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  {landmarks.map((l, i) => {
+                    const typed = l.coords.trim() !== '';
+                    const bad = typed && !readCoords(l.coords);
+                    const err = geoFit?.ok ? geoFit.calibration.errors[i] : undefined;
+                    return (
+                      <div key={l.key} style={{ display: 'grid', gridTemplateColumns: '26px 1fr 1.4fr auto', gap: 6, alignItems: 'center' }}>
+                        <span style={{ width: 22, height: 22, borderRadius: 4, background: '#d6336c', color: '#fff', fontSize: 12, fontWeight: 800, display: 'grid', placeItems: 'center' }}>{i + 1}</span>
+                        <input value={l.label} placeholder="Name (optional)" onChange={(e) => setLandmarks((all) => all.map((x) => (x.key === l.key ? { ...x, label: e.target.value } : x)))} />
+                        <input value={l.coords} placeholder="54.67349, -1.68041" aria-invalid={bad} style={bad ? { borderColor: '#e5544b' } : undefined} onChange={(e) => setLandmarks((all) => all.map((x) => (x.key === l.key ? { ...x, coords: e.target.value } : x)))} />
+                        <button className="tbtn danger" onClick={() => setLandmarks((all) => all.filter((x) => x.key !== l.key))} title="Remove this landmark">✕</button>
+                        {(bad || err !== undefined) && (
+                          <span style={{ gridColumn: '2 / 5', fontSize: 11.5, color: bad ? '#e5544b' : err! > 25 ? '#e2a53b' : 'var(--muted)' }}>
+                            {bad ? 'Paste the latitude and longitude, like 54.67349, -1.68041' : err! > 25 ? `${err} m out: check this one is the same spot on both` : `${err} m out`}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {geoFit && !geoFit.ok && <p style={{ color: '#e5544b', fontSize: 12.5, margin: '10px 0 0' }}>{geoFit.error}</p>}
+                {geoFit?.ok && geoFit.calibration.maxMetres > 25 && <p style={{ color: '#e2a53b', fontSize: 12.5, margin: '10px 0 0' }}>One landmark is a long way from where the others say it should be. A mistyped number or a mis-click is the usual cause.</p>}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+                  <button className={placing ? 'primary' : 'tbtn'} onClick={() => setPlacing((p) => !p)} disabled={landmarks.length >= 12}>{placing ? 'Click the landmark on the picture…' : '＋ Mark on picture'}</button>
+                  <button className="primary" disabled={!geoFit?.ok || !geoUnsaved || geoBusy} onClick={() => defaultMap && saveGeo(defaultMap.id)}>{geoBusy ? 'Saving…' : 'Save position'}</button>
+                  {geoSaved && <button className="tbtn" disabled={geoBusy} onClick={() => defaultMap && clearGeo(defaultMap.id)}>Clear</button>}
+                </div>
+                {landmarks.length > 0 && landmarks.length < 3 && <p className="hint" style={{ margin: '8px 0 0' }}>Mark at least 3 landmarks.</p>}
+              </>
+            )}
           </div>
 
           <p style={{ color: 'var(--muted)', fontSize: 12.5, lineHeight: 1.7, margin: '0 2px' }}>

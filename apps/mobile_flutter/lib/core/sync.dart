@@ -9,6 +9,7 @@ import 'package:socket_io_client/socket_io_client.dart' as io;
 import 'api.dart';
 import 'format.dart';
 import 'models.dart';
+import 'park_geo.dart';
 import 'picture_warmup.dart';
 import 'safe_notify.dart';
 
@@ -79,6 +80,7 @@ class SyncState extends ChangeNotifier with SafeNotify {
         final patched = p.getString(_sessionsKey(date));
         if (patched != null) _raw!['sessions'] = jsonDecode(patched);
         bundle = Bundle.fromJson(_raw!);
+        parkGeo = bundle?.defaultMap?.geo;
         final at = p.getString('${_bundleKey(date)}_at');
         if (at != null) lastSynced = DateTime.tryParse(at);
       } catch (_) {
@@ -122,6 +124,7 @@ class SyncState extends ChangeNotifier with SafeNotify {
       }
       _raw = await compute(_decodeJson, res.body);
       bundle = Bundle.fromJson(_raw!);
+      parkGeo = bundle?.defaultMap?.geo;
       lastSynced = DateTime.now();
       await _writeBundle(date, res.body);
       await p.remove(_sessionsKey(date)); // the fresh bundle already has the latest schedule

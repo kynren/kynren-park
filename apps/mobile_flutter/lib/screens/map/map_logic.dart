@@ -4,14 +4,10 @@ import 'dart:ui';
 import 'package:flutter/widgets.dart' show Matrix4;
 import '../../core/location.dart';
 import '../../core/models.dart' show Poi;
+import '../../core/park_geo.dart';
 
-/// Fixed geographic bounds of the park: the SAME box the admin map editor uses to place hotspots, so a pin
-/// placed in admin lands on the exact same map spot here (both map these bounds onto the base-map image rectangle).
-const parkBounds = (minLat: 54.668, maxLat: 54.675, minLng: -1.684, maxLng: -1.674);
-
-/// How long the map picture is on the ground, across and down, for turning positions on it into walking distances.
-final parkMetresAcross = (parkBounds.maxLng - parkBounds.minLng) * 111320 * math.cos((parkBounds.minLat + parkBounds.maxLat) / 2 * math.pi / 180);
-final parkMetresDown = (parkBounds.maxLat - parkBounds.minLat) * 110540;
+// The box the admin map editor places hotspots in, and the ground the picture covers (see core/park_geo.dart).
+export '../../core/park_geo.dart' show parkBounds, parkMetresAcross, parkMetresDown;
 
 const areaOpenPx = 90.0; // an area stays grouped until its pins span more than this on screen
 const halfMileM = 804.672; // only show the location beacon within this distance of the park
@@ -171,7 +167,7 @@ int? walkMinsToPoi(Geo? from, String? poiId, List<Poi> pois) {
   if (from == null || poiId == null) return null;
   final poi = pois.where((p) => p.id == poiId).firstOrNull;
   if (poi == null) return null;
-  final m = distMeters(from, Geo(poi.lat, poi.lng));
+  final m = metresToPlace(from, poi.lat, poi.lng);
   return m > 2500 ? null : walkMins(m * 1.25);
 }
 
