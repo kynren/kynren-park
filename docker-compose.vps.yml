@@ -18,12 +18,16 @@ name: kynren-park
 #     && docker compose -f docker-compose.vps.yml build \
 #     && docker compose -f docker-compose.vps.yml up -d
 
+# Two networks, so the guest database is not reachable from the other apps on this server:
+#   assetnet  the shared network Caddy and the other apps are on: only the api and admin join it.
+#   internal  private to this stack and with no way out: the database and redis are only here, so only the api can reach them.
+
 services:
   redis:
     image: redis:7-alpine
     container_name: kynren-redis
     restart: unless-stopped
-    networks: [assetnet]
+    networks: [internal]
 
   # Self-hosted, replacing Prisma's hosted "Prisma Postgres" (db.prisma.io) after that account
   # hit a plan limit and started rejecting all connections. Named park-postgres (not postgres) —
@@ -45,7 +49,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-    networks: [assetnet]
+    networks: [internal]
 
   api:
     build:
@@ -83,7 +87,7 @@ services:
         condition: service_started
       park-postgres:
         condition: service_healthy
-    networks: [assetnet]
+    networks: [assetnet, internal]
     expose: ["4000"]
 
   admin:
@@ -102,6 +106,8 @@ networks:
   assetnet:
     external: true
     name: kynren-asset-register_default
+  internal:
+    internal: true
 
 volumes:
   park_postgres_data:
