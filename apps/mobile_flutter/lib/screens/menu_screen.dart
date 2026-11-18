@@ -12,34 +12,35 @@ import '../ui/header_art.dart';
 import '../ui/managed_image.dart';
 import '../ui/tap.dart';
 
-class _Entry {
+class MenuEntry {
   final String label, to;
   final IconData icon;
   /// Needs an account: only shown once the guest has signed in.
   final bool personal;
-  const _Entry(this.label, this.icon, this.to, {this.personal = false});
+  const MenuEntry(this.label, this.icon, this.to, {this.personal = false});
 }
 
-final _groups = [
+/// What the park app offers beyond the tabs, grouped: the More tab shows it (and the side menu, when that is on).
+final menuGroups = [
   (title: 'Your visit', entries: [
-    const _Entry('My tickets', Icons.confirmation_number_rounded, '/tickets', personal: true),
-    const _Entry('Programme', Icons.calendar_month_rounded, '/shows'),
-    const _Entry('My day', Icons.star_rounded, '/plan', personal: true),
-    if (onlineOrderingOpen) const _Entry('My orders', Icons.restaurant_rounded, '/orders', personal: true),
+    const MenuEntry('My tickets', Icons.confirmation_number_rounded, '/tickets', personal: true),
+    const MenuEntry('Programme', Icons.calendar_month_rounded, '/shows'),
+    const MenuEntry('My day', Icons.star_rounded, '/plan', personal: true),
+    if (onlineOrderingOpen) const MenuEntry('My orders', Icons.restaurant_rounded, '/orders', personal: true),
   ]),
   (title: 'Around the park', entries: [
-    _Entry('Scan a code', Icons.qr_code_scanner_rounded, '/scan'),
-    _Entry('Park essentials', Icons.wc_rounded, '/essentials'),
-    _Entry('Shuttle', Icons.directions_bus_rounded, '/shuttle'),
-    _Entry('Accessibility', Icons.accessible_rounded, '/accessibility'),
-    _Entry('Favourites', Icons.favorite_rounded, '/favorites'),
-    _Entry('Notifications', Icons.notifications_rounded, '/notifications'),
+    MenuEntry('Scan a code', Icons.qr_code_scanner_rounded, '/scan'),
+    MenuEntry('Park essentials', Icons.wc_rounded, '/essentials'),
+    MenuEntry('Shuttle', Icons.directions_bus_rounded, '/shuttle'),
+    MenuEntry('Accessibility', Icons.accessible_rounded, '/accessibility'),
+    MenuEntry('Favourites', Icons.favorite_rounded, '/favorites'),
+    MenuEntry('Notifications', Icons.notifications_rounded, '/notifications'),
   ]),
   (title: 'You', entries: [
-    _Entry('Find my bookings', Icons.search_rounded, '/find-bookings', personal: true),
-    _Entry('Profile', Icons.person_rounded, '/profile'),
-    _Entry('Language', Icons.language_rounded, '/language'),
-    _Entry('Settings', Icons.tune_rounded, '/settings', personal: true),
+    MenuEntry('Find my bookings', Icons.search_rounded, '/find-bookings', personal: true),
+    MenuEntry('Profile', Icons.person_rounded, '/profile'),
+    MenuEntry('Language', Icons.language_rounded, '/language'),
+    MenuEntry('Settings', Icons.tune_rounded, '/settings', personal: true),
   ]),
 ];
 
@@ -143,7 +144,7 @@ class _MenuScreenState extends State<MenuScreen> with SingleTickerProviderStateM
                   child: ListView(
                     padding: EdgeInsets.fromLTRB(0, 6, 0, MediaQuery.paddingOf(context).bottom + 24),
                     children: [
-                      for (final g in _groups)
+                      for (final g in menuGroups)
                         if (g.entries.any((e) => !e.personal || user != null))
                         Padding(
                           padding: const EdgeInsets.only(top: 14),

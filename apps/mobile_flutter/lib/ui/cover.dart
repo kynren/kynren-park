@@ -35,7 +35,7 @@ class Cover extends StatelessWidget {
   const Cover({
     super.key,
     this.image,
-    this.color = const Color(0xFF2F5B43),
+    this.color = const Color(0xFF1B2B4B),
     this.icon = Icons.star_rounded,
     this.height = 150,
     this.width,

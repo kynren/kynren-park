@@ -68,10 +68,10 @@ class _ShieldPainter extends CustomPainter {
 }
 
 Color pinTint(Pin pin) => switch (pin.kind) {
-      PinKind.evening => const Color(0xFF6E1423),
-      PinKind.restaurant => const Color(0xFFA8452D),
+      PinKind.evening => Tokens.brand,
+      PinKind.restaurant => const Color(0xFFB4650F),
       PinKind.facility => pin.color ?? const Color(0xFF6B6460),
-      PinKind.show => Tokens.brand,
+      PinKind.show => Tokens.accent,
     };
 
 class PinMarker extends StatelessWidget {
@@ -111,6 +111,32 @@ class PinMarker extends StatelessWidget {
             decoration: BoxDecoration(color: const Color(0xFFE8861A), borderRadius: BorderRadius.circular(8), boxShadow: const [BoxShadow(color: Color(0x38000000), blurRadius: 2, offset: Offset(0, 1))]),
             child: Text(fmtTime(pin.nextTime!), maxLines: 1, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 11)),
           ),
+      ]),
+    );
+  }
+}
+
+/// The marker's shield at a small size, for headings: the same colour and number or symbol the map shows.
+class MiniPin extends StatelessWidget {
+  final Pin pin;
+  final double height;
+  const MiniPin({super.key, required this.pin, this.height = 30});
+
+  @override
+  Widget build(BuildContext context) {
+    final w = height * 38 / 46, k = height / 46;
+    final glyph = switch (pin.kind) {
+      PinKind.restaurant => Icon(Icons.restaurant_rounded, color: Colors.white, size: 19 * k),
+      PinKind.evening => Icon(Icons.star_rounded, color: Colors.white, size: 19 * k),
+      PinKind.facility => Text(pin.emoji ?? '•', style: TextStyle(fontSize: 15 * k)),
+      PinKind.show => Text('${pin.number}', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16 * k)),
+    };
+    return SizedBox(
+      width: w,
+      height: height,
+      child: Stack(alignment: Alignment.topCenter, children: [
+        Positioned.fill(child: CustomPaint(painter: _ShieldPainter(pinTint(pin)))),
+        Positioned(top: 6 * k, left: 0, right: 0, height: 26 * k, child: Center(child: glyph)),
       ]),
     );
   }
@@ -435,7 +461,7 @@ class Callout extends StatelessWidget {
                 return Center(
                   child: Cover(
                     image: pin.image,
-                    color: pin.kind == PinKind.evening ? const Color(0xFF6E1423) : pin.kind == PinKind.restaurant ? featureGradient['restaurants']![0] : Tokens.brand,
+                    color: pinTint(pin),
                     icon: pin.kind == PinKind.restaurant ? Icons.restaurant_rounded : Icons.calendar_month_rounded,
                     height: box.h,
                     width: box.w,

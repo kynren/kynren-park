@@ -6,10 +6,15 @@ import '../core/api.dart';
 import '../core/auth.dart';
 import '../core/format.dart';
 import '../core/models.dart';
+import '../core/shuttle_logic.dart';
 import '../core/sync.dart';
 import '../core/theme.dart';
 import '../ui/controls.dart';
+import '../ui/empty_state.dart';
+import '../ui/minute_tick.dart';
 import '../ui/screen.dart';
+import '../ui/skeleton.dart';
+import '../ui/tap.dart';
 
 typedef _Json = Map<String, dynamic>;
 
@@ -81,7 +86,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
       colors: featureGradient['restaurants'],
       onRefresh: _load,
       children: [
-        if (_orders.isEmpty) Text('No orders yet. Order ahead from the Restaurants tab and track it here.', style: TextStyle(fontSize: 14, height: 20 / 14, color: c.sub)),
+        if (_orders.isEmpty)
+          const EmptyState(icon: Icons.receipt_long_rounded, title: 'No orders yet', body: 'Order ahead from the Restaurants tab and follow it here, from kitchen to collection.'),
         for (final o in _orders)
           KCard(
             padding: const EdgeInsets.all(16),
@@ -110,10 +116,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
 // ---------------------------------------------------------- Accessibility
 
 const _prefOptions = [
-  ('wheelchair', 'Wheelchair user', 'Prioritise step-free routes and wheelchair-accessible attractions.'),
-  ('visual', 'Low vision / blind', 'Highlight attractions with audio description.'),
-  ('hearing', 'Deaf / hard of hearing', 'Highlight attractions with captioning or BSL.'),
-  ('sensory', 'Sensory sensitivities', 'Surface sensory notes (noise, lighting, crowds) for each attraction.'),
+  ('wheelchair', 'Wheelchair user', 'Prioritise step-free routes and wheelchair-accessible attractions.', Icons.accessible_rounded),
+  ('visual', 'Low vision / blind', 'Highlight attractions with audio description.', Icons.hearing_rounded),
+  ('hearing', 'Deaf / hard of hearing', 'Highlight attractions with captioning or BSL.', Icons.closed_caption_rounded),
+  ('sensory', 'Sensory sensitivities', 'Surface sensory notes (noise, lighting, crowds) for each attraction.', Icons.volume_down_rounded),
 ];
 
 class AccessibilityScreen extends StatefulWidget {
@@ -157,7 +163,6 @@ class _AccessibilityScreenState extends State<AccessibilityScreen> {
     final captioned = attractions.where((a) => a.hasCaptioning || a.hasBSL).length;
     final facilities = (bundle?.pois ?? <Poi>[]).where((p) => p.type == 'ACCESSIBILITY').toList();
 
-    Widget stat(String t) => Padding(padding: const EdgeInsets.only(top: 8), child: Text(t, style: TextStyle(fontSize: 14, color: c.sub)));
     Widget title(String t) => Padding(padding: const EdgeInsets.only(bottom: 4), child: Text(t, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: c.text)));
 
     return KScreen(
@@ -175,6 +180,13 @@ class _AccessibilityScreenState extends State<AccessibilityScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   decoration: BoxDecoration(border: Border(top: BorderSide(color: c.line, width: 0.5))),
                   child: Row(children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      margin: const EdgeInsets.only(right: 12),
+                      decoration: BoxDecoration(color: c.tint, borderRadius: BorderRadius.circular(12)),
+                      child: Icon(o.$4, size: 20, color: c.link),
+                    ),
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text(o.$2, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: c.text)),
@@ -187,17 +199,30 @@ class _AccessibilityScreenState extends State<AccessibilityScreen> {
             ]),
           )
         else
-          Text('Sign in to save your accessibility preferences.', style: TextStyle(color: c.sub, fontSize: 14.5)),
-        KCard(
-          padding: const EdgeInsets.all(18),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            title('Around the park'),
-            stat('$accessible wheelchair-accessible attraction${accessible == 1 ? '' : 's'}'),
-            stat('$audio with audio description'),
-            stat('$captioned with captioning or BSL'),
-            stat('${facilities.length} accessibility facilit${facilities.length == 1 ? 'y' : 'ies'} marked on the map'),
+          KCard(
+            padding: const EdgeInsets.all(16),
+            child: Row(children: [
+              Icon(Icons.lock_outline_rounded, size: 20, color: c.link),
+              const SizedBox(width: 12),
+              Expanded(child: Text('Sign in to save your accessibility preferences.', style: TextStyle(fontSize: 14, height: 20 / 14, color: c.sub))),
+              Tap(onTap: () => context.push('/auth'), child: Text('Sign in', style: TextStyle(fontWeight: FontWeight.w800, color: c.link))),
+            ]),
+          ),
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          title('Around the park'),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(child: _statTile(c, Icons.accessible_rounded, accessible, 'step-free attraction${accessible == 1 ? '' : 's'}')),
+            const SizedBox(width: 10),
+            Expanded(child: _statTile(c, Icons.hearing_rounded, audio, 'with audio description')),
           ]),
-        ),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(child: _statTile(c, Icons.closed_caption_rounded, captioned, 'with captions or BSL')),
+            const SizedBox(width: 10),
+            Expanded(child: _statTile(c, Icons.place_rounded, facilities.length, 'facilit${facilities.length == 1 ? 'y' : 'ies'} on the map')),
+          ]),
+        ]),
         if (facilities.isNotEmpty)
           KCard(
             padding: const EdgeInsets.all(18),
@@ -220,6 +245,17 @@ class _AccessibilityScreenState extends State<AccessibilityScreen> {
   }
 }
 
+Widget _statTile(UIColors c, IconData icon, int n, String label) => KCard(
+      padding: const EdgeInsets.all(14),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(icon, size: 20, color: c.link),
+        const SizedBox(height: 10),
+        Text('$n', style: TextStyle(fontSize: 26, height: 1, fontWeight: FontWeight.w800, color: c.text)),
+        const SizedBox(height: 4),
+        Text(label, style: TextStyle(fontSize: 12.5, height: 16 / 12.5, color: c.sub)),
+      ]),
+    );
+
 // --------------------------------------------------------------- Shuttle
 
 class ShuttleScreen extends StatefulWidget {
@@ -228,54 +264,99 @@ class ShuttleScreen extends StatefulWidget {
   State<ShuttleScreen> createState() => _ShuttleScreenState();
 }
 
-class _ShuttleScreenState extends State<ShuttleScreen> {
+class _ShuttleScreenState extends State<ShuttleScreen> with MinuteTick<ShuttleScreen> {
   List<_Json>? _routes;
 
   @override
   void initState() {
     super.initState();
-    api('/shuttles').then((r) {
-      if (mounted) setState(() => _routes = (r as List).cast<_Json>());
-    }).catchError((_) {
-      if (mounted) setState(() => _routes = []);
-    });
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final r = await api('/shuttles') as List;
+      if (mounted) setState(() => _routes = r.cast<_Json>());
+    } catch (_) {
+      if (mounted) setState(() => _routes ??= []);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final c = context.ui;
     final routes = _routes;
+    final now = ukNow();
     return KScreen(
       title: 'Shuttle',
       subtitle: 'Timetable and stops',
       page: 'shuttle',
+      onRefresh: _load,
       children: [
-        Text('Scheduled departure times below — this is a fixed timetable, not live GPS tracking.', style: TextStyle(fontSize: 13.5, height: 19 / 13.5, color: c.sub)),
-        if (routes == null)
-          Text('Loading…', style: TextStyle(color: c.sub))
+        if (routes == null) ...const [SkeletonRow(), SkeletonRow()]
         else if (routes.isEmpty)
-          Text('No shuttle routes are set up yet.', style: TextStyle(color: c.sub))
-        else
+          const EmptyState(icon: Icons.directions_bus_rounded, title: 'No shuttle routes yet', body: 'When the park sets up a shuttle, its stops and departure times will appear here.')
+        else ...[
+          Row(children: [
+            Icon(Icons.schedule_rounded, size: 16, color: c.sub),
+            const SizedBox(width: 8),
+            Expanded(child: Text('A fixed timetable, not live bus tracking.', style: TextStyle(fontSize: 13, color: c.sub))),
+          ]),
           for (final r in routes)
             KCard(
               padding: const EdgeInsets.all(18),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(r['name'] as String, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: c.text)),
-                if (r['description'] != null) Padding(padding: const EdgeInsets.only(top: 2, bottom: 6), child: Text(r['description'] as String, style: TextStyle(fontSize: 13.5, color: c.sub))),
-                for (final s in r['stops'] as List)
+                Row(children: [
                   Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    decoration: BoxDecoration(border: Border(top: BorderSide(color: c.line, width: 0.5))),
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text((s as _Json)['name'] as String, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: c.text)),
-                      const SizedBox(height: 2),
-                      Text(((s['times'] as List?) ?? []).isNotEmpty ? (s['times'] as List).join(' · ') : 'No times set', style: TextStyle(fontSize: 13.5, color: c.sub)),
-                    ]),
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(color: c.tint, borderRadius: BorderRadius.circular(12)),
+                    child: Icon(Icons.directions_bus_rounded, size: 20, color: c.link),
                   ),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(r['name'] as String, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: c.text))),
+                ]),
+                if (r['description'] != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(r['description'] as String, style: TextStyle(fontSize: 13.5, height: 19 / 13.5, color: c.sub))),
+                const SizedBox(height: 6),
+                for (final s in r['stops'] as List) _stop(c, s as _Json, now),
               ]),
             ),
+        ],
       ],
+    );
+  }
+
+  Widget _stop(UIColors c, _Json s, DateTime now) {
+    final times = ((s['times'] as List?) ?? []).map((e) => '$e').toList();
+    final next = nextDeparture(times, now);
+    bool isNext(String t) => next != null && !next.tomorrow && t.trim() == next.time;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(border: Border(top: BorderSide(color: c.line, width: 0.5))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(child: Text(s['name'] as String, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: c.text))),
+          if (next != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(color: c.tint, borderRadius: BorderRadius.circular(999)),
+              child: Text(next.tomorrow ? 'Next: ${next.time} tomorrow' : 'Next ${next.time} · ${untilText(next.minutes)}', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: c.link)),
+            ),
+        ]),
+        const SizedBox(height: 8),
+        if (times.isEmpty)
+          Text('No times set', style: TextStyle(fontSize: 13.5, color: c.sub))
+        else
+          Wrap(spacing: 6, runSpacing: 6, children: [
+            for (final t in times)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(color: isNext(t) ? c.primary : c.soft, borderRadius: BorderRadius.circular(10)),
+                child: Text(t, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: isNext(t) ? Colors.white : c.text)),
+              ),
+          ]),
+      ]),
     );
   }
 }

@@ -68,7 +68,7 @@ void main() {
       expect(errors, isEmpty, reason: path);
     }
     for (final path in [
-      '/shows', '/plan', '/tickets', '/menu', '/settings', '/profile', '/auth', '/language', '/orders',
+      '/shows', '/plan', '/tickets', '/menu', '/more', '/settings', '/profile', '/auth', '/language', '/orders',
       '/shuttle', '/accessibility', '/favorites', '/seen', '/find-bookings', '/restaurants?slot=lunch',
       '/attraction/land-of-the-vikings', '/restaurant/storytellers-tavern', '/restaurant/lakeside-kitchen',
       '/facility/none', '/ticket/none', '/search?filter=shop',

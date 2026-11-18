@@ -7,6 +7,7 @@ import '../screens/info_screens.dart';
 import '../screens/language_screen.dart';
 import '../screens/map/map_screen.dart';
 import '../screens/menu_screen.dart';
+import '../screens/more_screen.dart';
 import '../screens/notifications_screen.dart';
 import '../screens/plan_screen.dart';
 import '../screens/profile_screen.dart';
@@ -35,6 +36,7 @@ final router = GoRouter(
         ]),
         StatefulShellBranch(routes: [GoRoute(path: '/map', builder: (_, state) => MapScreen(focus: state.uri.queryParameters['focus'], spot: state.uri.queryParameters['spot']))]),
         StatefulShellBranch(routes: [GoRoute(path: '/food', builder: (_, _) => const FoodScreen())]),
+        StatefulShellBranch(routes: [GoRoute(path: '/more', builder: (_, _) => const MoreScreen())]),
       ],
     ),
     GoRoute(path: '/attraction/:slug', builder: (_, state) => AttractionScreen(slug: state.pathParameters['slug']!)),

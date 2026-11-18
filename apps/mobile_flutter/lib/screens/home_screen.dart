@@ -13,6 +13,7 @@ import '../core/models.dart';
 import '../core/offline.dart';
 import '../core/preferences.dart';
 import '../core/sync.dart';
+import '../core/side_menu.dart';
 import '../core/theme.dart';
 import '../ui/controls.dart';
 import '../ui/cover.dart';
@@ -487,7 +488,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Padding(
                 padding: EdgeInsets.fromLTRB(20, top + 4, 20, 0),
                 child: Row(children: [
-                  _BarButton(icon: Icons.menu_rounded, size: 26, label: 'Open menu', onTap: () => go('/menu')),
+                  if (sideMenuEnabled) _BarButton(icon: Icons.menu_rounded, size: 26, label: 'Open menu', onTap: () => go('/menu')),
                   const Spacer(),
                   _BarButton(icon: Icons.notifications_none_rounded, size: 24, label: 'Notifications', onTap: () => go('/notifications')),
                 ]),

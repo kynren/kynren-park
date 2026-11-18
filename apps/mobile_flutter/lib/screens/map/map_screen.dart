@@ -15,6 +15,7 @@ import '../../core/parking.dart';
 import '../../core/walk_grid.dart';
 import '../../core/programme_logic.dart';
 import '../../core/sync.dart';
+import '../../core/side_menu.dart';
 import '../../core/theme.dart';
 import '../../ui/controls.dart';
 import '../../ui/cover.dart';
@@ -22,6 +23,7 @@ import '../../ui/kimage.dart';
 import '../../ui/tap.dart';
 import 'map_logic.dart';
 import 'map_widgets.dart';
+import 'place_sheet.dart';
 import 'rotatable_viewer.dart';
 
 const _grass = Color(0xFFA9C97F);
@@ -134,7 +136,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
 
   double get _angle => viewAngle(_view.value);
   Offset _screenOf(Offset content) => viewToScreen(_view.value, content);
-  Matrix4 _constrain(Matrix4 view) => clampView(view, _fit, _vp);
+  // While the place card is up the map may slide further up, so a pin near the bottom can come clear of the card.
+  Matrix4 _constrain(Matrix4 view) => clampView(view, _fit, _vp, slackBottom: _selected != null ? math.max(0.0, _sheetReserve - 60) : 0);
 
   /// Glide to the view that puts [content] at [screen] (the middle of the screen unless given). The map keeps the turn
   /// it has, unless [angle] says otherwise (0 points it north again).
@@ -170,7 +173,20 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   }
 
   /// Bring a pin to the centre of the viewport and zoom in on it, whatever the earlier pan and zoom were.
-  void _focusPin(Pin pin, double target, double maxScale) => _goTo(Offset(pin.x, pin.y), target, maxScale);
+  /// With the place card up, the pin sits in the part of the map the card leaves clear, not behind it.
+  void _focusPin(Pin pin, double target, double maxScale) => _goTo(Offset(pin.x, pin.y), target, maxScale, screen: _selected?.id == pin.id ? Offset(_vp.width / 2, _clearY) : null);
+
+  /// How much of the screen's bottom the place card covers (set while building), and the middle of what is left above it.
+  double _sheetReserve = 360;
+  double get _clearY => math.max(110.0, (_vp.height - _sheetReserve) / 2);
+
+  /// Selecting a pin that would sit behind the card (or off the edge) slides the map so it does not.
+  void _bringIntoClear(Pin pin) {
+    if (_vp.isEmpty) return;
+    final s = _screenOf(Offset(pin.x, pin.y));
+    final hidden = s.dy > _vp.height - _sheetReserve - 30 || s.dy < 90 || s.dx < 30 || s.dx > _vp.width - 30;
+    if (hidden) _goTo(Offset(pin.x, pin.y), _scale, _scale, screen: Offset(s.dx.clamp(60.0, _vp.width - 60), _clearY));
+  }
 
   // ---------------------------------------------------------------- popup
 
@@ -182,6 +198,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       _hintDismissed = true;
     });
     _popupIn.forward();
+    _bringIntoClear(pin);
   }
 
   void _dismissPopup() {
@@ -193,6 +210,11 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     _popupIn.reverse().whenComplete(() {
       if (mounted && _selected == null) setState(() => _closing = null);
     });
+    // the extra room under the card goes with it: settle the map back inside its edges
+    if (!_vp.isEmpty) {
+      final mid = Offset(_vp.width / 2, _vp.height / 2);
+      _goTo(viewToContent(_view.value, mid), _scale, _scale);
+    }
   }
 
   // ------------------------------------------------------------ deep links
@@ -265,13 +287,12 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     final top = MediaQuery.paddingOf(context).top;
     // the top of the bottom bar, including the Home button that stands above it: the map's own controls sit above this
     final barTop = navBarHeight + navHomeRise + MediaQuery.paddingOf(context).bottom;
+    _sheetReserve = barTop + 330;
     final cfg = bundle?.mapConfig;
     final mapImageUrl = (bundle?.defaultMap?.imageUrl?.isNotEmpty ?? false) ? bundle!.defaultMap!.imageUrl : (cfg?.mapImageUrl?.isNotEmpty ?? false) ? cfg!.mapImageUrl : null;
     final mapBg = parseHex(bundle?.defaultMap?.bgColor, _grass);
     final maxScale = math.min(maxScaleCeiling, cfg?.maxZoom ?? 8);
     final markerColor = parseHex(cfg?.markerColor, const Color(0xFF1A73E8));
-    final popupAnim = cfg?.popupAnimation ?? 'scale';
-    final cpal = dark ? (card: c.card, ink: Colors.white, muted: const Color(0xFFCFD8EA)) : (card: c.card, ink: c.text, muted: c.sub);
 
     return LayoutBuilder(builder: (context, box) {
       final vp = Size(box.maxWidth, box.maxHeight);
@@ -619,6 +640,14 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         }
       }
 
+      // "Go to": bring the place up close, and ask for the guest's position when it is not known so the walking route can show.
+      void goToSelected() {
+        final s = _selected;
+        if (s == null) return;
+        _focusPin(s, math.max(_scale, 3.2), maxScale);
+        if (!locationReal) context.read<LocationState>().enable();
+      }
+
       void zoomBy(double next) {
         final s = _clampScale(double.parse(next.toStringAsFixed(2)), maxScale);
         // With a place selected, the buttons zoom around ITS spot so the pin (and its popup) never appears to jump.
@@ -646,40 +675,6 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           }
         }
         return Stack(clipBehavior: Clip.none, children: items);
-      }
-
-      Widget callout() {
-        final pin = selPin!;
-        final flipDown = _screenOf(Offset(pin.x, pin.y)).dy < 210; // not enough room above: flip below the pin
-        const h = calloutH + 11;
-        return AnimatedBuilder(
-          animation: Listenable.merge([_view, _popupIn]),
-          builder: (_, _) {
-            final t = Curves.easeOut.transform(_popupIn.value);
-            final scaleEntrance = popupAnim == 'scale' || popupAnim == 'bounce';
-            final pop = _selected != null ? (scaleEntrance ? (popupAnim == 'bounce' ? Curves.easeOutBack.transform(_popupIn.value) : t) : 1.0) : t; // exit always shrinks back into the pin
-            final s = math.max(0.001, pop) / _scale;
-            final anchorY = flipDown ? -50.0 : h + 50;
-            final opacity = popupAnim == 'none' ? 1.0 : popupAnim == 'fade' ? t : math.min(1.0, t * 1.6);
-            final dy = popupAnim == 'slide' ? (1 - t) * 20 : 0.0;
-            // near the edge of the screen the card slides in to stay on it, and its pointer stays on the marker
-            final dx = calloutShift(_screenOf(Offset(pin.x, pin.y)).dx, _vp.width);
-            return Positioned(
-              left: pin.x - calloutW / 2,
-              top: pin.y - anchorY,
-              width: calloutW,
-              height: h,
-              child: Transform(
-                // upright and at a steady size, however the map is turned or zoomed
-                transform: Matrix4.identity()
-                  ..scaleByDouble(s, s, 1, 1)
-                  ..rotateZ(-_angle),
-                alignment: Alignment(0, anchorY / h * 2 - 1),
-                child: Opacity(opacity: opacity.clamp(0.0, 1.0), child: Transform.translate(offset: Offset(dx, dy), child: Callout(pin: pin, distance: selectedDist, flipDown: flipDown, arrowOffset: -dx, card: cpal.card, ink: cpal.ink, muted: cpal.muted, onOpen: openDetail, onClose: _dismissPopup))),
-              ),
-            );
-          },
-        );
       }
 
       final canvas = SizedBox(
@@ -712,7 +707,6 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               ),
             ),
           markers(),
-          if (selPin != null) callout(),
           if (showMe) Anchored(controller: _view, x: youAreHere.dx, y: youAreHere.dy, width: 60, height: 60, anchorX: 30, anchorY: 30, child: IgnorePointer(child: Beacon(pulse: _pulse, color: markerColor))),
         ]),
       );
@@ -825,8 +819,10 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             right: 12,
             child: Column(children: [
               Row(children: [
-                roundBtn(Icon(Icons.menu_rounded, color: c.text, size: 24), 'Open menu', () => context.push('/menu'), size: 54),
-                const SizedBox(width: 10),
+                if (sideMenuEnabled) ...[
+                  roundBtn(Icon(Icons.menu_rounded, color: c.text, size: 24), 'Open menu', () => context.push('/menu'), size: 54),
+                  const SizedBox(width: 10),
+                ],
                 Expanded(
                   child: SearchPill(
                     placeholder: 'Find attractions',
@@ -936,17 +932,23 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                 ),
               ),
             ),
-          // Walk-time pill when a destination is selected
-          if (_selected != null && selectedDist != null)
+          // The place card: rises from the bottom, above the tab bar, and takes the layer pills' place while it is up.
+          if (_displayPin != null)
             Positioned(
-              left: 14,
-              bottom: barTop + 56 + (_cats.contains(Cat.facilities) ? 46 : 0),
-              child: IgnorePointer(
-                child: Container(padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 16), decoration: BoxDecoration(color: c.card, borderRadius: BorderRadius.circular(999), boxShadow: const [BoxShadow(color: Color(0x2E000000), blurRadius: 5, offset: Offset(0, 2))]), child: Text('🚶 ${walkMins(selectedDist)} min walk', style: TextStyle(color: c.text, fontWeight: FontWeight.w800, fontSize: 13))),
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: AnimatedBuilder(
+                animation: _popupIn,
+                builder: (_, child) {
+                  final t = Curves.easeOutCubic.transform(_popupIn.value);
+                  return IgnorePointer(ignoring: _selected == null, child: Opacity(opacity: t, child: Transform.translate(offset: Offset(0, (1 - t) * 60), child: child)));
+                },
+                child: PlaceSheet(key: ValueKey(_displayPin!.id), pin: _displayPin!, distance: selectedDist, bottomInset: barTop - 14, onClose: _dismissPopup, onOpen: openDetail, onGoTo: goToSelected),
               ),
             ),
           // Facility types, while the Facilities layer is on: pick toilets, first aid and so on.
-          if (_cats.contains(Cat.facilities))
+          if (_cats.contains(Cat.facilities) && _displayPin == null)
             Positioned(
               key: const ValueKey('facility-chips'),
               left: 0,
@@ -981,6 +983,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               ),
             ),
           // Bottom: the layer filters
+          if (_displayPin == null)
           Positioned(
             key: const ValueKey('layer-pills'),
             left: 0,

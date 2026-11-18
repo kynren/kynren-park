@@ -27,6 +27,13 @@ void main() {
     expect(m.storage[13], 0);
   });
 
+  test('with room under a card, the bottom edge may come up by that much and no more', () {
+    // scale 1.5: the map is 1200 tall on a 600 screen, so its bottom edge sits at 600 when it is dragged as far up as it goes
+    final far = composeView(scale: 1.5, angle: 0, content: const Offset(0, 1200), screen: const Offset(0, 0));
+    expect(clampView(far, canvas, vp).storage[13], -600);
+    expect(clampView(far, canvas, vp, slackBottom: 250).storage[13], -850);
+  });
+
   test('turned, the middle of the screen stays on the map', () {
     final far = composeView(scale: 1.5, angle: 0.8, content: const Offset(-900, -900), screen: const Offset(200, 300));
     final m = clampView(far, canvas, vp);

@@ -143,8 +143,8 @@ class _KynrenAppState extends State<KynrenApp> {
 
 // The colours admin Branding held before the redesign. A workspace still on one of them has not
 // chosen a colour for the new design, so the app's own palette applies.
-const _oldPrimaries = ['#8f1d21', '#1d2c49', '#2f80ed', '#1d5bd8'];
-const _oldAccents = ['#22b365', '#de022d', '#7b4fe0', '#ef476f'];
+const _oldPrimaries = ['#8f1d21', '#1d2c49', '#2f80ed', '#1d5bd8', '#1f6b49'];
+const _oldAccents = ['#22b365', '#de022d', '#7b4fe0', '#ef476f', '#8a1f31', '#e2862b'];
 
 Color brandColor(String? hex, List<String> previous, Color fallback) {
   final h = hex?.toLowerCase();

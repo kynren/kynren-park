@@ -1,19 +1,20 @@
 import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 
-/// Design tokens: a fresh, contemporary system: a confident sans, clean surfaces, one forest-green brand colour and a warm amber accent.
+/// Design tokens: a fresh, contemporary system: a confident sans, clean surfaces, and Kynren's own two colours:
+/// the official navy (#1B2B4B) as the brand colour and the official red (#DB0833) as the accent.
 class Tokens {
-  static const brand = Color(0xFF1F6B49);
-  static const brandDark = Color(0xFF0F3B2A);
-  static const accent = Color(0xFFE2862B);
+  static const brand = Color(0xFF1B2B4B);
+  static const brandDark = Color(0xFF0E1830);
+  static const accent = Color(0xFFDB0833);
   static const gold = Color(0xFFC8963E);
   static const ok = Color(0xFF1F8A5B);
   static const warn = Color(0xFFD98A12);
   static const danger = Color(0xFFD1382E);
   static const full = Color(0xFF7B5BC4);
 
-  static const bandFrom = Color(0xFF0F3B2A);
-  static const bandTo = Color(0xFF1F6B49);
+  static const bandFrom = Color(0xFF0E1830);
+  static const bandTo = Color(0xFF1B2B4B);
 
   static const radiusCard = 22.0;
   static const radiusField = 14.0;
@@ -42,26 +43,26 @@ class UIColors {
   });
 
   static const _light = (
-    screen: Color(0xFFF5F6F2),
+    screen: Color(0xFFF4F5F8),
     card: Color(0xFFFFFFFF),
-    soft: Color(0xFFECEFE9),
-    text: Color(0xFF101A15),
-    sub: Color(0xFF5B6A61),
-    line: Color(0xFFE3E7E1),
-    placeholder: Color(0xFF96A39B),
-    tint: Color(0xFFE3F0E8),
+    soft: Color(0xFFECEEF3),
+    text: Color(0xFF111A2E),
+    sub: Color(0xFF596378),
+    line: Color(0xFFE1E4EB),
+    placeholder: Color(0xFF959FB2),
+    tint: Color(0xFFE5E9F2),
     tabBar: Color(0xFFFFFFFF),
   );
   static const _dark = (
-    screen: Color(0xFF0C1210),
-    card: Color(0xFF151D19),
-    soft: Color(0xFF1C2621),
-    text: Color(0xFFEDF3EF),
-    sub: Color(0xFF98AAA0),
-    line: Color(0xFF243029),
-    placeholder: Color(0xFF66766D),
-    tint: Color(0xFF1B2D24),
-    tabBar: Color(0xFF151D19),
+    screen: Color(0xFF0A101C),
+    card: Color(0xFF131B2B),
+    soft: Color(0xFF1B2538),
+    text: Color(0xFFECEFF6),
+    sub: Color(0xFF97A2B8),
+    line: Color(0xFF232E44),
+    placeholder: Color(0xFF65718A),
+    tint: Color(0xFF1B2741),
+    tabBar: Color(0xFF131B2B),
   );
 
   factory UIColors.of(bool dark, {Color primary = Tokens.brand, Color accent = Tokens.accent}) {
@@ -76,8 +77,9 @@ class UIColors {
       placeholder: b.placeholder,
       tint: b.tint,
       tabBar: b.tabBar,
-      primary: primary,
-      link: dark ? Color.lerp(primary, Colors.white, 0.5)! : primary,
+      // navy on a dark page would vanish: filled controls lift a little, and text-coloured links go a light blue
+      primary: dark ? Color.lerp(primary, Colors.white, 0.22)! : primary,
+      link: dark ? Color.lerp(primary, const Color(0xFF9DB7FF), 0.75)! : primary,
       accent: accent,
     );
   }
@@ -132,11 +134,11 @@ List<BoxShadow> softShadow(bool dark, {int level = 1, bool up = false}) {
 }
 
 const featureGradient = {
-  'restaurants': [Color(0xFFB03A2E), Color(0xFFE5793A)],
+  'restaurants': [Color(0xFFB4650F), Color(0xFFF0A744)],
   'shops': [Color(0xFF2F3E52), Color(0xFF5B7390)],
-  'essentials': [Color(0xFF1F5F5B), Color(0xFF3E9C8E)],
-  'tickets': [Color(0xFF0F2A21), Color(0xFF2F5C46)],
-  'programme': [Color(0xFFB4650F), Color(0xFFF0A744)],
+  'essentials': [Color(0xFF1F4F7A), Color(0xFF3E86B8)],
+  'tickets': [Color(0xFF0E1830), Color(0xFF2B4170)],
+  'programme': [Color(0xFF9E0626), Color(0xFFDB0833)],
 };
 
 const categoryColor = {

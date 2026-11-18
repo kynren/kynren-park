@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../core/notifications.dart';
+import '../core/side_menu.dart';
 import '../core/theme.dart';
 import 'tap.dart';
 
@@ -93,11 +94,14 @@ class KTopBar extends StatelessWidget {
         Padding(
           padding: EdgeInsets.fromLTRB(16, top + 8, 16, 0),
           child: Row(children: [
-            Tap(
-              onTap: onBack ?? (back ? () => (context.canPop() ? context.pop() : context.go('/')) : () => context.push('/menu')),
-              label: back ? 'Go back' : 'Open menu',
-              child: _RoundIcon(onDark: true, child: Icon(back ? Icons.arrow_back_rounded : Icons.menu_rounded, color: Colors.white, size: 23)),
-            ),
+            if (back || sideMenuEnabled)
+              Tap(
+                onTap: onBack ?? (back ? () => (context.canPop() ? context.pop() : context.go('/')) : () => context.push('/menu')),
+                label: back ? 'Go back' : 'Open menu',
+                child: _RoundIcon(onDark: true, child: Icon(back ? Icons.arrow_back_rounded : Icons.menu_rounded, color: Colors.white, size: 23)),
+              )
+            else
+              const SizedBox(width: 42),
             Expanded(
               child: Opacity(
                 opacity: solid,

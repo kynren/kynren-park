@@ -232,9 +232,11 @@ List<int>? dijkstra(List<List<int>> adj, List<Geo> nodes, int start, int goal) {
 /// Clamp one axis of the pan so the map never leaves the viewport: when the map is larger than the viewport on
 /// this axis you can pan to its edges; when it is smaller it stays centred. [t] is the screen position of the
 /// content's start edge, with screen = content * s + t.
-double clampAxis(double t, double s, double contentLen, double vp) {
+///
+/// [slackEnd] lets the content's far edge come up that far off the screen's far edge: room for a card over the bottom of the map.
+double clampAxis(double t, double s, double contentLen, double vp, {double slackEnd = 0}) {
   final len = contentLen * s;
-  if (len >= vp) return t.clamp(vp - len, 0.0);
+  if (len >= vp) return t.clamp(vp - len - slackEnd, 0.0);
   return (vp - len) / 2;
 }
 
@@ -269,11 +271,11 @@ Offset viewToContent(Matrix4 m, Offset screen) {
 
 /// Keep the map in view. Unrotated, the picture's edges stop at the screen's edges (see [clampAxis]); once rotated
 /// a rectangle no longer lines up with the screen, so the point at the middle of the screen is kept on the picture.
-Matrix4 clampView(Matrix4 m, Size canvas, Size vp) {
+Matrix4 clampView(Matrix4 m, Size canvas, Size vp, {double slackBottom = 0}) {
   final s = m.getMaxScaleOnAxis(), a = viewAngle(m);
   if (a.abs() < 1e-3) {
     return Matrix4.identity()
-      ..translateByDouble(clampAxis(m.storage[12], s, canvas.width, vp.width), clampAxis(m.storage[13], s, canvas.height, vp.height), 0, 1)
+      ..translateByDouble(clampAxis(m.storage[12], s, canvas.width, vp.width), clampAxis(m.storage[13], s, canvas.height, vp.height, slackEnd: slackBottom), 0, 1)
       ..scaleByDouble(s, s, 1, 1);
   }
   final mid = Offset(vp.width / 2, vp.height / 2);

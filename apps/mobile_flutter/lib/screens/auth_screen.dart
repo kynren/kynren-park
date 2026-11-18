@@ -56,6 +56,23 @@ class _AuthScreenState extends State<AuthScreen> {
     if (mounted) setState(() => _loading = false);
   }
 
+  Widget _benefit(UIColors c, IconData icon, String title, String body) => Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(color: c.tint, borderRadius: BorderRadius.circular(11)),
+          child: Icon(icon, size: 19, color: c.link),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: c.text)),
+            const SizedBox(height: 1),
+            Text(body, style: TextStyle(fontSize: 12.5, height: 17 / 12.5, color: c.sub)),
+          ]),
+        ),
+      ]);
+
   @override
   Widget build(BuildContext context) {
     final c = context.ui;
@@ -64,8 +81,21 @@ class _AuthScreenState extends State<AuthScreen> {
       subtitle: _login ? 'Welcome back to the park' : 'Keep your tickets and plans in one place',
       page: 'auth',
       children: [
-        const SizedBox(height: 150, child: ClipRRect(borderRadius: BorderRadius.all(Radius.circular(20)), child: ManagedImage(slot: 'auth.header'))),
-        Text(_login ? 'Sign in to see your tickets and save your day.' : 'So we can hold your tickets and remind you before each show.', style: TextStyle(fontSize: 14.5, height: 21 / 14.5, color: c.sub)),
+        // The picture only takes room when the park has set one: an empty slot used to leave a blank band here.
+        if (hasSlotImage(context, 'auth.header')) const SizedBox(height: 150, child: ClipRRect(borderRadius: BorderRadius.all(Radius.circular(20)), child: ManagedImage(slot: 'auth.header'))),
+        if (!_login)
+          KCard(
+            padding: const EdgeInsets.all(16),
+            child: Column(children: [
+              _benefit(c, Icons.confirmation_number_rounded, 'Your tickets, ready offline', 'A QR code that works at the gate without signal.'),
+              const SizedBox(height: 12),
+              _benefit(c, Icons.notifications_active_rounded, 'Show reminders', 'A nudge before each show on your plan.'),
+              const SizedBox(height: 12),
+              _benefit(c, Icons.favorite_rounded, 'Your plan on every visit', 'Favourites and your day, saved to your account.'),
+            ]),
+          )
+        else
+          Text('Sign in to see your tickets and save your day.', style: TextStyle(fontSize: 14.5, height: 21 / 14.5, color: c.sub)),
         if (!_login) KTextField(label: 'Name (optional)', hint: 'Your name', controller: _name, capitalization: TextCapitalization.words),
         KTextField(label: 'Email', hint: 'you@example.com', controller: _email, keyboardType: TextInputType.emailAddress),
         KTextField(

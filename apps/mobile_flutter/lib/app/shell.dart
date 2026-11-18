@@ -11,7 +11,7 @@ const navBarHeight = 64.0;
 const _homeSize = 68.0;
 const navHomeRise = 28.0;
 
-// The tabs beside Home, left to right, with the branch each one opens (the shell's branches are Home, Search, Map, Eat).
+// The tabs beside Home, left to right, with the branch each one opens (the shell's branches are Home, Search, Map, Eat, More).
 const _left = [
   (label: 'Map', icon: Icons.map_outlined, active: Icons.map_rounded, branch: 2),
   (label: 'Search', icon: Icons.search_rounded, active: Icons.search_rounded, branch: 1),
@@ -19,9 +19,10 @@ const _left = [
 const _right = [
   (label: 'Eat', icon: Icons.restaurant_outlined, active: Icons.restaurant_rounded, branch: 3),
 ];
+const _more = (label: 'More', icon: Icons.grid_view_outlined, active: Icons.grid_view_rounded, branch: 4);
 
 /// The bottom bar: a flat bar with a label under every icon and, in the middle, a round Home button standing proud of it.
-/// The last slot, More, is not a tab: it opens the side menu.
+/// The last slot, More, is the fifth tab: everything the park app offers beyond the others.
 class AppShell extends StatelessWidget {
   final StatefulNavigationShell shell;
   const AppShell({super.key, required this.shell});
@@ -73,7 +74,7 @@ class AppShell extends StatelessWidget {
                     for (final t in _left) tab(t),
                     const Expanded(child: SizedBox.shrink()), // the room Home stands in
                     for (final t in _right) tab(t),
-                    Expanded(child: _NavItem(label: 'More', icon: Icons.grid_view_rounded, selected: false, onTap: () => context.push('/menu'))),
+                    tab(_more),
                   ]),
                 ),
               ),

@@ -50,7 +50,7 @@ const _filters = <(String, String)>[('all', 'All'), ('saved', 'Saved'), ('show',
 const _kindIcon = {Kind.show: Icons.calendar_month_rounded, Kind.food: Icons.restaurant_rounded, Kind.shop: Icons.storefront_rounded, Kind.facility: Icons.place_rounded};
 const _tileTitle = {Kind.show: 'Shows', Kind.food: 'Food & drink', Kind.shop: 'Shops', Kind.facility: 'Facilities'};
 const _kindTitle = {Kind.show: 'Shows & attractions', Kind.food: 'Food & drink', Kind.shop: 'Shops', Kind.facility: 'Facilities'};
-final _kindColor = {Kind.show: featureGradient['programme']![0], Kind.food: featureGradient['restaurants']![0], Kind.shop: const Color(0xFF2F5B43), Kind.facility: const Color(0xFF4B5D73)};
+final _kindColor = {Kind.show: featureGradient['programme']![0], Kind.food: featureGradient['restaurants']![0], Kind.shop: const Color(0xFF2F3E52), Kind.facility: const Color(0xFF4B5D73)};
 const _facilityLabel = {
   'RESTROOM': 'Toilets', 'FIRST_AID': 'First aid', 'PARKING': 'Parking', 'ACCESSIBILITY': 'Accessibility',
   'BABY_CHANGING': 'Baby changing', 'PICNIC': 'Picnic area', 'ENTRANCE': 'Entrance', 'INFO': 'Information',
