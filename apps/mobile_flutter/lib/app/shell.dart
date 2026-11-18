@@ -3,6 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../core/theme.dart';
 
+/// Set by the map while a place card is up: the bar slides away so the card can start from the very bottom of the screen.
+final navHiddenByMap = ValueNotifier<bool>(false);
+
 /// How much room a scrolling screen leaves at its foot so its last item clears the bottom bar.
 const navClearance = 104.0;
 
@@ -57,7 +60,16 @@ class AppShell extends StatelessWidget {
             right: 0,
             bottom: 0,
             height: barTotal + navHomeRise,
-            child: Stack(clipBehavior: Clip.none, children: [
+            child: ValueListenableBuilder<bool>(
+              valueListenable: navHiddenByMap,
+              builder: (context, mapWantsItGone, child) {
+                final hidden = mapWantsItGone && shell.currentIndex == 2; // only while the Map tab is the one showing
+                return IgnorePointer(
+                  ignoring: hidden,
+                  child: AnimatedSlide(offset: Offset(0, hidden ? 1.15 : 0), duration: const Duration(milliseconds: 220), curve: Curves.easeOutCubic, child: child),
+                );
+              },
+              child: Stack(clipBehavior: Clip.none, children: [
               Positioned(
                 left: 0,
                 right: 0,
@@ -85,6 +97,7 @@ class AppShell extends StatelessWidget {
                 child: Center(child: _HomeButton(selected: homeSelected, onTap: () => _open(0))),
               ),
             ]),
+            ),
           ),
       ]),
     );

@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../app/shell.dart' show navBarHeight, navHomeRise;
+import '../../app/shell.dart' show navBarHeight, navHiddenByMap, navHomeRise;
 import '../../core/favorites.dart';
 import '../../core/format.dart';
 import '../../core/location.dart';
@@ -103,6 +103,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.addPostFrameCallback((_) => navHiddenByMap.value = false);
     _hintTimer?.cancel();
     _view.dispose();
     _viewAnim.dispose();
@@ -198,11 +199,13 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       _hintDismissed = true;
     });
     _popupIn.forward();
+    navHiddenByMap.value = true;
     _bringIntoClear(pin);
   }
 
   void _dismissPopup() {
     if (_selected == null) return;
+    navHiddenByMap.value = false;
     setState(() {
       _closing = _selected;
       _selected = null;
@@ -287,7 +290,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     final top = MediaQuery.paddingOf(context).top;
     // the top of the bottom bar, including the Home button that stands above it: the map's own controls sit above this
     final barTop = navBarHeight + navHomeRise + MediaQuery.paddingOf(context).bottom;
-    _sheetReserve = barTop + 330;
+    _sheetReserve = MediaQuery.paddingOf(context).bottom + 330; // the tab bar is out of the way while the card is up
     final cfg = bundle?.mapConfig;
     final mapImageUrl = (bundle?.defaultMap?.imageUrl?.isNotEmpty ?? false) ? bundle!.defaultMap!.imageUrl : (cfg?.mapImageUrl?.isNotEmpty ?? false) ? cfg!.mapImageUrl : null;
     final mapBg = parseHex(bundle?.defaultMap?.bgColor, _grass);
@@ -944,7 +947,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                   final t = Curves.easeOutCubic.transform(_popupIn.value);
                   return IgnorePointer(ignoring: _selected == null, child: Opacity(opacity: t, child: Transform.translate(offset: Offset(0, (1 - t) * 60), child: child)));
                 },
-                child: PlaceSheet(key: ValueKey(_displayPin!.id), pin: _displayPin!, distance: selectedDist, bottomInset: barTop - 14, onClose: _dismissPopup, onOpen: openDetail, onGoTo: goToSelected),
+                child: PlaceSheet(key: ValueKey(_displayPin!.id), pin: _displayPin!, distance: selectedDist, bottomInset: MediaQuery.paddingOf(context).bottom - 6, onClose: _dismissPopup, onOpen: openDetail, onGoTo: goToSelected),
               ),
             ),
           // Facility types, while the Facilities layer is on: pick toilets, first aid and so on.
@@ -973,7 +976,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 13),
                               alignment: Alignment.center,
-                              decoration: BoxDecoration(color: _facilityPicked.contains(t) ? c.primary : c.card, borderRadius: BorderRadius.circular(999), boxShadow: softShadow(dark)),
+                              decoration: BoxDecoration(color: _facilityPicked.contains(t) ? (dark ? Tokens.accent : c.primary) : c.card, borderRadius: BorderRadius.circular(999), boxShadow: softShadow(dark)),
                               child: Text('${facilityTypes[t]!.emoji} ${facilityLabels[t]}', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5, color: _facilityPicked.contains(t) ? Colors.white : c.text)),
                             ),
                           ),
@@ -1005,7 +1008,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                       label: p.label,
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 16),
-                        decoration: BoxDecoration(color: _cats.contains(p.key) ? c.primary : c.card, borderRadius: BorderRadius.circular(999), boxShadow: softShadow(dark)),
+                        decoration: BoxDecoration(color: _cats.contains(p.key) ? (dark ? Tokens.accent : c.primary) : c.card, borderRadius: BorderRadius.circular(999), boxShadow: softShadow(dark)),
                         child: Row(mainAxisSize: MainAxisSize.min, children: [
                           Text(p.emoji, style: TextStyle(fontSize: 15, color: _cats.contains(p.key) ? Colors.white : c.text)),
                           const SizedBox(width: 6),
