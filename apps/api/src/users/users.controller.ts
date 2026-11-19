@@ -4,6 +4,7 @@ import { Prisma } from '@kynren/db';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CurrentUser } from '../common/decorators.js';
 import type { AuthPrincipal } from '../common/decorators.js';
+import { isPlausibleFix } from './presence-check.js';
 
 @ApiTags('users')
 @ApiBearerAuth()
@@ -127,6 +128,10 @@ export class UsersController {
   @Post('presence')
   async presence(@CurrentUser() user: AuthPrincipal, @Body() body: { lat: number; lng: number }) {
     if (typeof body?.lat !== 'number' || typeof body?.lng !== 'number') return { ok: false };
+    // A position that is not a coordinate, or that no traveller could have reached since the last one, is not stored.
+    const before = await this.prisma.user.findUnique({ where: { id: user.sub }, select: { lastLat: true, lastLng: true, lastSeenAt: true } });
+    const previous = before?.lastLat != null && before.lastLng != null && before.lastSeenAt ? { lat: before.lastLat, lng: before.lastLng, at: before.lastSeenAt } : null;
+    if (!isPlausibleFix({ lat: body.lat, lng: body.lng }, previous, new Date())) return { ok: false };
     await this.prisma.user.update({
       where: { id: user.sub },
       data: { lastLat: body.lat, lastLng: body.lng, lastSeenAt: new Date() },

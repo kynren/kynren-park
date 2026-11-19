@@ -755,7 +755,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           );
 
       final listOpen = _nearOpen || (_searchOpen && q.isNotEmpty);
-      final locationBanner = !locationReal && !_bannerDismissed;
+      final fakeLocation = context.watch<LocationState>().fakeLocation;
+      final locationBanner = !locationReal && (!_bannerDismissed || fakeLocation); // a fake location is always worth saying
 
       return Container(
         clipBehavior: Clip.hardEdge,
@@ -778,6 +779,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               right: 66,
               child: LocationNotice(
                 awayFromPark: gps != null,
+                fake: context.watch<LocationState>().fakeLocation,
                 onEnable: () => context.read<LocationState>().enable(),
                 onClose: () => setState(() {
                   _outsideBannerDismissed = true;

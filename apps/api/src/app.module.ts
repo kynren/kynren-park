@@ -26,6 +26,7 @@ import { WeatherModule } from './weather/weather.module.js';
 import { MediaModule } from './media/media.module.js';
 import { HealthController } from './health/health.controller.js';
 import { JwtAuthGuard } from './common/guards.js';
+import { accountKeyOf } from './common/account-throttle.js';
 
 @Module({
   imports: [
@@ -34,7 +35,18 @@ import { JwtAuthGuard } from './common/guards.js';
     // Base rate limit for every route (generous — this is abuse/DoS
     // protection, not a normal-usage throttle). Auth endpoints override
     // this with a much tighter limit — see auth.controller.ts's @Throttle().
-    ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 120 }]),
+    ThrottlerModule.forRoot([
+      { name: 'default', ttl: 60_000, limit: 120 },
+      // A second count, per account (the email in the request) rather than per IP address, so changing address with a VPN
+      // does not reset the allowance: 10 attempts a minute on one account from anywhere. Routes that name no email skip it.
+      {
+        name: 'account',
+        ttl: 60_000,
+        limit: 10,
+        getTracker: (req) => accountKeyOf(req) ?? '',
+        skipIf: (ctx) => accountKeyOf(ctx.switchToHttp().getRequest()) === null,
+      },
+    ]),
     PrismaModule,
     PermissionsModule,
     MailModule,

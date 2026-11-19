@@ -27,6 +27,10 @@ double distMeters(Geo a, Geo b) {
 /// accurate fix, then keep it fresh with a light watcher. Presence is reported once for signed-in guests.
 class LocationState extends ChangeNotifier with SafeNotify {
   Geo? gps;
+
+  /// The phone says its position is a fake one (Android's mock-location setting). Such a position is never used: the map, the
+  /// distances, the nearest-first lists and the presence report all behave as if the location were unknown.
+  bool fakeLocation = false;
   bool ready = false;
   LocationPermissionState permission = LocationPermissionState.unknown;
   StreamSubscription<Position>? _sub;
@@ -78,10 +82,15 @@ class LocationState extends ChangeNotifier with SafeNotify {
     await start();
   }
 
-  void _set(Position p) {
-    gps = Geo(p.latitude, p.longitude);
+  void _set(Position p) => accept(p.latitude, p.longitude, mocked: p.isMocked);
+
+  /// Take a new fix from the phone, unless it is marked as a mock location.
+  @visibleForTesting
+  void accept(double lat, double lng, {required bool mocked}) {
+    fakeLocation = mocked;
+    gps = mocked ? null : Geo(lat, lng);
     notifyListeners();
-    _report();
+    if (!mocked) _report();
   }
 
   void syncWith(AuthUser? user) {

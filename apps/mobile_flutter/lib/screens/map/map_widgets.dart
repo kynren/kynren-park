@@ -386,8 +386,11 @@ class _PictureShapeState extends State<_PictureShape> {
 /// The notice at the top of the map when the guest's position is not known: location is off, or they are away from the park.
 class LocationNotice extends StatelessWidget {
   final bool awayFromPark;
+
+  /// The phone reports a fake location: say so, rather than "location is off".
+  final bool fake;
   final VoidCallback onEnable, onClose;
-  const LocationNotice({super.key, required this.awayFromPark, required this.onEnable, required this.onClose});
+  const LocationNotice({super.key, required this.awayFromPark, this.fake = false, required this.onEnable, required this.onClose});
 
   @override
   Widget build(BuildContext context) {
@@ -397,15 +400,15 @@ class LocationNotice extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
       decoration: BoxDecoration(color: c.card, borderRadius: BorderRadius.circular(18), boxShadow: softShadow(dark)),
       child: Row(children: [
-        Container(width: 38, height: 38, decoration: BoxDecoration(color: c.tint, shape: BoxShape.circle), child: Icon(awayFromPark ? Icons.map_outlined : Icons.location_off_rounded, color: c.link, size: 20)),
+        Container(width: 38, height: 38, decoration: BoxDecoration(color: c.tint, shape: BoxShape.circle), child: Icon(fake ? Icons.wrong_location_rounded : awayFromPark ? Icons.map_outlined : Icons.location_off_rounded, color: c.link, size: 20)),
         const SizedBox(width: 12),
         Expanded(
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(awayFromPark ? 'You seem to be outside the park' : 'Location is off', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, height: 18 / 14, color: c.text)),
-            Text(awayFromPark ? 'Distances and walking directions work once you arrive.' : 'Turn it on to see where you are and how far things are.', style: TextStyle(fontSize: 12.5, height: 17 / 12.5, color: c.sub)),
+            Text(fake ? 'A fake location is switched on' : awayFromPark ? 'You seem to be outside the park' : 'Location is off', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, height: 18 / 14, color: c.text)),
+            Text(fake ? 'Turn off the mock-location app in your phone settings to see where you really are.' : awayFromPark ? 'Distances and walking directions work once you arrive.' : 'Turn it on to see where you are and how far things are.', style: TextStyle(fontSize: 12.5, height: 17 / 12.5, color: c.sub)),
           ]),
         ),
-        if (!awayFromPark) ...[
+        if (!awayFromPark && !fake) ...[
           const SizedBox(width: 8),
           Tap(
             onTap: onEnable,
