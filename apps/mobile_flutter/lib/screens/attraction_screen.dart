@@ -106,6 +106,11 @@ class _AttractionScreenState extends State<AttractionScreen> {
             ActionPill(icon: Icons.check_rounded, label: _seen ? 'Seen it' : 'I did it', onTap: markSeen),
           ]),
         ),
+        if (attraction.category == 'EVENING_SHOW')
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Row(children: [ActionPill(icon: Icons.nights_stay_outlined, label: 'Show mode', onTap: () => context.push('/show-mode/${attraction.slug}'))]),
+          ),
         const SectionLabel('Schedules'),
         Transform.translate(offset: const Offset(0, -4), child: Padding(padding: const EdgeInsets.only(bottom: 10), child: Text(sessions.isEmpty ? dateLong : '$dateLong  ·  tap a time to add it to your calendar', style: TextStyle(color: c.sub, fontSize: 12.5)))),
         if (sessions.isEmpty)

@@ -12,6 +12,8 @@ import '../core/format.dart';
 import '../core/models.dart';
 import '../core/offline.dart';
 import '../core/preferences.dart';
+import '../core/right_now_logic.dart';
+import '../core/shuttle_logic.dart';
 import '../core/sync.dart';
 import '../core/side_menu.dart';
 import '../core/theme.dart';
@@ -52,6 +54,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final _scroll = ScrollController();
   double _barOpacity = 0;
   Map<String, dynamic>? _weather;
+  List<dynamic>? _shuttles;
   Timer? _tick;
 
   @override
@@ -65,6 +68,9 @@ class _HomeScreenState extends State<HomeScreen> {
     _tick = Timer.periodic(const Duration(minutes: 1), (_) => setState(() {}));
     api('/weather').then((w) {
       if (mounted) setState(() => _weather = w as Map<String, dynamic>?);
+    }).catchError((_) {});
+    api('/shuttles').then((r) {
+      if (mounted) setState(() => _shuttles = r as List<dynamic>?);
     }).catchError((_) {});
   }
 
@@ -123,8 +129,8 @@ class _HomeScreenState extends State<HomeScreen> {
         ? [...saved.where((s) => s.visible).map((s) => s.key), ..._newSections.where((k) => !saved.any((s) => s.key == k))]
         : _defaultSections;
     // Quick actions sit right under the search, and the next show right after the welcome, whatever layout admin saved.
-    final fullOrder = ['quick', for (final k in order) ...[k, if (k == 'welcome') 'nextUp']];
-    if (!order.contains('welcome')) fullOrder.insert(1, 'nextUp');
+    final fullOrder = ['quick', for (final k in order) ...[k, if (k == 'welcome') ...['nextUp', 'rightNow']]];
+    if (!order.contains('welcome')) fullOrder.insertAll(1, ['nextUp', 'rightNow']);
     fullOrder.insert(1, 'offline');
     // Pictures for the promo cards come from the park's own content, so they stay current.
     String? firstImage(Iterable<String?> xs) => xs.firstWhere((x) => x != null && x.isNotEmpty, orElse: () => null);
@@ -232,6 +238,20 @@ class _HomeScreenState extends State<HomeScreen> {
                 Icon(Icons.chevron_right_rounded, color: c.placeholder, size: 22),
               ]),
             ),
+          );
+        case 'rightNow':
+          // The next shuttle and how many places are open: only said when we know, so a missing timetable or unreadable hours show nothing.
+          final nowPark = ukNow();
+          final bus = soonestShuttle(_shuttles ?? const [], nowPark);
+          final open = openNowCount(bundle?.restaurants ?? const [], bundle?.shops ?? const [], nowPark.hour * 60 + nowPark.minute);
+          if (bus == null && open == 0) return null;
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            child: Row(children: [
+              if (bus != null) Expanded(child: _NowTile(icon: Icons.directions_bus_rounded, label: 'Next shuttle', big: untilText(bus.minutes), sub: '${bus.stop} · ${bus.time}', onTap: () => go('/shuttle'))),
+              if (bus != null && open > 0) const SizedBox(width: 12),
+              if (open > 0) Expanded(child: _NowTile(icon: Icons.storefront_rounded, label: 'Open now', big: '$open ${open == 1 ? 'place' : 'places'}', sub: 'Food and shops', onTap: () => context.go('/food'))),
+            ]),
           );
         case 'welcome':
           return Padding(
@@ -608,6 +628,33 @@ class _PromoCard extends StatelessWidget {
           ),
         ]),
       ),
+    );
+  }
+}
+
+class _NowTile extends StatelessWidget {
+  final IconData icon;
+  final String label, big, sub;
+  final VoidCallback onTap;
+  const _NowTile({required this.icon, required this.label, required this.big, required this.sub, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.ui;
+    return KCard(
+      onTap: onTap,
+      padding: const EdgeInsets.all(14),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(icon, size: 18, color: c.link),
+          const SizedBox(width: 6),
+          Expanded(child: Text(label.toUpperCase(), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.9, color: c.sub))),
+        ]),
+        const SizedBox(height: 6),
+        Text(big, style: TextStyle(fontFamily: Tokens.display, fontSize: 19, fontWeight: FontWeight.w800, color: c.text)),
+        const SizedBox(height: 2),
+        Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: c.sub)),
+      ]),
     );
   }
 }

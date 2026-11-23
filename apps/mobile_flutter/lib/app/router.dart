@@ -19,6 +19,8 @@ import '../screens/search_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/shop_facility_screens.dart';
 import '../screens/shops_screen.dart';
+import '../screens/show_mode_screen.dart';
+import '../screens/suits_me_screen.dart';
 import '../screens/essentials_screen.dart';
 import '../screens/tickets_screens.dart';
 import 'shell.dart';
@@ -59,6 +61,8 @@ final router = GoRouter(
     GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
     GoRoute(path: '/orders', builder: (_, _) => const OrdersScreen()),
     GoRoute(path: '/accessibility', builder: (_, _) => const AccessibilityScreen()),
+    GoRoute(path: '/suits-me', builder: (_, _) => const SuitsMeScreen()),
+    GoRoute(path: '/show-mode/:slug', builder: (_, state) => ShowModeScreen(slug: state.pathParameters['slug']!)),
     GoRoute(path: '/shuttle', builder: (_, _) => const ShuttleScreen()),
     GoRoute(path: '/tickets', builder: (_, _) => const TicketsScreen()),
     GoRoute(path: '/ticket/:id', builder: (_, state) => TicketScreen(id: state.pathParameters['id']!)),

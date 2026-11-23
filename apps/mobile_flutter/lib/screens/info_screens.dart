@@ -170,6 +170,22 @@ class _AccessibilityScreenState extends State<AccessibilityScreen> {
       subtitle: 'Your preferences and step-free information',
       page: 'accessibility',
       children: [
+        KCard(
+          onTap: () => context.push('/suits-me'),
+          padding: const EdgeInsets.all(16),
+          child: Row(children: [
+            Container(width: 42, height: 42, decoration: BoxDecoration(color: c.tint, borderRadius: BorderRadius.circular(14)), child: Icon(Icons.fact_check_rounded, size: 22, color: c.link)),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('What suits me', style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800, color: c.text)),
+                const SizedBox(height: 2),
+                Text('Choose what your group needs and see which attractions fit.', style: TextStyle(fontSize: 12.5, height: 17 / 12.5, color: c.sub)),
+              ]),
+            ),
+            Icon(Icons.chevron_right_rounded, color: c.placeholder, size: 20),
+          ]),
+        ),
         if (user != null)
           KCard(
             padding: const EdgeInsets.all(18),

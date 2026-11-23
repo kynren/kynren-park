@@ -71,7 +71,7 @@ void main() {
       '/shows', '/plan', '/tickets', '/menu', '/more', '/settings', '/profile', '/auth', '/language', '/orders',
       '/shuttle', '/accessibility', '/favorites', '/seen', '/find-bookings', '/restaurants?slot=lunch',
       '/attraction/land-of-the-vikings', '/restaurant/storytellers-tavern', '/restaurant/lakeside-kitchen',
-      '/facility/none', '/ticket/none', '/search?filter=shop',
+      '/facility/none', '/ticket/none', '/search?filter=shop', '/suits-me', '/show-mode/an-epic-tale-of-england', '/show-mode/nothing-here',
     ]) {
       router.push(path);
       await _settle(tester);

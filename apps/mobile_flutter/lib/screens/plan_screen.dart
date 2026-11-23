@@ -154,6 +154,19 @@ class _PlanScreenState extends State<PlanScreen> {
             ),
         ]),
         KButton('${t('plan.optimise')}${_selected.isNotEmpty ? ' (${_selected.length})' : ''}', full: true, loading: _loading, onPressed: _selected.isEmpty ? null : () => _optimize(sync.date)),
+        if (attractions.isNotEmpty)
+          KButton(
+            'Plan it all for me',
+            full: true,
+            variant: ButtonVariant.soft,
+            icon: Icons.auto_awesome_rounded,
+            onPressed: _loading
+                ? null
+                : () {
+                    setState(() => _selected.addAll(attractions.map((a) => a.id)));
+                    _optimize(sync.date);
+                  },
+          ),
         if (plan != null)
           Padding(
             padding: const EdgeInsets.only(top: 10),

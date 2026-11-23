@@ -3,10 +3,13 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../core/api.dart';
+import '../core/app_update.dart';
 import '../core/auth.dart';
 import '../core/profile.dart';
 import '../core/tickets.dart';
@@ -31,10 +34,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _saved = false, _marketing = false, _exporting = false, _deleting = false;
   Timer? _savedTimer;
   String? _loadedFor;
+  final _updater = AppUpdater();
+  String _version = '';
 
   @override
   void initState() {
     super.initState();
+    _updater.addListener(() => mounted ? setState(() {}) : null);
+    PackageInfo.fromPlatform().then((i) {
+      if (mounted) setState(() => _version = 'Version ${i.version} (build ${i.buildNumber})');
+    }).catchError((_) {});
     SharedPreferences.getInstance().then((p) {
       final raw = p.getString(profileKey);
       if (raw == null || !mounted) return;
@@ -54,7 +63,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void dispose() {
     _savedTimer?.cancel();
     _notes.dispose();
+    _updater.dispose();
     super.dispose();
+  }
+
+  Future<void> _openPlay() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await launchUrl(Uri.parse(playListingUrl), mode: LaunchMode.externalApplication).catchError((_) => false);
+    if (!ok) messenger.showSnackBar(const SnackBar(content: Text('Couldn’t open Google Play. Open it and search for Kynren.')));
+  }
+
+  /// The "Check for updates" block: what we know, and the one button that fits it.
+  Widget _updates() {
+    final c = context.ui;
+    final s = _updater.stage;
+    final message = switch (s) {
+      UpdateStage.idle => 'See if a newer version of the app is available.',
+      UpdateStage.checking => 'Checking for updates…',
+      UpdateStage.upToDate => 'You’re up to date. This is the latest version.',
+      UpdateStage.available => 'A new version is available.',
+      UpdateStage.availableInStore => 'A new version is available on Google Play.',
+      UpdateStage.installing => 'Updating… the app will restart when it’s done.',
+      UpdateStage.declined => 'Update cancelled. You can try again any time.',
+      UpdateStage.unsupported => 'Updates for this device come through the App Store, which updates your apps automatically.',
+      UpdateStage.failed => 'Couldn’t check for updates. You can look on Google Play instead.',
+    };
+    final action = switch (s) {
+      UpdateStage.available => KButton('Update now', full: true, onPressed: _updater.install),
+      UpdateStage.availableInStore || UpdateStage.failed => KButton('Open Google Play', full: true, variant: ButtonVariant.soft, onPressed: _openPlay),
+      UpdateStage.unsupported || UpdateStage.upToDate || UpdateStage.installing => null,
+      _ => KButton('Check for updates', full: true, loading: s == UpdateStage.checking, variant: ButtonVariant.soft, onPressed: _updater.busy ? null : _updater.check),
+    };
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      if (_version.isNotEmpty) Text(_version, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: c.text)),
+      const SizedBox(height: 6),
+      Semantics(liveRegion: true, child: Text(message, style: TextStyle(fontSize: 14, color: c.sub))),
+      if (action != null) ...[const SizedBox(height: 12), action],
+      if (s == UpdateStage.upToDate) ...[const SizedBox(height: 4), Tap(onTap: _updater.check, child: Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Text('Check again', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: c.link))))],
+    ]);
   }
 
   void _loadConsent(AuthUser? user) {
@@ -234,6 +280,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Tap(onTap: _deleting ? null : _delete, child: Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Text(_deleting ? 'Deleting…' : 'Delete my account', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Tokens.danger)))),
           ]),
         ],
+        const SizedBox(height: 10),
+        _section('About this app', [_updates()]),
       ],
     );
   }
