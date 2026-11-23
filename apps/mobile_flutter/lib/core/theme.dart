@@ -7,20 +7,29 @@ class Tokens {
   static const brand = Color(0xFF1B2B4B);
   static const brandDark = Color(0xFF0E1830);
   static const accent = Color(0xFFDB0833);
-  static const gold = Color(0xFFC8963E);
+  static const gold = Color(0xFFD6B86A);
   static const ok = Color(0xFF1F8A5B);
   static const warn = Color(0xFFD98A12);
   static const danger = Color(0xFFD1382E);
   static const full = Color(0xFF7B5BC4);
 
-  static const bandFrom = Color(0xFF0E1830);
+  static const bandFrom = Color(0xFF0B1428);
   static const bandTo = Color(0xFF1B2B4B);
+
+  /// The warm dusk the header bands fade to: the glow of the show on the horizon.
+  static const bandDusk = Color(0xFF4A2840);
+
+  /// The warm off-white text of the dark theme, like candlelight rather than a screen.
+  static const cream = Color(0xFFF3EAD8);
 
   static const radiusCard = 22.0;
   static const radiusField = 14.0;
 
-  /// The one typeface: headings are just heavier weights of it.
+  /// The typeface for everything: headings are just heavier weights of it.
   static const display = 'Jakarta';
+
+  /// The serif for titles (Cormorant Garamond). It sits small on its line, so titles set in it are a little larger.
+  static const serif = 'Cormorant';
 }
 
 /// Colours for one screen theme; screens read these instead of keeping a palette of their own.
@@ -53,16 +62,17 @@ class UIColors {
     tint: Color(0xFFE5E9F2),
     tabBar: Color(0xFFFFFFFF),
   );
+  // Midnight heritage: a deep night-sky navy, candlelit text and hairlines of gold.
   static const _dark = (
-    screen: Color(0xFF0A101C),
-    card: Color(0xFF131B2B),
-    soft: Color(0xFF1B2538),
-    text: Color(0xFFECEFF6),
-    sub: Color(0xFF97A2B8),
-    line: Color(0xFF232E44),
-    placeholder: Color(0xFF65718A),
-    tint: Color(0xFF1B2741),
-    tabBar: Color(0xFF131B2B),
+    screen: Color(0xFF0A1226),
+    card: Color(0xFF0F1A31),
+    soft: Color(0xFF16233F),
+    text: Tokens.cream,
+    sub: Color(0xFFA2AABD),
+    line: Color(0x40D6B86A),
+    placeholder: Color(0xFF6E7890),
+    tint: Color(0xFF18253F),
+    tabBar: Color(0xFF0A1226),
   );
 
   factory UIColors.of(bool dark, {Color primary = Tokens.brand, Color accent = Tokens.accent}) {
@@ -77,9 +87,9 @@ class UIColors {
       placeholder: b.placeholder,
       tint: b.tint,
       tabBar: b.tabBar,
-      // navy on a dark page would vanish: filled controls lift a little, and text-coloured links go a light blue
-      primary: dark ? Color.lerp(primary, Colors.white, 0.22)! : primary,
-      link: dark ? Color.lerp(primary, const Color(0xFF9DB7FF), 0.75)! : primary,
+      // navy on a dark page would vanish: in the night theme the main action is the Kynren red, and links and small details are gold
+      primary: dark ? accent : primary,
+      link: dark ? Tokens.gold : primary,
       accent: accent,
     );
   }
@@ -134,11 +144,11 @@ List<BoxShadow> softShadow(bool dark, {int level = 1, bool up = false}) {
 }
 
 const featureGradient = {
-  'restaurants': [Color(0xFFB4650F), Color(0xFFF0A744)],
-  'shops': [Color(0xFF2F3E52), Color(0xFF5B7390)],
-  'essentials': [Color(0xFF1F4F7A), Color(0xFF3E86B8)],
-  'tickets': [Color(0xFF0E1830), Color(0xFF2B4170)],
-  'programme': [Color(0xFF9E0626), Color(0xFFDB0833)],
+  'restaurants': [Color(0xFF0B1428), Color(0xFF5E3A16)],
+  'shops': [Color(0xFF0B1428), Color(0xFF2B3B55)],
+  'essentials': [Color(0xFF0B1428), Color(0xFF1E4565)],
+  'tickets': [Color(0xFF0B1428), Color(0xFF1B2B4B)],
+  'programme': [Color(0xFF0B1428), Color(0xFF5A1A2E)],
 };
 
 const categoryColor = {

@@ -68,7 +68,7 @@ class SectionHeader extends StatelessWidget {
           Expanded(
             child: Semantics(
               header: true,
-              child: Text(title, style: TextStyle(fontFamily: Tokens.display, fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.4, color: c.text)),
+              child: Text(title, style: TextStyle(fontFamily: Tokens.serif, fontSize: 24.5, fontWeight: FontWeight.w700, letterSpacing: 0, color: c.text)),
             ),
           ),
           ?trailing,

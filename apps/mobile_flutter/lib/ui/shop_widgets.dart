@@ -160,7 +160,7 @@ class ShopCard extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.all(16),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(shop.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: Tokens.display, fontSize: 19, fontWeight: FontWeight.w700, height: 24 / 19, color: c.text)),
+            Text(shop.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: Tokens.serif, fontSize: 23, fontWeight: FontWeight.w700, height: 24 / 19, color: c.text)),
             if (sub.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text(sub, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13.5, height: 19 / 13.5, color: c.sub))),
             if (state != null || walk != null) Padding(padding: const EdgeInsets.only(top: 6), child: OpenStatus(state: state, walk: walk)),
             const SizedBox(height: 12),

@@ -116,7 +116,7 @@ class _ShowModeScreenState extends State<ShowModeScreen> {
                 else ...[
                   const Text('SHOW MODE', style: TextStyle(color: _gold, fontSize: 11.5, fontWeight: FontWeight.w800, letterSpacing: 2.2)),
                   const SizedBox(height: 8),
-                  Text(a.name, style: const TextStyle(fontFamily: Tokens.display, color: _ink, fontSize: 30, height: 1.1, fontWeight: FontWeight.w800)),
+                  Text(a.name, style: const TextStyle(fontFamily: Tokens.serif, color: _ink, fontSize: 36.5, height: 1.1, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 14),
                   if (next != null)
                     Container(

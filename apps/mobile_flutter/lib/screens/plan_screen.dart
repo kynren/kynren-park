@@ -171,7 +171,7 @@ class _PlanScreenState extends State<PlanScreen> {
           Padding(
             padding: const EdgeInsets.only(top: 10),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Padding(padding: const EdgeInsets.only(bottom: 12), child: Text('Your day, planned', style: TextStyle(fontFamily: Tokens.display, fontSize: 16.5, fontWeight: FontWeight.w800, color: c.text))),
+              Padding(padding: const EdgeInsets.only(bottom: 12), child: Text('Your day, planned', style: TextStyle(fontFamily: Tokens.serif, fontSize: 20, fontWeight: FontWeight.w700, color: c.text))),
               if (summaryWindow != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 18),

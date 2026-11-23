@@ -180,7 +180,7 @@ class SheetTitle extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Semantics(header: true, child: Text(title, style: TextStyle(fontFamily: Tokens.display, color: c.text, fontSize: 30, fontWeight: FontWeight.w800, height: 35 / 30, letterSpacing: -0.8))),
+        Semantics(header: true, child: Text(title, style: TextStyle(fontFamily: Tokens.serif, color: c.text, fontSize: 36.5, fontWeight: FontWeight.w700, height: 35 / 30, letterSpacing: 0))),
         if (subtitle != null) Padding(padding: const EdgeInsets.only(top: 3), child: Text(subtitle!, style: TextStyle(color: c.sub, fontSize: 14))),
       ]),
     );
@@ -237,7 +237,7 @@ class SectionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(top: 24, bottom: 10),
-        child: Semantics(header: true, child: Text(text, style: TextStyle(fontFamily: Tokens.display, fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.4, color: context.ui.text))),
+        child: Semantics(header: true, child: Text(text, style: TextStyle(fontFamily: Tokens.serif, fontSize: 24.5, fontWeight: FontWeight.w700, letterSpacing: 0, color: context.ui.text))),
       );
 }
 

@@ -75,7 +75,7 @@ class _TicketGateState extends State<TicketGate> {
                       ),
                       const SizedBox(height: 16),
                     ],
-                    Text(t.title, maxLines: 2, textAlign: TextAlign.center, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: Tokens.display, fontSize: 22, fontWeight: FontWeight.w800, height: 1.2, color: _ink)),
+                    Text(t.title, maxLines: 2, textAlign: TextAlign.center, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: Tokens.serif, fontSize: 27, fontWeight: FontWeight.w700, height: 1.2, color: _ink)),
                     if (line.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: Text(line, textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _soft))),
                     const SizedBox(height: 22),
                     QrImageView(data: t.code, size: qr, padding: EdgeInsets.zero, backgroundColor: Colors.white, eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.square, color: Colors.black), dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.square, color: Colors.black)),

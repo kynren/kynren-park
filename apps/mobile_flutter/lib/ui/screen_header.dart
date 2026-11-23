@@ -34,7 +34,10 @@ class ScreenHeader extends StatelessWidget {
             children: [
               Positioned.fill(
                 child: DecoratedBox(
-                  decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: colors)),
+                  // night sky to a glow of dusk at the bottom edge, whatever the feature's own colour is
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [colors.first, colors.last, Color.lerp(colors.last, Tokens.bandDusk, 0.65)!], stops: const [0, 0.55, 1]),
+                  ),
                 ),
               ),
               if (hasPicture) ...[
@@ -61,19 +64,19 @@ class ScreenHeader extends StatelessWidget {
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                fontFamily: Tokens.display,
-                                color: Colors.white,
-                                fontSize: 20,
-                                fontWeight: FontWeight.w800,
-                                height: 26 / 20,
-                                letterSpacing: -0.4,
+                                fontFamily: Tokens.serif,
+                                color: Tokens.cream,
+                                fontSize: 30,
+                                fontWeight: FontWeight.w700,
+                                height: 1.08,
+                                letterSpacing: 0,
                               ),
                             ),
                           ),
                           if (subtitle != null)
                             Padding(
                               padding: const EdgeInsets.only(top: 4),
-                              child: Text(subtitle!, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xCCFFFFFF), fontSize: 15, fontWeight: FontWeight.w500, height: 21 / 15)),
+                              child: Text(subtitle!, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xCCF3EAD8), fontSize: 15, fontWeight: FontWeight.w500, height: 21 / 15)),
                             ),
                         ],
                       ),

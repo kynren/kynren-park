@@ -404,7 +404,7 @@ class _ProgrammeScreenState extends State<ProgrammeScreen> {
                         ? 'The programme will be available from ${_fmtDate(bundle.nextProgramDate!)}.'
                         : 'There are no more shows today. The next programme will be available soon.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontFamily: Tokens.display, fontSize: 16.5, fontWeight: FontWeight.w800, height: 23 / 16.5, color: c.text),
+                style: TextStyle(fontFamily: Tokens.serif, fontSize: 20, fontWeight: FontWeight.w700, height: 23 / 16.5, color: c.text),
               ),
             ]),
           ),
@@ -531,7 +531,7 @@ class _ProgramRow extends StatelessWidget {
                 label: attraction.name,
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
-                    Flexible(child: Text(attraction.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: Tokens.display, fontSize: 17, fontWeight: FontWeight.w700, color: c.text))),
+                    Flexible(child: Text(attraction.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: Tokens.serif, fontSize: 20.5, fontWeight: FontWeight.w700, color: c.text))),
                     if (isNew) ...[
                       const SizedBox(width: 8),
                       Container(
@@ -614,7 +614,7 @@ class _UpNextCard extends StatelessWidget {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(line.live ? 'ON NOW' : 'UP NEXT', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.4, color: accent)),
               const SizedBox(height: 3),
-              Text(attraction.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: Tokens.display, fontSize: 17, fontWeight: FontWeight.w700, color: c.text)),
+              Text(attraction.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: Tokens.serif, fontSize: 20.5, fontWeight: FontWeight.w700, color: c.text)),
               const SizedBox(height: 2),
               Text('${line.live || line.soon ? line.text : '${line.text} today'}${walk == null ? '' : ' · $walk min walk'}', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: c.sub)),
             ]),
@@ -720,7 +720,7 @@ class _SessionSheet extends StatelessWidget {
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(_edge, 0, _edge, 12),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-          Text(attraction.name, style: TextStyle(fontFamily: Tokens.display, fontSize: 20, fontWeight: FontWeight.w700, color: c.text)),
+          Text(attraction.name, style: TextStyle(fontFamily: Tokens.serif, fontSize: 24.5, fontWeight: FontWeight.w700, color: c.text)),
           const SizedBox(height: 4),
           Text('${sessionTimeText(s)} – ${fmtTime(s.endTime)} · ${sessionMins(s)} mins${walk == null ? '' : ' · $walk min walk'}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: c.sub)),
           if (dead || moved || s.status == 'DELAYED' || (s.note ?? '').isNotEmpty) ...[

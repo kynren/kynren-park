@@ -257,7 +257,7 @@ class _HomeScreenState extends State<HomeScreen> {
           return Padding(
             padding: const EdgeInsets.fromLTRB(22, 24, 22, 0),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(greeting, style: TextStyle(fontFamily: Tokens.display, fontSize: 21, fontWeight: FontWeight.w800, color: c.text)),
+              Text(greeting, style: TextStyle(fontFamily: Tokens.serif, fontSize: 25.5, fontWeight: FontWeight.w700, color: c.text)),
               const SizedBox(height: 6),
               Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Padding(
@@ -460,14 +460,14 @@ class _HomeScreenState extends State<HomeScreen> {
                         _Hero(home: home),
                         const DecoratedBox(
                           decoration: BoxDecoration(
-                            gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xE61D3A2B), Color(0x001D3A2B), Color(0x00000000), Color(0x991A120A)], stops: [0, 0.5, 0.5, 1]),
+                            gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xCC0B1428), Color(0x000B1428), Color(0x00000000), Color(0xB30A1226)], stops: [0, 0.5, 0.5, 1]),
                           ),
                         ),
                         Positioned(
                           left: 22,
                           right: 22,
                           bottom: 46,
-                          child: Text(tagline, style: const TextStyle(fontFamily: Tokens.display, color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800, height: 32 / 28, shadows: [Shadow(color: Color(0x59000000), blurRadius: 8)])),
+                          child: Text(tagline, style: const TextStyle(fontFamily: Tokens.serif, color: Tokens.cream, fontSize: 34, fontWeight: FontWeight.w700, height: 32 / 28, shadows: [Shadow(color: Color(0x59000000), blurRadius: 8)])),
                         ),
                       ]),
                     ),
@@ -619,7 +619,7 @@ class _PromoCard extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: TextStyle(fontFamily: Tokens.display, fontSize: 19, fontWeight: FontWeight.w700, color: c.text)),
+              Text(title, style: TextStyle(fontFamily: Tokens.serif, fontSize: 23, fontWeight: FontWeight.w700, color: c.text)),
               const SizedBox(height: 3),
               Text(text, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13.5, height: 19 / 13.5, color: c.sub)),
               const SizedBox(height: 12),
