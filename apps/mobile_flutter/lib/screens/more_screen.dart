@@ -28,13 +28,13 @@ class MoreScreen extends StatelessWidget {
               const SizedBox(width: 14),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Hello${name.isNotEmpty ? ', $name' : ''}', style: TextStyle(fontFamily: Tokens.serif, fontSize: 23, fontWeight: FontWeight.w700, color: c.text)),
+                  Text('Hello${name.isNotEmpty ? ', $name' : ''}', style: TextStyle(fontFamily: Tokens.display, fontSize: 19, fontWeight: FontWeight.w800, color: c.text)),
                   if ((user.email ?? '').isNotEmpty) Text(user.email!, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: c.sub)),
                 ]),
               ),
             ])
           : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Welcome', style: TextStyle(fontFamily: Tokens.serif, fontSize: 23, fontWeight: FontWeight.w700, color: c.text)),
+              Text('Welcome', style: TextStyle(fontFamily: Tokens.display, fontSize: 19, fontWeight: FontWeight.w800, color: c.text)),
               const SizedBox(height: 4),
               Text('Sign in to see your tickets, reminders and your day.', style: TextStyle(fontSize: 13.5, height: 19 / 13.5, color: c.sub)),
               const SizedBox(height: 14),

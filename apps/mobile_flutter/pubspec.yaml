@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+57
+version: 1.0.0+58
 
 environment:
   sdk: ^3.13.1
@@ -86,16 +86,8 @@ flutter:
     - assets/splash/
     - assets/icon/
 
-  # Plus Jakarta Sans for everything, and Cormorant Garamond for titles (both SIL Open Font License).
+  # One typeface for the whole app (Plus Jakarta Sans, SIL Open Font License).
   fonts:
-    - family: Cormorant
-      fonts:
-        - asset: assets/fonts/Cormorant-500Medium.ttf
-          weight: 500
-        - asset: assets/fonts/Cormorant-600SemiBold.ttf
-          weight: 600
-        - asset: assets/fonts/Cormorant-700Bold.ttf
-          weight: 700
     - family: Jakarta
       fonts:
         - asset: assets/fonts/PlusJakartaSans-400Regular.ttf

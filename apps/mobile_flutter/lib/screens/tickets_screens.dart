@@ -108,7 +108,7 @@ class _TicketRow extends StatelessWidget {
         const SizedBox(width: 14),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(ticket.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: Tokens.serif, fontSize: 19.5, fontWeight: FontWeight.w700, height: 21 / 16, color: c.text)),
+            Text(ticket.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: Tokens.display, fontSize: 16, fontWeight: FontWeight.w700, height: 21 / 16, color: c.text)),
             if (meta.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text(meta, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, height: 18 / 13, color: c.sub))),
           ]),
         ),
@@ -221,7 +221,7 @@ class _TicketsScreenState extends State<TicketsScreen> with _TicketsLoader {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Text('TODAY', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 2, color: Color(0xCCFFFFFF))),
                 const SizedBox(height: 6),
-                Text(today.length == 1 ? today.first.title : '${today.length} tickets for today', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: Tokens.serif, fontSize: 25.5, fontWeight: FontWeight.w700, height: 1.2, color: Colors.white)),
+                Text(today.length == 1 ? today.first.title : '${today.length} tickets for today', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: Tokens.display, fontSize: 21, fontWeight: FontWeight.w800, height: 1.2, color: Colors.white)),
                 const SizedBox(height: 14),
                 Tap(
                   onTap: () => openGateMode(context, today, 0),

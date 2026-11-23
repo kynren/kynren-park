@@ -27,9 +27,6 @@ class Tokens {
 
   /// The typeface for everything: headings are just heavier weights of it.
   static const display = 'Jakarta';
-
-  /// The serif for titles (Cormorant Garamond). It sits small on its line, so titles set in it are a little larger.
-  static const serif = 'Cormorant';
 }
 
 /// Colours for one screen theme; screens read these instead of keeping a palette of their own.

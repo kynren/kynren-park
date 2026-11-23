@@ -40,7 +40,7 @@ void main() {
     PathProviderPlatform.instance = _FakePathProvider(dir.path);
     SharedPreferences.setMockInitialValues({});
 
-    tester.view.physicalSize = const Size(780, 2000); // tall enough that the larger serif titles do not push the diet filters out of reach
+    tester.view.physicalSize = const Size(780, 1688);
     tester.view.devicePixelRatio = 2;
     await tester.runAsync(() async {
       await tester.pumpWidget(const KynrenApp());

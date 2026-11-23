@@ -213,30 +213,25 @@ class _HomeScreenState extends State<HomeScreen> {
           if (upcoming.isEmpty) return null;
           final next = upcoming.first;
           final startsIn = _start(next).difference(ukNow()).inMinutes;
-          final when = startsIn <= 0 ? 'On now' : startsIn < 60 ? 'In $startsIn min' : 'In ${startsIn ~/ 60}h ${(startsIn % 60).toString().padLeft(2, '0')}m';
+          final countdown = startsIn <= 0 ? 'On now' : startsIn < 60 ? '$startsIn min' : '${startsIn ~/ 60} h ${(startsIn % 60).toString().padLeft(2, '0')} min';
           return Padding(
             padding: const EdgeInsets.fromLTRB(20, 22, 20, 0),
-            child: KCard(
+            child: Tap(
               onTap: () => go('/attraction/${next.attractionSlug}'),
-              padding: const EdgeInsets.all(12),
-              child: Row(children: [
-                Cover(image: imageById[next.attractionId], color: categoryColor[next.attractionCategory] ?? Tokens.brand, icon: Icons.calendar_month_rounded, height: 84, width: 84, radius: 18),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Row(children: [
-                      Container(width: 8, height: 8, decoration: BoxDecoration(color: startsIn <= 0 ? Tokens.danger : Tokens.ok, shape: BoxShape.circle)),
-                      const SizedBox(width: 6),
-                      Text(startsIn <= 0 ? 'HAPPENING NOW' : 'NEXT UP', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1, color: c.sub)),
-                    ]),
-                    const SizedBox(height: 4),
-                    Text(next.attractionName, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, height: 1.2, letterSpacing: -0.2, color: c.text)),
-                    const SizedBox(height: 6),
-                    Text('${fmtTime(next.revisedStart ?? next.startTime)}  ·  $when', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: c.link)),
-                  ]),
-                ),
-                Icon(Icons.chevron_right_rounded, color: c.placeholder, size: 22),
-              ]),
+              label: '${next.attractionName}, $countdown',
+              child: Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(color: Tokens.brand, borderRadius: BorderRadius.circular(22), border: context.isDark ? Border.all(color: c.line) : null),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(startsIn <= 0 ? 'HAPPENING NOW' : 'NEXT UP', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, letterSpacing: 1.4, color: Color(0xB3FFFFFF))),
+                  const SizedBox(height: 4),
+                  Text(startsIn <= 0 ? next.attractionName : countdown, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: Tokens.display, fontSize: 30, height: 1.1, fontWeight: FontWeight.w800, color: Colors.white)),
+                  const SizedBox(height: 4),
+                  Text(startsIn <= 0 ? 'Started at ${fmtTime(next.revisedStart ?? next.startTime)}' : '${next.attractionName} at ${fmtTime(next.revisedStart ?? next.startTime)}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13.5, color: Color(0xCCFFFFFF))),
+                  const SizedBox(height: 14),
+                  KButton(user != null ? 'Show my tickets' : 'View the shows', full: true, onPressed: () => go(user != null ? '/tickets' : '/shows')),
+                ]),
+              ),
             ),
           );
         case 'rightNow':
@@ -257,7 +252,7 @@ class _HomeScreenState extends State<HomeScreen> {
           return Padding(
             padding: const EdgeInsets.fromLTRB(22, 24, 22, 0),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(greeting, style: TextStyle(fontFamily: Tokens.serif, fontSize: 25.5, fontWeight: FontWeight.w700, color: c.text)),
+              Text(greeting, style: TextStyle(fontFamily: Tokens.display, fontSize: 21, fontWeight: FontWeight.w800, color: c.text)),
               const SizedBox(height: 6),
               Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Padding(
@@ -467,7 +462,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           left: 22,
                           right: 22,
                           bottom: 46,
-                          child: Text(tagline, style: const TextStyle(fontFamily: Tokens.serif, color: Tokens.cream, fontSize: 34, fontWeight: FontWeight.w700, height: 32 / 28, shadows: [Shadow(color: Color(0x59000000), blurRadius: 8)])),
+                          child: Text(tagline, style: const TextStyle(fontFamily: Tokens.display, color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800, height: 32 / 28, shadows: [Shadow(color: Color(0x59000000), blurRadius: 8)])),
                         ),
                       ]),
                     ),
@@ -619,7 +614,7 @@ class _PromoCard extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: TextStyle(fontFamily: Tokens.serif, fontSize: 23, fontWeight: FontWeight.w700, color: c.text)),
+              Text(title, style: TextStyle(fontFamily: Tokens.display, fontSize: 19, fontWeight: FontWeight.w700, color: c.text)),
               const SizedBox(height: 3),
               Text(text, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13.5, height: 19 / 13.5, color: c.sub)),
               const SizedBox(height: 12),

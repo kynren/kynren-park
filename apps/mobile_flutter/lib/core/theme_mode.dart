@@ -4,9 +4,9 @@ import 'safe_notify.dart';
 
 const _key = 'kynren_theme_pref';
 
-/// The guest's light / dark / system choice. The night theme is the one the app is designed around, so it is the default.
+/// The guest's light / dark / system choice. The light theme (white cards on a navy header) is what the app is designed around, so it is the default; the night theme is a choice in Settings.
 class ThemePref extends ChangeNotifier with SafeNotify {
-  ThemeMode mode = ThemeMode.dark;
+  ThemeMode mode = ThemeMode.light;
 
   Future<void> load() async {
     final v = (await SharedPreferences.getInstance()).getString(_key);

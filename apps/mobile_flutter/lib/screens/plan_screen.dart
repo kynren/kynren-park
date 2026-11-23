@@ -153,12 +153,11 @@ class _PlanScreenState extends State<PlanScreen> {
               ),
             ),
         ]),
-        KButton('${t('plan.optimise')}${_selected.isNotEmpty ? ' (${_selected.length})' : ''}', full: true, loading: _loading, onPressed: _selected.isEmpty ? null : () => _optimize(sync.date)),
+        KButton('${t('plan.optimise')}${_selected.isNotEmpty ? ' (${_selected.length})' : ''}', full: true, loading: _loading, variant: ButtonVariant.soft, onPressed: _selected.isEmpty ? null : () => _optimize(sync.date)),
         if (attractions.isNotEmpty)
           KButton(
-            'Plan it all for me',
+            'Plan my evening for me',
             full: true,
-            variant: ButtonVariant.soft,
             icon: Icons.auto_awesome_rounded,
             onPressed: _loading
                 ? null
@@ -171,7 +170,7 @@ class _PlanScreenState extends State<PlanScreen> {
           Padding(
             padding: const EdgeInsets.only(top: 10),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Padding(padding: const EdgeInsets.only(bottom: 12), child: Text('Your day, planned', style: TextStyle(fontFamily: Tokens.serif, fontSize: 20, fontWeight: FontWeight.w700, color: c.text))),
+              Padding(padding: const EdgeInsets.only(bottom: 12), child: Text('Your day, planned', style: TextStyle(fontFamily: Tokens.display, fontSize: 16.5, fontWeight: FontWeight.w800, color: c.text))),
               if (summaryWindow != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 18),
