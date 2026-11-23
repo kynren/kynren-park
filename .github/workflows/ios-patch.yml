@@ -1,0 +1,40 @@
+name: iOS patch (Shorebird)
+
+# Started by hand: `gh workflow run ios-patch.yml --ref <branch> -f release_version=1.0.0+59`.
+# Builds the Flutter app on a GitHub Mac and publishes it as an over-the-air patch for iPhones that already have the
+# given Shorebird release installed. No App Store or TestFlight upload is involved, and only Dart changes can be patched.
+#
+# Secrets used: SHOREBIRD_TOKEN.
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: The Shorebird release to patch (the version and build number the phones have, for example 1.0.0+59)
+        type: string
+        required: true
+
+concurrency:
+  group: ios-patch
+  cancel-in-progress: false
+
+jobs:
+  patch:
+    runs-on: macos-26
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: apps/mobile_flutter
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - uses: shorebirdtech/setup-shorebird@v1
+
+      # The patch is built with the Flutter version the release was made with; Shorebird takes that from the release.
+      - name: Publish the patch
+        env:
+          SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
+        run: yes | shorebird patch ios --no-codesign --release-version=${{ inputs.release_version }}
