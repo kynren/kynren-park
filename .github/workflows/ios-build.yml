@@ -4,7 +4,7 @@ name: iOS build (TestFlight)
 # Builds the Flutter guest app on a GitHub Mac, signs it with Apple's cloud-managed signing using the App Store
 # Connect API key stored in the repository secrets, and uploads it to TestFlight.
 #
-# Secrets used: ASC_KEY_P8_BASE64 (the .p8 key, base64), ASC_KEY_ID, ASC_ISSUER_ID.
+# Secrets used: ASC_KEY_P8_BASE64 (the .p8 key, base64), ASC_KEY_ID, ASC_ISSUER_ID, SHOREBIRD_TOKEN.
 on:
   # Pushing to the `ios-build` branch also runs it, as a build-only check (nothing is uploaded to TestFlight).
   push:
@@ -40,19 +40,17 @@ jobs:
       - name: Xcode version
         run: xcodebuild -version
 
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
+      - uses: shorebirdtech/setup-shorebird@v1
 
-      - name: Flutter version
-        run: flutter --version
-
-      - name: Dependencies
-        run: flutter pub get
-
-      - name: Build the archive (unsigned)
-        run: flutter build ipa --release --no-codesign
+      # A Shorebird release (not a plain flutter build), so this build can receive over-the-air patches later. It is
+      # pinned to the Flutter version the Android release uses and the app is tested with. The archive is left unsigned:
+      # Apple's cloud-managed signing signs it in the export step below.
+      - name: Build the archive (unsigned) as a Shorebird release
+        env:
+          SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
+        run: printf 'y
+y
+' | shorebird release ios --no-codesign --flutter-version=3.47.1
 
       - name: Put the App Store Connect key in place
         env:
