@@ -1,0 +1,94 @@
+name: iOS build (TestFlight)
+
+# Started by hand from the Actions tab (or `gh workflow run ios-build.yml`). Never runs on a push.
+# Builds the Flutter guest app on a GitHub Mac, signs it with Apple's cloud-managed signing using the App Store
+# Connect API key stored in the repository secrets, and uploads it to TestFlight.
+#
+# Secrets used: ASC_KEY_P8_BASE64 (the .p8 key, base64), ASC_KEY_ID, ASC_ISSUER_ID.
+on:
+  # Pushing to the `ios-build` branch also runs it, as a build-only check (nothing is uploaded to TestFlight).
+  push:
+    branches: [ios-build]
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: Upload the build to TestFlight (untick to only prove it builds)
+        type: boolean
+        default: true
+
+concurrency:
+  group: ios-build
+  cancel-in-progress: false
+
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      TEAM_ID: 48QK43GBAY
+      BUNDLE_ID: com.kynren.storiedlands
+    defaults:
+      run:
+        working-directory: apps/mobile_flutter
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter version
+        run: flutter --version
+
+      - name: Dependencies
+        run: flutter pub get
+
+      - name: Build the archive (unsigned)
+        run: flutter build ipa --release --no-codesign
+
+      - name: Put the App Store Connect key in place
+        env:
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/asc"
+          echo "$ASC_KEY_P8_BASE64" | base64 --decode > "$RUNNER_TEMP/asc/key.p8"
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>teamID</key><string>${TEAM_ID}</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>destination</key><string>${{ inputs.upload && 'upload' || 'export' }}</string>
+            <key>uploadSymbols</key><true/>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Sign with cloud-managed signing, export and upload
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath build/ios/archive/Runner.xcarchive \
+            -exportPath "$RUNNER_TEMP/export" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/asc/key.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+
+      - name: Remove the key
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/asc"
+
+      - name: Keep the ipa when not uploading
+        if: ${{ !inputs.upload }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: kynren-ios-ipa
+          path: ${{ runner.temp }}/export/*.ipa
+          retention-days: 3
