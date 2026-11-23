@@ -6,12 +6,16 @@ name: iOS patch (Shorebird)
 #
 # Secrets used: SHOREBIRD_TOKEN.
 on:
+  # Pushing to the `ios-patch-run` branch also runs it, for release 1.0.0+59 (GitHub only lets a workflow be started by hand
+  # once it exists on the default branch, so this is how a patch is started until then).
+  push:
+    branches: [ios-patch-run]
   workflow_dispatch:
     inputs:
       release_version:
         description: The Shorebird release to patch (the version and build number the phones have, for example 1.0.0+59)
         type: string
-        required: true
+        default: 1.0.0+59
 
 concurrency:
   group: ios-patch
@@ -37,4 +41,4 @@ jobs:
       - name: Publish the patch
         env:
           SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
-        run: yes | shorebird patch ios --no-codesign --release-version=${{ inputs.release_version }}
+        run: yes | shorebird patch ios --no-codesign --release-version=${{ inputs.release_version || '1.0.0+59' }}
