@@ -14,8 +14,7 @@ import '../../core/shuttle_logic.dart';
 import '../../core/sync.dart';
 import '../../core/theme.dart';
 import '../../ui/cover.dart';
-import '../../ui/kimage.dart';
-import '../../ui/skeleton.dart';
+import '../../ui/square_picture.dart';
 import '../../ui/tap.dart';
 import 'map_logic.dart';
 import 'map_widgets.dart';
@@ -180,19 +179,12 @@ class _PlaceSheetState extends State<PlaceSheet> {
                         ? Cover(
                             color: pinTint(pin),
                             icon: pin.kind == PinKind.restaurant ? Icons.restaurant_rounded : Icons.calendar_month_rounded,
-                            height: 84,
+                            height: 96,
                             width: 96,
                             radius: 16,
                           )
-                        // The picture fills its box edge to edge with nothing cut off: the box takes the picture's own shape (a wide logo
-                        // gets a wider box), within limits so the title beside it keeps its room.
-                        : ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(minWidth: 72, maxWidth: 156, minHeight: 84, maxHeight: 84),
-                              child: KImage(pin.image!, fit: BoxFit.cover, height: 84, cacheWidth: 600, placeholder: (_) => const SizedBox(width: 96, height: 84, child: Skeleton(radius: 0))),
-                            ),
-                          ),
+                        // A square that shows the whole picture neatly: a wide logo sits whole on its own edge colour (see SquarePicture).
+                        : SquarePicture(url: pin.image!, size: 96, radius: 16, backdrop: c.card),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
