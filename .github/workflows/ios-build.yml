@@ -48,9 +48,7 @@ jobs:
       - name: Build the archive (unsigned) as a Shorebird release
         env:
           SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
-        run: printf 'y
-y
-' | shorebird release ios --no-codesign --flutter-version=3.47.1
+        run: yes | shorebird release ios --no-codesign --flutter-version=3.47.1
 
       - name: Put the App Store Connect key in place
         env:
