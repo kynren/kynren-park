@@ -262,9 +262,11 @@ export default function MapEditor() {
     const fy = (bounds.maxLat - p.lat) / (bounds.maxLat - bounds.minLat);
     return { left: (imgRect.ox + fx * imgRect.w) * 100, top: (imgRect.oy + fy * imgRect.h) * 100 };
   };
+  // The picture can be dragged at any zoom, a little past its own edges (like a map app) so it never feels stuck.
+  const PAN_SLACK = 0.35;
   const clampPan = (x: number, y: number, z: number, w: number, h: number) => ({
-    x: Math.min(0, Math.max(w * (1 - z), x)),
-    y: Math.min(0, Math.max(h * (1 - z), y)),
+    x: Math.min(w * PAN_SLACK, Math.max(w * (1 - z) - w * PAN_SLACK, x)),
+    y: Math.min(h * PAN_SLACK, Math.max(h * (1 - z) - h * PAN_SLACK, y)),
   });
   const unproj = (clientX: number, clientY: number) => {
     const r = canvasRef.current!.getBoundingClientRect();
@@ -301,7 +303,6 @@ export default function MapEditor() {
   function onCanvasPointerDown(e: React.PointerEvent) {
     moved.current = false;
     downPos.current = { x: e.clientX, y: e.clientY }; // a press that travels is a drag, never a click
-    if (view.zoom <= 1) return; // there is nothing to move until the picture is zoomed in
     panning.current = true; setGrabbing(true);
     panStart.current = { sx: e.clientX, sy: e.clientY, px: view.x, py: view.y };
   }
@@ -449,11 +450,11 @@ export default function MapEditor() {
             <span>Press and hold a hotspot to move it</span>
             <button className="tbtn" onClick={fitToWidth} title="Zoom so the picture fills the width of the editor">Fit to width</button>
           </div>
-          <div ref={canvasRef} className="mapcanvas" style={{ overflow: 'hidden', cursor: placing ? 'crosshair' : view.zoom > 1 ? (grabbing ? 'grabbing' : 'grab') : 'default' }} onClick={onCanvasClick} onDoubleClick={onCanvasDoubleClick} onPointerDown={onCanvasPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp} onWheel={onWheelZoom} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
+          <div ref={canvasRef} className="mapcanvas" style={{ overflow: 'hidden', cursor: placing ? 'crosshair' : grabbing ? 'grabbing' : 'grab' }} onClick={onCanvasClick} onDoubleClick={onCanvasDoubleClick} onPointerDown={onCanvasPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp} onWheel={onWheelZoom} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
             <div style={{ position: 'absolute', inset: 0, transformOrigin: '0 0', transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}>
-            {defaultMap?.imageUrl && <img src={defaultMap.imageUrl} alt="" onLoad={(e) => { const t = e.currentTarget; if (t.naturalWidth && t.naturalHeight) setMapAspect(t.naturalWidth / t.naturalHeight); }} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' }} />}
+            {defaultMap?.imageUrl && <img src={defaultMap.imageUrl} alt="" draggable={false} onLoad={(e) => { const t = e.currentTarget; if (t.naturalWidth && t.naturalHeight) setMapAspect(t.naturalWidth / t.naturalHeight); }} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' }} />}
             {showPaths && walkPreview && (
-              <img src={walkPreview} alt="" style={{ position: 'absolute', left: `${imgRect.ox * 100}%`, top: `${imgRect.oy * 100}%`, width: `${imgRect.w * 100}%`, height: `${imgRect.h * 100}%`, pointerEvents: 'none' }} />
+              <img src={walkPreview} alt="" draggable={false} style={{ position: 'absolute', left: `${imgRect.ox * 100}%`, top: `${imgRect.oy * 100}%`, width: `${imgRect.w * 100}%`, height: `${imgRect.h * 100}%`, pointerEvents: 'none' }} />
             )}
             <div className="grid" />
             {pois.map((p) => {
