@@ -68,6 +68,8 @@ export default function MapEditor() {
   // Zoom (1–4) + pan offset (px) for the editor viewport.
   const [view, setView] = useState({ zoom: 1, x: 0, y: 0 });
   const panning = useRef(false);
+  const downPos = useRef<{ x: number; y: number } | null>(null);
+  const [grabbing, setGrabbing] = useState(false);
   const panStart = useRef({ sx: 0, sy: 0, px: 0, py: 0 });
 
   const loadEntities = useCallback(() => {
@@ -297,9 +299,17 @@ export default function MapEditor() {
   function zoomCenter(factor: number) { const r = canvasRef.current?.getBoundingClientRect(); zoomAt((r?.width ?? 0) / 2, (r?.height ?? 0) / 2, factor); }
   function onWheelZoom(e: React.WheelEvent) { const r = canvasRef.current!.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? 1.15 : 1 / 1.15); }
   function onCanvasPointerDown(e: React.PointerEvent) {
-    if (view.zoom <= 1) return; // pan only when zoomed in
-    panning.current = true; moved.current = false;
+    moved.current = false;
+    downPos.current = { x: e.clientX, y: e.clientY }; // a press that travels is a drag, never a click
+    if (view.zoom <= 1) return; // there is nothing to move until the picture is zoomed in
+    panning.current = true; setGrabbing(true);
     panStart.current = { sx: e.clientX, sy: e.clientY, px: view.x, py: view.y };
+  }
+  // Fill the width of the editor with the picture (a phone-shaped map is a narrow strip until it is), then drag it up and down.
+  function fitToWidth() {
+    const r = canvasRef.current?.getBoundingClientRect(); if (!r) return;
+    const z = Math.min(4, Math.max(1, +(1 / imgRect.w).toFixed(3)));
+    setView({ zoom: z, ...clampPan(-imgRect.ox * r.width * z, 0, z, r.width, r.height) });
   }
 
   const selected = pois.find((p) => p.id === selId) ?? null;
@@ -311,20 +321,30 @@ export default function MapEditor() {
       setPois((p) => [...p, created]); setSelId(created.id); setErr('');
     } catch (e) { setErr(friendlyError(e, 'Could not add the hotspot.')); }
   }
+  const isMapSpot = (e: React.MouseEvent) => {
+    // the canvas, the grid overlay or the base-map picture itself: not a pin or a button on top of it
+    const t = e.target as HTMLElement;
+    return t === canvasRef.current || t.classList.contains('grid') || t.tagName === 'IMG';
+  };
+  // A single click does nothing to the map, so dragging it, or a stray click, never leaves a marker behind. The one exception is
+  // while "Mark on picture" is on: that mode exists to take the next click as a landmark.
   function onCanvasClick(e: React.MouseEvent) {
     if (moved.current) { moved.current = false; return; }
-    // Allow clicks on the canvas, the grid overlay, or the base-map image itself.
-    const t = e.target as HTMLElement;
-    if (t !== canvasRef.current && !t.classList.contains('grid') && t.tagName !== 'IMG') return;
+    if (!isMapSpot(e)) return;
     if (placing) { // a landmark for the real-world position, not a hotspot
       const { fx, fy } = unprojFraction(e.clientX, e.clientY);
       setLandmarks((l) => [...l, { key: `n${Date.now()}`, u: fx, v: fy, label: '', coords: '' }]);
       setPlacing(false);
-      return;
     }
+  }
+  // Adding a hotspot takes a deliberate double-click on an empty spot.
+  function onCanvasDoubleClick(e: React.MouseEvent) {
+    if (placing || moved.current || !isMapSpot(e)) return;
     createAt(e.clientX, e.clientY);
   }
   function onPointerMove(e: React.PointerEvent) {
+    const d = downPos.current;
+    if (d && !moved.current && Math.hypot(e.clientX - d.x, e.clientY - d.y) > 4) moved.current = true;
     if (dragId.current) {
       moved.current = true;
       const { lat, lng } = unproj(e.clientX, e.clientY);
@@ -340,7 +360,8 @@ export default function MapEditor() {
   }
   function onPointerUp() {
     if (holdTimer.current) { clearTimeout(holdTimer.current); holdTimer.current = null; }
-    if (panning.current) { panning.current = false; return; }
+    downPos.current = null;
+    if (panning.current) { panning.current = false; setGrabbing(false); return; }
     const id = dragId.current;
     dragId.current = null;
     if (id) {
@@ -408,7 +429,7 @@ export default function MapEditor() {
   return (
     <div>
       <div className="page-actions">
-        <div><h1>Map &amp; Hotspots</h1><p className="subtitle" style={{ margin: 0 }}>Scroll to zoom, drag to pan (when zoomed). Tap a hotspot to edit, press-hold to move, or click an empty spot to add one.</p></div>
+        <div><h1>Map &amp; Hotspots</h1><p className="subtitle" style={{ margin: 0 }}>Place the park's attractions, food and facilities on the map picture, and set how the app's map starts.</p></div>
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
           <label className="checkline"><input type="checkbox" checked={showPaths} onChange={(e) => setShowPaths(e.target.checked)} /> Show walkways</label>
           <label className="checkline"><input type="checkbox" checked={showLabels} onChange={(e) => setShowLabels(e.target.checked)} /> Show labels</label>
@@ -420,7 +441,15 @@ export default function MapEditor() {
         {/* Map on the left, place-on-map palette on the right. */}
         <div style={{ display: 'flex', gap: 16, alignItems: 'stretch', flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', flex: '1 1 440px', minWidth: 0 }}>
-          <div ref={canvasRef} className="mapcanvas" style={{ overflow: 'hidden', cursor: placing ? 'crosshair' : undefined }} onClick={onCanvasClick} onPointerDown={onCanvasPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp} onWheel={onWheelZoom} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
+          <div className="maptips">
+            <span>Drag the map to move it</span>
+            <span>Scroll to zoom</span>
+            <span><b>Double-click</b> an empty spot to add a hotspot</span>
+            <span>Tap a hotspot to edit</span>
+            <span>Press and hold a hotspot to move it</span>
+            <button className="tbtn" onClick={fitToWidth} title="Zoom so the picture fills the width of the editor">Fit to width</button>
+          </div>
+          <div ref={canvasRef} className="mapcanvas" style={{ overflow: 'hidden', cursor: placing ? 'crosshair' : view.zoom > 1 ? (grabbing ? 'grabbing' : 'grab') : 'default' }} onClick={onCanvasClick} onDoubleClick={onCanvasDoubleClick} onPointerDown={onCanvasPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp} onWheel={onWheelZoom} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
             <div style={{ position: 'absolute', inset: 0, transformOrigin: '0 0', transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}>
             {defaultMap?.imageUrl && <img src={defaultMap.imageUrl} alt="" onLoad={(e) => { const t = e.currentTarget; if (t.naturalWidth && t.naturalHeight) setMapAspect(t.naturalWidth / t.naturalHeight); }} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' }} />}
             {showPaths && walkPreview && (
@@ -496,43 +525,47 @@ export default function MapEditor() {
         </div>{/* /map + palette row */}
 
         {/* Settings cards — a responsive row above the full-width map. */}
-        <div style={{ order: -1, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16, alignItems: 'start' }}>
+        <div className="mapcards">
           <div className="editcard">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
               <h3 style={{ margin: 0 }}>Base maps</h3>
               <button className="primary" onClick={uploadBaseMap}>⬆ Upload map image</button>
             </div>
-            <p style={{ color: 'var(--muted)', fontSize: 12, margin: '10px 0 12px', lineHeight: 1.5 }}>
-              The <b>default</b> map is what the mobile app shows. For the illustrated 3D look, use a <b>portrait,
-              phone-shaped</b> image (about <b>9:19.5</b>, e.g. <b>1440&nbsp;×&nbsp;3120&nbsp;px</b> or larger) so it
-              fills the screen edge-to-edge with no cropping. Up to <b>4096&nbsp;px</b> on the longest edge is kept for
-              sharpness when guests zoom in; <b>PNG or JPG</b>, up to <b>500&nbsp;MB</b> — large originals are optimised
-              automatically in your browser before upload, so only a lightweight version is stored and sent to phones.
-            </p>
+            <p style={{ color: 'var(--muted)', fontSize: 13, margin: '10px 0 8px', lineHeight: 1.5 }}>The <b>default</b> map is what the mobile app shows.</p>
+            <details className="helpbox">
+              <summary>Picture size and format</summary>
+              For the illustrated 3D look, use a <b>portrait, phone-shaped</b> image (about <b>9:19.5</b>, e.g. <b>1440&nbsp;×&nbsp;3120&nbsp;px</b> or larger) so it
+              fills the screen edge-to-edge with no cropping. Up to <b>4096&nbsp;px</b> on the longest edge is kept for sharpness when guests zoom in;
+              <b> PNG or JPG</b>, up to <b>500&nbsp;MB</b>. Large originals are optimised automatically in your browser before upload, so only a
+              lightweight version is stored and sent to phones.
+            </details>
             <div style={{ display: 'grid', gap: 8 }}>
               {maps.length === 0 && <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0 }}>No maps yet — add one below.</p>}
               {maps.map((m) => (
-                <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', borderBottom: '1px solid var(--line)', paddingBottom: 8 }}>
-                  <button onClick={() => setDefaultMap(m.id)} title="Set as default"
-                    style={{ width: 18, height: 18, borderRadius: '50%', border: 0, cursor: 'pointer', background: m.isDefault ? '#22b365' : '#fff', boxShadow: '0 0 0 1px var(--border)' }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14 }}>{m.name} {m.isDefault && <span className="pillbadge on">Default</span>}</div>
-                    <div style={{ fontSize: 12, color: 'var(--muted)', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>{m.imageUrl ? (m.imageUrl.startsWith('data:') ? 'Uploaded image' : m.imageUrl) : 'no image (illustrated map)'}</div>
-                    {m.imageUrl && <div style={{ fontSize: 12, color: m.walkGrid ? '#22b365' : 'var(--muted)' }}>{m.walkGrid ? 'Walkways found: directions follow them' : 'No walkways found yet: directions cut between places'}</div>}
+                <div key={m.id} className={`maprow ${m.isDefault ? 'on' : ''}`}>
+                  <div className="mapthumb">{m.imageUrl ? <img src={m.imageUrl} alt="" /> : <span>No picture</span>}</div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <b style={{ fontSize: 14.5 }}>{m.name}</b>
+                      {m.isDefault ? <span className="pillbadge on">Default</span> : <button className="tbtn" onClick={() => setDefaultMap(m.id)}>Make default</button>}
+                    </div>
+                    <div className="maprow-url" title={m.imageUrl && !m.imageUrl.startsWith('data:') ? m.imageUrl : undefined}>{m.imageUrl ? (m.imageUrl.startsWith('data:') ? 'Uploaded picture' : m.imageUrl) : 'No picture yet (an illustrated map is shown)'}</div>
+                    {m.imageUrl && <div style={{ fontSize: 12, color: m.walkGrid ? '#22b365' : 'var(--muted)', marginTop: 2 }}>{m.walkGrid ? 'Walkways found: directions follow them' : 'No walkways found yet: directions cut between places'}</div>}
+                    <div className="maprow-actions">
+                      {m.imageUrl && <button className="tbtn" onClick={() => findPaths(m.id, m.imageUrl!)} title="Look at the picture for footpaths and roads">Find walkways</button>}
+                      {m.walkGrid && <button className="tbtn" onClick={() => clearPaths(m.id)}>Clear walkways</button>}
+                      <button className="tbtn" onClick={() => triggerUpload(m.id)}>Upload</button>
+                      <button className="tbtn" onClick={async () => { const u = await promptText('Image URL (leave blank to remove)', m.imageUrl ?? '', 'Map image URL'); if (u !== null) setMapImage(m.id, u.trim() || null); }}>URL</button>
+                      {m.imageUrl && <button className="tbtn" onClick={() => setMapImage(m.id, null, null)}>Remove picture</button>}
+                      <button className="tbtn danger" onClick={() => deleteMap(m.id)} title="Delete this map">Delete</button>
+                    </div>
                   </div>
-                  {m.imageUrl && <button className="tbtn" onClick={() => findPaths(m.id, m.imageUrl!)} title="Look at the picture for footpaths and roads">Find walkways</button>}
-                  {m.walkGrid && <button className="tbtn" onClick={() => clearPaths(m.id)}>Clear walkways</button>}
-                  <button className="tbtn" onClick={() => triggerUpload(m.id)}>Upload</button>
-                  <button className="tbtn" onClick={async () => { const u = await promptText('Image URL (leave blank to remove)', m.imageUrl ?? '', 'Map image URL'); if (u !== null) setMapImage(m.id, u.trim() || null); }}>URL</button>
-                  {m.imageUrl && <button className="tbtn" onClick={() => setMapImage(m.id, null, null)}>Remove</button>}
-                  <button className="tbtn danger" onClick={() => deleteMap(m.id)}>✕</button>
                 </div>
               ))}
             </div>
             <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={onFileChange} />
             <div style={{ marginTop: 12, fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.5 }}>
-              <b>Walkways.</b> When a map is uploaded, its footpaths and roads are found automatically from the picture: the colour
-              under your hotspots is what a path looks like, so keep a few hotspots on paths. The app&rsquo;s directions then follow them.
+              <b>Walkways.</b> Footpaths and roads are found from the picture, so the app&rsquo;s directions can follow them. Keep a few hotspots on paths: their colour is what a path looks like.
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
                 Path colour match
                 <input type="range" min={10} max={34} value={pathTol} onChange={(e) => setPathTol(Number(e.target.value))} style={{ flex: 1 }} />
@@ -594,13 +627,6 @@ export default function MapEditor() {
             )}
           </div>
 
-          <p style={{ color: 'var(--muted)', fontSize: 12.5, lineHeight: 1.7, margin: '0 2px' }}>
-            <b>Editing hotspots</b><br />
-            • Tap a hotspot to edit it in a popup<br />
-            • Press &amp; hold a hotspot to drag it<br />
-            • Click an empty spot on the map to add one<br />
-            • Drag an item from <b>Place on map</b> to drop it
-          </p>
 
           <div className="editcard">
             <h3>Guest marker &amp; map</h3>
