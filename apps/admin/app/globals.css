@@ -373,3 +373,5 @@ button.primary:hover { filter: brightness(0.95); }
 
 /* The picture inside the map editor must not be picked up as a draggable image: that cancels dragging the map. */
 .mapcanvas img { -webkit-user-drag: none; user-select: none; }
+/* Pins are picked up by press and hold, so a finger on one must not start scrolling the page. */
+.mapcanvas .hot { touch-action: none; }

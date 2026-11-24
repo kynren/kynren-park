@@ -303,6 +303,8 @@ export default function MapEditor() {
   function onCanvasPointerDown(e: React.PointerEvent) {
     moved.current = false;
     downPos.current = { x: e.clientX, y: e.clientY }; // a press that travels is a drag, never a click
+    // On a phone or tablet one finger scrolls the page until the picture is zoomed in; a mouse can always drag it.
+    if (e.pointerType === 'touch' && view.zoom <= 1) return;
     panning.current = true; setGrabbing(true);
     panStart.current = { sx: e.clientX, sy: e.clientY, px: view.x, py: view.y };
   }
@@ -450,7 +452,7 @@ export default function MapEditor() {
             <span>Press and hold a hotspot to move it</span>
             <button className="tbtn" onClick={fitToWidth} title="Zoom so the picture fills the width of the editor">Fit to width</button>
           </div>
-          <div ref={canvasRef} className="mapcanvas" style={{ overflow: 'hidden', cursor: placing ? 'crosshair' : grabbing ? 'grabbing' : 'grab' }} onClick={onCanvasClick} onDoubleClick={onCanvasDoubleClick} onPointerDown={onCanvasPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp} onWheel={onWheelZoom} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
+          <div ref={canvasRef} className="mapcanvas" style={{ overflow: 'hidden', touchAction: view.zoom > 1 ? 'none' : 'pan-y', cursor: placing ? 'crosshair' : grabbing ? 'grabbing' : 'grab' }} onClick={onCanvasClick} onDoubleClick={onCanvasDoubleClick} onPointerDown={onCanvasPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp} onWheel={onWheelZoom} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
             <div style={{ position: 'absolute', inset: 0, transformOrigin: '0 0', transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}>
             {defaultMap?.imageUrl && <img src={defaultMap.imageUrl} alt="" draggable={false} onLoad={(e) => { const t = e.currentTarget; if (t.naturalWidth && t.naturalHeight) setMapAspect(t.naturalWidth / t.naturalHeight); }} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' }} />}
             {showPaths && walkPreview && (
