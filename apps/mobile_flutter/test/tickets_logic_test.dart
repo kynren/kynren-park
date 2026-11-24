@@ -171,4 +171,67 @@ void main() {
       expect(old.shortCode, isNull);
     });
   });
+
+  group('upcoming and past', () {
+    test('a ticket is past once its night has gone, by the park calendar', () {
+      expect(ticketIsPast('2026-10-25', today: '2026-10-26'), isTrue);
+      expect(ticketIsPast('2026-10-26', today: '2026-10-26'), isFalse, reason: 'tonight is not past');
+      expect(ticketIsPast('2026-10-27T20:00:00.000Z', today: '2026-10-26'), isFalse);
+    });
+
+    test('a ticket with no date is past only when it has been scanned', () {
+      expect(ticketIsOver(ticket('a', date: null), today: '2026-10-26'), isFalse);
+      final used = TicketItem(id: 'b', isPark: false, title: 'Show', date: null, reference: 'R', code: 'C', status: 'redeemed');
+      expect(ticketIsOver(used, today: '2026-10-26'), isTrue);
+    });
+
+    test('a dated ticket is judged by its date whatever its status', () {
+      expect(ticketIsOver(ticket('a', date: '2026-10-20'), today: '2026-10-26'), isTrue);
+      expect(ticketIsOver(ticket('b', date: '2026-10-30'), today: '2026-10-26'), isFalse);
+    });
+
+    test('an undated ticket takes the latest night its booking is known for', () {
+      final tickets = ticketsFromBookings([
+        {
+          'order': {
+            'nights': ['2026-08-20', '2026-08-22'],
+            'lines': [
+              {
+                'kind': 'TICKET',
+                'name': 'Show',
+                'tickets': [
+                  {'barcode': 'A1', 'status': 'LIVE', 'night': null},
+                  {'barcode': 'A2', 'status': 'LIVE', 'night': '2026-08-20'},
+                ],
+              },
+            ],
+          },
+          'reference': 'R1',
+        },
+      ]);
+      expect(tickets.firstWhere((t) => t.id == 'A1').date, '2026-08-22');
+      expect(tickets.firstWhere((t) => t.id == 'A2').date, '2026-08-20', reason: 'a ticket with its own night keeps it');
+    });
+
+    test('a ticket has a date only when it is a readable day', () {
+      expect(ticketHasDate(ticket('a', date: '2026-10-28')), isTrue);
+      expect(ticketHasDate(ticket('b', date: null)), isFalse);
+      expect(ticketHasDate(ticket('c', date: 'Saturday night')), isFalse);
+    });
+
+    test('with no night known anywhere the ticket stays undated', () {
+      final tickets = ticketsFromBookings([
+        {
+          'order': {
+            'nights': [],
+            'lines': [
+              {'kind': 'TICKET', 'name': 'Show', 'tickets': [{'barcode': 'B1', 'status': 'LIVE', 'night': null}]},
+            ],
+          },
+          'reference': 'R2',
+        },
+      ]);
+      expect(tickets.single.date, isNull);
+    });
+  });
 }

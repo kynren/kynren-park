@@ -174,8 +174,10 @@ class _TicketsScreenState extends State<TicketsScreen> with _TicketsLoader {
 
     // Tickets for days still to come first (soonest first), then the ones whose day has passed (latest first).
     int when(TicketItem x) => x.date == null ? 0 : (DateTime.tryParse(x.date!)?.millisecondsSinceEpoch ?? 0);
-    final upcoming = tickets.where((x) => !ticketIsPast(x.date)).toList()..sort((a, b) => when(a).compareTo(when(b)));
-    final past = tickets.where((x) => ticketIsPast(x.date)).toList()..sort((a, b) => when(b).compareTo(when(a)));
+    // Tickets with no date are not called upcoming: the park can't tell whether their night has gone, so they sit apart.
+    final upcoming = tickets.where((x) => ticketHasDate(x) && !ticketIsOver(x)).toList()..sort((a, b) => when(a).compareTo(when(b)));
+    final undated = tickets.where((x) => !ticketHasDate(x) && !ticketIsOver(x)).toList();
+    final past = tickets.where(ticketIsOver).toList()..sort((a, b) => when(b).compareTo(when(a)));
     void open(TicketItem x) => context.push('/ticket/${Uri.encodeComponent(x.id)}');
 
     // Tickets for today that have not been used: the ones the guest is about to hold up at the gate.
@@ -283,6 +285,16 @@ class _TicketsScreenState extends State<TicketsScreen> with _TicketsLoader {
             SectionHeader('Upcoming · ${upcoming.length}'),
             const SizedBox(height: 12),
             list(upcoming, reveal: true),
+          ],
+          if (undated.isNotEmpty) ...[
+            const SizedBox(height: 26),
+            SectionHeader('Date not confirmed · ${undated.length}'),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 6, 22, 0),
+              child: Text('The booking system hasn’t given a night for these. Check the date on your booking confirmation.', style: TextStyle(fontSize: 13, height: 18 / 13, color: c.sub)),
+            ),
+            const SizedBox(height: 12),
+            list(undated),
           ],
           if (past.isNotEmpty) ...[
             const SizedBox(height: 26),

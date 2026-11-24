@@ -78,6 +78,10 @@ List<TicketItem> ticketsFromBookings(List orders) {
     final order = (o as Map)['order'] as Map?;
     final lines = (order?['lines'] as List?) ?? const [];
     final extras = [for (final l in lines) if ((l as Map)['kind'] != 'TICKET') '${l['quantity']} × ${l['name']}'];
+    // A ticket whose own night is not known takes the latest night its booking is known to be for: one booking is nearly
+    // always for one night, and this keeps an old booking's tickets from showing as still to come.
+    final nights = [for (final n in (order?['nights'] as List?) ?? const []) '$n']..sort();
+    final bookingNight = nights.isEmpty ? null : nights.last;
     for (final l in lines) {
       final line = l as Map;
       if (line['kind'] != 'TICKET') continue;
@@ -92,7 +96,7 @@ List<TicketItem> ticketsFromBookings(List orders) {
           isPark: false,
           title: line['name'] as String,
           priceName: line['priceName'] as String?,
-          date: tk['night'] as String?,
+          date: (tk['night'] as String?) ?? bookingNight,
           holder: tk['holder'] as String?,
           reference: o['reference'] as String,
           code: qr != null && qr.isNotEmpty ? qr : barcode,
@@ -126,11 +130,19 @@ String? ticketDay(String? date) {
   return DateFormat('d MMM yyyy').format(DateTime.parse(date.substring(0, 10)));
 }
 
-/// Whether the ticket's day has gone (tickets with no usable date count as still to come).
-bool ticketIsPast(String? date) {
+/// Whether the ticket's day has gone, by the park's calendar (tickets with no usable date are not judged here: see [ticketIsOver]).
+bool ticketIsPast(String? date, {String? today}) {
   if (date == null || !RegExp(r'^\d{4}-\d{2}-\d{2}').hasMatch(date)) return false;
-  return DateTime.parse('${date.substring(0, 10)}T23:59:59').isBefore(DateTime.now());
+  return date.substring(0, 10).compareTo(today ?? ukTodayStr()) < 0;
 }
+
+/// Whether a ticket belongs under Past: its day has gone, or its day is unknown and the booking system has already scanned it.
+/// The park only learns a ticket's night while the night is still ahead, so a ticket for a night that has gone by can come
+/// with no date at all; without this it would sit under Upcoming forever.
+bool ticketIsOver(TicketItem t, {String? today}) => ticketHasDate(t) ? ticketIsPast(t.date, today: today) : ticketIsUsed(t);
+
+/// Whether the booking system has given this ticket a night we can read. Many tickets for nights already gone have none.
+bool ticketHasDate(TicketItem t) => t.date != null && RegExp(r'^\d{4}-\d{2}-\d{2}').hasMatch(t.date!);
 
 /// How far off a ticket's day is, by the park's calendar: 0 is today. Null for a ticket with no usable date.
 int? ticketDaysAway(String? date, {String? today}) {
