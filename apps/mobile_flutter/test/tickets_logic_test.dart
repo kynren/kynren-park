@@ -185,6 +185,24 @@ void main() {
       expect(ticketIsOver(used, today: '2026-10-26'), isTrue);
     });
 
+    test('an undated ticket the server calls over is past, and the word survives the phone saving it', () {
+      final over = TicketItem(id: 'o', isPark: false, title: 'Show', date: null, reference: 'R', code: 'C', over: true);
+      expect(ticketIsOver(over, today: '2026-10-26'), isTrue);
+      expect(ticketIsOver(TicketItem.fromJson(over.toJson()), today: '2026-10-26'), isTrue);
+      final tickets = ticketsFromBookings([
+        {
+          'order': {
+            'nights': [],
+            'lines': [
+              {'kind': 'TICKET', 'name': 'Show', 'tickets': [{'barcode': 'Z1', 'status': 'COMPLETED', 'night': null, 'over': true}]},
+            ],
+          },
+          'reference': 'R3',
+        },
+      ]);
+      expect(ticketIsOver(tickets.single, today: '2026-10-26'), isTrue);
+    });
+
     test('a dated ticket is judged by its date whatever its status', () {
       expect(ticketIsOver(ticket('a', date: '2026-10-20'), today: '2026-10-26'), isTrue);
       expect(ticketIsOver(ticket('b', date: '2026-10-30'), today: '2026-10-26'), isFalse);

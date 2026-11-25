@@ -32,6 +32,9 @@ class TicketItem {
   /// The short code printed with the ticket (Smeetz's barcode), for the gate to key in if a QR will not scan.
   final String? shortCode;
   final String? status, bookedOn;
+
+  /// The booking system's word that this ticket is for a night that has gone, for tickets that carry no night of their own.
+  final bool over;
   /// Other things in the same booking, e.g. "2 × Parking".
   final List<String> extras;
 
@@ -46,13 +49,14 @@ class TicketItem {
     required this.code,
     this.shortCode,
     this.status,
+    this.over = false,
     this.bookedOn,
     this.extras = const [],
   });
 
   Map<String, dynamic> toJson() => {
         'id': id, 'isPark': isPark, 'title': title, 'priceName': priceName, 'date': date, 'holder': holder,
-        'reference': reference, 'code': code, 'shortCode': shortCode, 'status': status, 'bookedOn': bookedOn, 'extras': extras,
+        'reference': reference, 'code': code, 'shortCode': shortCode, 'status': status, 'over': over, 'bookedOn': bookedOn, 'extras': extras,
       };
 
   factory TicketItem.fromJson(Map<String, dynamic> j) => TicketItem(
@@ -66,6 +70,7 @@ class TicketItem {
         code: j['code'] as String,
         shortCode: j['shortCode'] as String?,
         status: j['status'] as String?,
+        over: j['over'] == true,
         bookedOn: j['bookedOn'] as String?,
         extras: (j['extras'] as List?)?.cast<String>() ?? const [],
       );
@@ -102,6 +107,7 @@ List<TicketItem> ticketsFromBookings(List orders) {
           code: qr != null && qr.isNotEmpty ? qr : barcode,
           shortCode: barcode,
           status: (tk['status'] as String?)?.toLowerCase(),
+          over: tk['over'] == true,
           bookedOn: order?['placedAt'] as String?,
           extras: extras,
         ));
@@ -139,7 +145,7 @@ bool ticketIsPast(String? date, {String? today}) {
 /// Whether a ticket belongs under Past: its day has gone, or its day is unknown and the booking system has already scanned it.
 /// The park only learns a ticket's night while the night is still ahead, so a ticket for a night that has gone by can come
 /// with no date at all; without this it would sit under Upcoming forever.
-bool ticketIsOver(TicketItem t, {String? today}) => ticketHasDate(t) ? ticketIsPast(t.date, today: today) : ticketIsUsed(t);
+bool ticketIsOver(TicketItem t, {String? today}) => ticketHasDate(t) ? ticketIsPast(t.date, today: today) : (t.over || ticketIsUsed(t));
 
 /// Whether the booking system has given this ticket a night we can read. Many tickets for nights already gone have none.
 bool ticketHasDate(TicketItem t) => t.date != null && RegExp(r'^\d{4}-\d{2}-\d{2}').hasMatch(t.date!);

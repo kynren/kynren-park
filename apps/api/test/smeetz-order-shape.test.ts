@@ -125,3 +125,22 @@ test('the one-order call gives each ticket\'s QR payload by the ticket\'s id', (
   assert.deepEqual(detail.tickets, [{ uuid: 'u1', qrCode: 'QR-1' }, { uuid: 'u2', qrCode: null }], 'a ticket with no id is dropped');
   assert.deepEqual(parseOrderDetail({ data: { customer: { firstName: 'Pat' } } })!.tickets, []);
 });
+
+test('after the season, a ticket with no night sold before the last night is over; dated, later and in-season ones are not', () => {
+  const ended = new Date('2026-11-13T17:00:00Z');
+  const order = (created: string) => ({
+    reference: 'R',
+    status: 'COMPLETED',
+    currency: 'GBP',
+    smeetzCreatedAt: new Date(created),
+    lines: [row({ barcode: 'A' }), row({ barcode: 'B', showDate: new Date('2026-09-01T00:00:00Z') }), row({ kind: 'VOUCHER', itemName: 'Gift', priceName: null, priceValue: null, itemStatus: null, voucherCode: 'G1' })],
+  });
+  const early = toGuestOrder(order('2026-08-01T10:00:00Z'), { seasonEndedAt: ended });
+  assert.equal(early.lines[0].tickets[0].over, true, 'no night, sold before the last night');
+  assert.equal(early.lines[0].tickets[1].over, false, 'a ticket with its night is judged by that night');
+  assert.equal(early.lines[1].tickets[0].over, false, 'only tickets can be over');
+  const late = toGuestOrder(order('2026-11-20T10:00:00Z'), { seasonEndedAt: ended });
+  assert.equal(late.lines[0].tickets[0].over, false, 'sold after the last night: for a night still to come');
+  const inSeason = toGuestOrder(order('2026-08-01T10:00:00Z'));
+  assert.equal(inSeason.lines[0].tickets[0].over, false, 'while the season runs nothing is called over');
+});

@@ -20,6 +20,16 @@ export class SmeetzOrderDirectory {
     private readonly smeetz: SmeetzReadClient,
   ) {}
 
+  /**
+   * When the park's last scheduled night finished, if that is behind us: the season is over. Used to tell which undated tickets
+   * are for nights that have gone (see GuestTicket.over). Null while there are nights still to come or none are scheduled.
+   */
+  async seasonEndedAt(now = new Date()): Promise<Date | null> {
+    const last = await this.prisma.showSession.aggregate({ _max: { endTime: true } });
+    const end = last._max.endTime;
+    return end && end.getTime() < now.getTime() ? end : null;
+  }
+
   /** Every order bought with an email address, plus who the buyer is. Exact address only. */
   async lookup(rawEmail: string): Promise<{ orders: GuestOrder[]; buyer: GuestBuyer | null }> {
     const email = normaliseEmail(rawEmail);
@@ -45,7 +55,8 @@ export class SmeetzOrderDirectory {
     // The most recently read order with a value wins; any of them may be missing.
     const pick = (get: (b: (typeof bought)[number]) => string | null) => bought.map(get).find((v) => v && v.trim())?.trim() ?? null;
     const buyer: GuestBuyer = { name: pick((b) => b.name), phone: pick((b) => b.phone), address: pick((b) => b.address) };
-    return { orders: rows.map((r) => toGuestOrder(r)), buyer };
+    const seasonEndedAt = await this.seasonEndedAt();
+    return { orders: rows.map((r) => toGuestOrder(r, { seasonEndedAt })), buyer };
   }
 
   /**

@@ -13,6 +13,11 @@ export interface GuestTicket {
   qr: string | null;
   status: string | null;
   night: string | null;
+  /**
+   * True when the ticket has no night but was bought before the season's last night, which has gone: it can only be for a night
+   * that has passed. (Smeetz's availability look-up cannot see past nights, so these never get one.)
+   */
+  over: boolean;
   holder: string | null;
 }
 
@@ -71,7 +76,8 @@ const KINDS = ['TICKET', 'RETAIL', 'VOUCHER', 'MEMBERSHIP'] as const;
 const day = (d: Date) => d.toISOString().slice(0, 10);
 
 /** What a guest's own app may see of an order: no buyer contact details, no internal ids, no form answers. */
-export function toGuestOrder(order: MirrorOrderRow): GuestOrder {
+export function toGuestOrder(order: MirrorOrderRow, options: { seasonEndedAt?: Date | null } = {}): GuestOrder {
+  const seasonEndedAt = options.seasonEndedAt ?? null;
   // One line per kind, name and price tier, as Smeetz's own order screen groups them.
   const grouped = new Map<string, GuestLine>();
   let total = 0;
@@ -93,6 +99,7 @@ export function toGuestOrder(order: MirrorOrderRow): GuestOrder {
       qr: row.qrCode ? row.qrCode : null, // '' means Smeetz was asked and has none
       status,
       night: row.showDate ? day(row.showDate) : null,
+      over: kind === 'TICKET' && !row.showDate && seasonEndedAt !== null && order.smeetzCreatedAt.getTime() < seasonEndedAt.getTime(),
       holder: [row.guestFirstName, row.guestLastName].filter(Boolean).join(' ') || null,
     });
     if (row.showDate) nights.set(day(row.showDate), row.showDate);
