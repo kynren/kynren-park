@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { SmeetzReadClient } from './smeetz-read.client.js';
 import { SmeetzOrderDirectory } from './order-directory.service.js';
 import { backoffMs, describeFailure, filterLooksBroken, shouldRetry, smeetzDate } from './smeetz-config.js';
-import { flattenLines, parseOrderDetail, type RawSmeetzOrder } from './order-shape.js';
+import { flattenLines, parseOrderDetail, slotStartsFrom, type RawSmeetzOrder } from './order-shape.js';
 
 /** Smeetz caps its order list at nine rows a page; ten or more is refused. */
 const PAGE_SIZE = 9;
@@ -20,7 +20,9 @@ const READ_DELAY_MS = 800;
 const READERS = 2;
 const GIVE_UP_AFTER = 3; // Smeetz not answering this many times in a row ends a pass
 const BACK_OFF_MS = 10 * 60_000;
-const SHOW_DATES_EVERY_MS = 6 * 60 * 60_000;
+const SHOW_DATES_EVERY_MS = 30 * 60_000;
+/** How long one pass spends learning the nights of slots that have already gone. */
+const PAST_SLOT_BUDGET_MS = 4 * 60_000;
 const SHOW_DATE_WINDOW_DAYS = 180;
 const OPTION_DELAY_MS = 1500;
 
@@ -327,8 +329,54 @@ export class SmeetzOrderSync implements OnModuleInit, OnModuleDestroy {
       }
       await sleep(OPTION_DELAY_MS);
     }
+    const past = await this.resolvePastSlots();
+    resolved += past.resolved;
     this.last.nights = { resolved, at: new Date() };
     return { resolved };
+  }
+
+  /** Slots whose night Smeetz has already been asked about this run of the server, so a slot it cannot answer for is not asked again. */
+  private triedPastSlots = new Set<string>();
+
+  /**
+   * Fills in the night for ticket lines whose slot has already gone. The availability look-up above cannot see those, but Smeetz's
+   * order report can: it lists an order's lines with the slot each is for and when it starts. One order per slot is enough, since
+   * every ticket for a slot shares it, and a report for one order often names other slots too.
+   */
+  async resolvePastSlots(budgetMs = PAST_SLOT_BUDGET_MS): Promise<{ resolved: number; looked: number }> {
+    const deadline = Date.now() + budgetMs;
+    // the biggest slots first: one answer settles the most tickets
+    const slots = await this.prisma.$queryRaw<{ availabilityId: string; orderId: string }[]>`
+      SELECT l."availabilityId", MIN(l."orderId") AS "orderId"
+      FROM "SmeetzOrderLine" l
+      WHERE l."kind" = 'TICKET' AND l."showDate" IS NULL AND l."availabilityId" IS NOT NULL
+        AND l."orderId" ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      GROUP BY l."availabilityId"
+      ORDER BY COUNT(*) DESC`;
+    let resolved = 0;
+    let looked = 0;
+    let failures = 0;
+    for (const slot of slots) {
+      if (Date.now() > deadline || failures >= GIVE_UP_AFTER) break;
+      if (this.triedPastSlots.has(slot.availabilityId)) continue;
+      const res = await this.smeetz.get<unknown>('services', '/v1/orders/sessions', { order_ids: slot.orderId });
+      if (!res.ok) {
+        failures += 1;
+        await sleep(OPTION_DELAY_MS);
+        continue;
+      }
+      failures = 0;
+      looked += 1;
+      this.triedPastSlots.add(slot.availabilityId);
+      for (const [slotId, start] of slotStartsFrom(res.data)) {
+        this.triedPastSlots.add(slotId);
+        const { count } = await this.prisma.smeetzOrderLine.updateMany({ where: { kind: 'TICKET', availabilityId: slotId, showDate: null }, data: { showDate: start } });
+        resolved += count;
+      }
+      await sleep(OPTION_DELAY_MS);
+    }
+    if (looked > 0) this.logger.log(`Past nights: looked up ${looked} slots, filled in ${resolved} ticket lines.`);
+    return { resolved, looked };
   }
 
   // ----------------------------------------------------------------- for the admin page

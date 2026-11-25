@@ -119,6 +119,31 @@ export function toGuestOrder(order: MirrorOrderRow, options: { seasonEndedAt?: D
   };
 }
 
+// ------------------------------------------------------ when each booked slot starts
+
+/**
+ * Reads Smeetz's order report (GET /v1/orders/sessions?order_ids=...), which lists every line of an order with the slot it is for
+ * and when that slot starts. Unlike the availability look-up it answers for slots that have already gone, so it is how an old
+ * ticket's night is learned. Returns slot id -> start; anything unreadable is skipped.
+ */
+export function slotStartsFrom(body: unknown): Map<string, Date> {
+  const out = new Map<string, Date>();
+  const data = (body && typeof body === 'object' ? (body as { data?: unknown }).data : null) as { orderSessions?: unknown } | null;
+  const sessions = Array.isArray(data?.orderSessions) ? (data!.orderSessions as unknown[]) : [];
+  for (const s of sessions) {
+    const lines = s && typeof s === 'object' && Array.isArray((s as { orderLines?: unknown }).orderLines) ? ((s as { orderLines: unknown[] }).orderLines) : [];
+    for (const l of lines) {
+      if (!l || typeof l !== 'object') continue;
+      const { timeSlotId, startDateTime } = l as { timeSlotId?: unknown; startDateTime?: unknown };
+      if (typeof timeSlotId !== 'number' && typeof timeSlotId !== 'string') continue;
+      if (typeof startDateTime !== 'string') continue;
+      const at = new Date(startDateTime);
+      if (!Number.isNaN(at.getTime())) out.set(String(timeSlotId), at);
+    }
+  }
+  return out;
+}
+
 // ------------------------------------------------------ Smeetz's order, flattened for the mirror
 
 type Json = Record<string, unknown>;

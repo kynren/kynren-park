@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 // The compiled code: run `nest build` first (the npm script does).
-import { flattenLines, parseOrderDetail, toGuestOrder, normaliseEmail } from '../dist/smeetz/order-shape.js';
+import { flattenLines, parseOrderDetail, toGuestOrder, normaliseEmail, slotStartsFrom } from '../dist/smeetz/order-shape.js';
 import { backoffMs, failureForStatus, filterLooksBroken, parseRetryAfter, shouldRetry, smeetzDate, smeetzEnvironment, baseUrlFor } from '../dist/smeetz/smeetz-config.js';
 
 test('every kind of unit becomes a flat line, and a surprising type costs a value rather than the order', () => {
@@ -143,4 +143,28 @@ test('after the season, a ticket with no night sold before the last night is ove
   assert.equal(late.lines[0].tickets[0].over, false, 'sold after the last night: for a night still to come');
   const inSeason = toGuestOrder(order('2026-08-01T10:00:00Z'));
   assert.equal(inSeason.lines[0].tickets[0].over, false, 'while the season runs nothing is called over');
+});
+
+test("Smeetz's order report gives each booked slot's start, past or future, and tolerates odd lines", () => {
+  const starts = slotStartsFrom({
+    data: {
+      orderSessions: [
+        {
+          orderLines: [
+            { timeSlotId: 59537281, startDateTime: '2026-09-12T18:45:00+00:00', endDateTime: '2026-09-12T20:15:00+00:00' },
+            { timeSlotId: '122316043', startDateTime: '2026-09-05T11:00:00+00:00' },
+            { timeSlotId: null, startDateTime: '2026-08-27T09:33:52+00:00' },
+            { timeSlotId: 7, startDateTime: 'not a date' },
+            { timeSlotId: 8 },
+            null,
+          ],
+        },
+        { orderLines: 'nope' },
+      ],
+    },
+  });
+  assert.deepEqual([...starts.keys()].sort(), ['122316043', '59537281']);
+  assert.equal(starts.get('59537281')?.toISOString(), '2026-09-12T18:45:00.000Z');
+  assert.equal(slotStartsFrom(null).size, 0);
+  assert.equal(slotStartsFrom({ data: null, error: { code: 400 } }).size, 0);
 });
