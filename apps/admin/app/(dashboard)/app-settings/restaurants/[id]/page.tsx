@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { api, apiUpload, friendlyError } from '../../../../../lib/api';
 import { confirmDelete } from '../../../../../lib/confirm';
@@ -8,6 +8,8 @@ import { uploadToast } from '../../../../../lib/toast';
 import { QrButton } from '../../../../../components/QrButton';
 import { GalleryEditor } from '../../../../../components/GalleryEditor';
 import { ImportCsvModal } from '../../../../../components/ImportCsvModal';
+import { ImageField } from '../../../../../components/ImageField';
+import { SaveBar } from '../../../../../components/SaveBar';
 
 const MENU_IMPORT_COLUMNS = [
   { key: 'name', label: 'Name', required: true },
@@ -25,50 +27,29 @@ interface Restaurant {
   active: boolean; poiId: string | null; menuItems: MenuItem[];
 }
 
-function resizeToDataUrl(file: File, maxDim: number): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new window.Image();
-      img.onload = () => {
-        const s = Math.min(1, maxDim / Math.max(img.width, img.height));
-        const w = Math.round(img.width * s), h = Math.round(img.height * s);
-        const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
-        canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL('image/jpeg', 0.85));
-      };
-      img.onerror = reject; img.src = reader.result as string;
-    };
-    reader.onerror = reject; reader.readAsDataURL(file);
-  });
-}
+/** The part of a restaurant edited on this page (menu items save on their own), used to tell whether anything changed. */
+const editable = (v: Restaurant) => JSON.stringify([v.name, v.cuisine, v.description, v.priceRange, v.openingHours, v.heroImage, v.images, v.clickCollect, v.active, v.poiId]);
 
 function pounds(cents: number) { return (cents / 100).toFixed(2); }
 
 export default function RestaurantDetail() {
   const { id } = useParams<{ id: string }>();
   const [r, setR] = useState<Restaurant | null>(null);
+  const [base, setBase] = useState('');
   const [pois, setPois] = useState<Poi[]>([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const heroRef = useRef<HTMLInputElement>(null);
   const [item, setItem] = useState<(Partial<MenuItem> & { id?: string }) | null>(null);
-  const itemFileRef = useRef<HTMLInputElement>(null);
   const [importOpen, setImportOpen] = useState(false);
 
   const load = useCallback(() => {
-    api<Restaurant>(`/admin/restaurants/${id}`).then(setR).catch(() => setError('Could not load this restaurant.'));
+    api<Restaurant>(`/admin/restaurants/${id}`).then((v) => { setR(v); setBase(editable(v)); }).catch(() => setError('Could not load this restaurant.'));
     api<Poi[]>('/admin/pois').then((p) => setPois(p.filter((x) => x.type === 'RESTAURANT' || !x.type))).catch(() => undefined);
   }, [id]);
   useEffect(load, [load]);
 
   function set<K extends keyof Restaurant>(k: K, v: Restaurant[K]) { setR((cur) => (cur ? { ...cur, [k]: v } : cur)); }
-
-  async function onHero(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]; if (!file) return;
-    try { set('heroImage', await resizeToDataUrl(file, 1400)); } catch { setError('Could not read that image.'); }
-  }
 
   async function saveRestaurant() {
     if (!r) return;
@@ -81,14 +62,10 @@ export default function RestaurantDetail() {
         active: r.active, poiId: r.poiId || null,
       }, { method: 'PATCH', onProgress: (p) => t.progress(p) });
       t.success('Restaurant saved');
+      setBase(editable(r));
       setSaved(true); setTimeout(() => setSaved(false), 2500);
     } catch (e) { t.error(friendlyError(e, 'Save failed.')); setError('Save failed.'); }
     setSaving(false);
-  }
-
-  async function onItemImage(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]; if (!file || !item) return;
-    try { setItem({ ...item, image: await resizeToDataUrl(file, 900) }); } catch { /* ignore */ }
   }
 
   async function saveItem() {
@@ -132,32 +109,20 @@ export default function RestaurantDetail() {
   return (
     <div>
       <div className="page-actions">
-        <div><h1>{r.name}</h1><p className="subtitle" style={{ margin: 0 }}>Featured image, details and menu.</p></div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <QrButton type="restaurant" id={r.id} label={r.name} />
-          {saved && <span className="tag-on">Saved ✓</span>}
-          <button className="primary" onClick={saveRestaurant} disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</button>
+        <div>
+          <h1>{r.name}</h1>
+          <p className="subtitle" style={{ margin: 0 }}>Featured image, details and menu.{' '}
+            <span className={`pillbadge ${r.active ? 'on' : 'off'}`}>{r.active ? 'Visible in app' : 'Hidden'}</span></p>
         </div>
+        <QrButton type="restaurant" id={r.id} label={r.name} />
       </div>
       {error && <div className="error">{error}</div>}
 
       <div className="card" style={{ padding: 16, marginBottom: 20 }}>
         <div className="form-grid">
           <div className="form-row full">
-            <label>Featured image</label>
-            <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-              <div style={{ width: 200, height: 120, borderRadius: 10, overflow: 'hidden', background: 'var(--panel,#f0ece6)', flex: '0 0 auto' }}>
-                {r.heroImage
-                  ? <img src={r.heroImage} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  : <div style={{ display: 'grid', placeItems: 'center', height: '100%', color: 'var(--muted)', fontSize: 13 }}>No image</div>}
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <input ref={heroRef} type="file" accept="image/*" hidden onChange={onHero} />
-                <button className="tbtn" onClick={() => heroRef.current?.click()}>Upload image</button>
-                {r.heroImage && <button className="tbtn danger" onClick={() => set('heroImage', '')}>Remove</button>}
-                <span className="hint">Shows on the map pin, food list and detail screen.</span>
-              </div>
-            </div>
+            <ImageField label="Featured image" value={r.heroImage} onChange={(u) => set('heroImage', u)} onError={setError}
+              hint="Shows on the map pin, food list and detail screen." />
           </div>
           <div className="form-row full">
             <GalleryEditor images={r.images ?? []} onChange={(next) => set('images', next)} />
@@ -183,29 +148,29 @@ export default function RestaurantDetail() {
       </div>
 
       <div className="page-actions">
-        <div><h2 style={{ margin: 0 }}>Menu</h2><p className="subtitle" style={{ margin: 0 }}>Each item can have an image and a price.</p></div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div><h2 style={{ margin: 0 }}>Menu <span style={{ color: 'var(--muted)', fontWeight: 600 }}>({r.menuItems.length})</span></h2><p className="subtitle" style={{ margin: 0 }}>Each item can have an image and a price.</p></div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button className="tbtn" onClick={() => setImportOpen(true)}>Import menu (CSV)</button>
           <button className="primary" onClick={() => { setItem({ available: true, priceCents: 0, dietaryTags: [] }); setError(''); }}>+ Add item</button>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))' }}>
-        {r.menuItems.length === 0 && <p style={{ color: 'var(--muted)' }}>No menu items yet.</p>}
+      {r.menuItems.length === 0 && <div className="card" style={{ textAlign: 'center', color: 'var(--muted)' }}>No menu items yet. Add one, or import your menu from a spreadsheet.</div>}
+      <div className="itemgrid">
         {r.menuItems.map((mi) => (
-          <div key={mi.id} className="card" style={{ padding: 12, display: 'flex', gap: 12, opacity: mi.available ? 1 : 0.55 }}>
-            <div style={{ width: 64, height: 64, borderRadius: 8, overflow: 'hidden', background: 'var(--panel,#f0ece6)', flex: '0 0 auto' }}>
-              {mi.image && <img src={mi.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                <b style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mi.name}</b>
-                <span style={{ whiteSpace: 'nowrap' }}>£{pounds(mi.priceCents)}</span>
+          <div key={mi.id} className={`itemcard ${mi.available ? '' : 'off'}`}>
+            <div className="mediabox">{mi.image && <img src={mi.image} alt="" />}</div>
+            <div className="itemcard-body">
+              <div className="itemcard-top">
+                <b>{mi.name}</b>
+                <span className="itemcard-price">£{pounds(mi.priceCents)}</span>
               </div>
               {mi.description && <p className="hint" style={{ margin: '2px 0' }}>{mi.description}</p>}
-              <div style={{ marginTop: 6 }}>
-                <button className="tbtn" onClick={() => setItem({ ...mi })}>Edit</button>{' '}
-                <QrButton type="menu-item" id={mi.id} label={mi.name} parentSlug={r.slug} />{' '}
+              {mi.dietaryTags && mi.dietaryTags.length > 0 && <p className="hint" style={{ margin: '2px 0' }}>{mi.dietaryTags.join(' · ')}</p>}
+              {!mi.available && <span className="pillbadge off">Unavailable</span>}
+              <div className="itemcard-actions">
+                <button className="tbtn" onClick={() => setItem({ ...mi })}>Edit</button>
+                <QrButton type="menu-item" id={mi.id} label={mi.name} parentSlug={r.slug} />
                 <button className="tbtn danger" onClick={() => removeItem(mi)}>Remove</button>
               </div>
             </div>
@@ -213,20 +178,15 @@ export default function RestaurantDetail() {
         ))}
       </div>
 
+      <SaveBar dirty={editable(r) !== base} saving={saving} saved={saved} onSave={saveRestaurant} onDiscard={load} />
+
       {item && (
         <div className="modal-back" onClick={(e) => e.target === e.currentTarget && setItem(null)}>
           <div className="modal" style={{ width: 480 }}>
             <h2>{item.id ? 'Edit item' : 'Add item'}</h2>
             <div className="form-grid">
-              <div className="form-row full"><label>Item image</label>
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                  <div style={{ width: 84, height: 84, borderRadius: 8, overflow: 'hidden', background: 'var(--panel,#f0ece6)' }}>
-                    {item.image && <img src={item.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-                  </div>
-                  <input ref={itemFileRef} type="file" accept="image/*" hidden onChange={onItemImage} />
-                  <button className="tbtn" onClick={() => itemFileRef.current?.click()}>Upload</button>
-                  {item.image && <button className="tbtn danger" onClick={() => setItem({ ...item, image: '' })}>Remove</button>}
-                </div>
+              <div className="form-row full">
+                <ImageField label="Item image" value={item.image} onChange={(u) => setItem({ ...item, image: u })} onError={setError} width={96} height={96} maxDim={900} />
               </div>
               <div className="form-row full"><label>Name *</label><input value={item.name ?? ''} onChange={(e) => setItem({ ...item, name: e.target.value })} /></div>
               <div className="form-row"><label>Price (£)</label><input type="number" step="0.01" min="0" value={((item.priceCents ?? 0) / 100).toString()} onChange={(e) => setItem({ ...item, priceCents: Math.round(parseFloat(e.target.value || '0') * 100) })} /></div>

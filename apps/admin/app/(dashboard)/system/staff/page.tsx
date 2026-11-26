@@ -13,9 +13,9 @@ type Form = typeof EMPTY & { id?: string };
 
 const roleBadge: Record<string, React.CSSProperties> = {
   ADMIN: { background: 'var(--brand)', color: '#fff' },
-  OPS: { background: '#e7f8ee', color: 'var(--green)' },
-  FNB: { background: '#fbf1dd', color: 'var(--warn)' },
-  CONTENT: { background: '#efeafd', color: 'var(--full)' },
+  OPS: { background: 'var(--ok-soft)', color: 'var(--green)' },
+  FNB: { background: 'var(--warn-soft)', color: 'var(--warn)' },
+  CONTENT: { background: 'var(--full-soft)', color: 'var(--full)' },
 };
 
 export default function StaffPage() {
@@ -124,7 +124,7 @@ export default function StaffPage() {
               <td><b>{s.name}</b></td>
               <td>{s.email}</td>
               <td><span className="pillbadge" style={roleBadge[s.role]}>{s.role}</span></td>
-              <td>{s.pending ? <span className="pillbadge" style={{ background: '#fbf1dd', color: 'var(--warn)' }}>Invited</span> : s.active ? <span className="pillbadge on">Active</span> : <span className="pillbadge off">Disabled</span>}</td>
+              <td>{s.pending ? <span className="pillbadge" style={{ background: 'var(--warn-soft)', color: 'var(--warn)' }}>Invited</span> : s.active ? <span className="pillbadge on">Active</span> : <span className="pillbadge off">Disabled</span>}</td>
               <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
                 {s.pending
                   ? <><button className="tbtn" onClick={() => resendInvite(s)}>Resend invite</button>{' '}</>

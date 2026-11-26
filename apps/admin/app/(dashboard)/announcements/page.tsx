@@ -27,10 +27,10 @@ function statusOf(a: Announcement, nextUpId: string | null): { label: string; cl
   return { label: 'Pending', cls: 'pending' };
 }
 const badgeStyle: Record<string, React.CSSProperties> = {
-  on: { background: '#e7f8ee', color: 'var(--green)' },
-  sched: { background: '#efeafd', color: 'var(--full)' },
+  on: { background: 'var(--ok-soft)', color: 'var(--green)' },
+  sched: { background: 'var(--full-soft)', color: 'var(--full)' },
   next: { background: 'var(--brand)', color: '#fff' },
-  pending: { background: '#fbf1dd', color: 'var(--warn)' },
+  pending: { background: 'var(--warn-soft)', color: 'var(--warn)' },
   off: { background: 'var(--line)', color: 'var(--muted)' },
 };
 

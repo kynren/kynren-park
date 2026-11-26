@@ -1,8 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api, friendlyError } from '../../../../lib/api';
 import { confirmDelete } from '../../../../lib/confirm';
+import { ImageField } from '../../../../components/ImageField';
+import { resizeToJpeg } from '../../../../lib/images';
 
 type Section = { key: string; visible: boolean };
 interface HomeScreen {
@@ -29,6 +31,7 @@ const DEFAULT_SECTIONS: Section[] = [
   { key: 'favourites', visible: true },
 ];
 const MAX_MB = 8; // source cap; still images are resized down before upload
+const BRAND_NAVY = '#1b2b4b', BRAND_RED = '#db0833';
 
 function readAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -37,37 +40,18 @@ function readAsDataUrl(file: File): Promise<string> {
     reader.onerror = reject; reader.readAsDataURL(file);
   });
 }
-// Resize a still image to a capped dimension → compact JPEG data URL (keeps the
-// hero upload small enough to POST reliably). GIFs are left untouched.
-function resizeToDataUrl(file: File, maxDim: number): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new window.Image();
-      img.onload = () => {
-        const s = Math.min(1, maxDim / Math.max(img.width, img.height));
-        const w = Math.round(img.width * s), h = Math.round(img.height * s);
-        const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
-        canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL('image/jpeg', 0.85));
-      };
-      img.onerror = reject; img.src = reader.result as string;
-    };
-    reader.onerror = reject; reader.readAsDataURL(file);
-  });
-}
 
 const EMPTY = {
   name: '', heroType: 'none', heroMediaUrl: '', tagline: 'An epic tale\nof England',
-  greeting: 'Welcome', greetingSub: '', primaryColor: '#2f5b43', accentColor: '#8a1f31',
+  greeting: 'Welcome', greetingSub: '', primaryColor: '#1b2b4b', accentColor: '#db0833',
   sections: DEFAULT_SECTIONS as Section[],
 };
 type Form = typeof EMPTY & { id?: string };
 
 const statusBadge: Record<string, { bg: string; fg: string; label: string }> = {
   draft: { bg: 'var(--line)', fg: 'var(--muted)', label: 'Draft' },
-  scheduled: { bg: '#efeafd', fg: 'var(--full)', label: 'Scheduled' },
-  published: { bg: '#e7f8ee', fg: 'var(--green)', label: 'Published' },
+  scheduled: { bg: 'var(--full-soft)', fg: 'var(--full)', label: 'Scheduled' },
+  published: { bg: 'var(--ok-soft)', fg: 'var(--ok)', label: 'Published' },
 };
 
 export default function HomeDesigner() {
@@ -76,7 +60,6 @@ export default function HomeDesigner() {
   const [error, setError] = useState('');
   const [scheduleAt, setScheduleAt] = useState('');
   const [busy, setBusy] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(() => {
     api<HomeScreen[]>('/admin/home-screens').then(setList).catch((e) => setError(friendlyError(e, 'Could not load home screens.')));
@@ -88,23 +71,10 @@ export default function HomeDesigner() {
     setForm({
       id: h.id, name: h.name, heroType: h.heroType, heroMediaUrl: h.heroMediaUrl ?? '',
       tagline: h.tagline ?? '', greeting: h.greeting ?? '', greetingSub: h.greetingSub ?? '',
-      primaryColor: h.primaryColor ?? '#2f5b43', accentColor: h.accentColor ?? '#8a1f31',
+      primaryColor: h.primaryColor ?? '#1b2b4b', accentColor: h.accentColor ?? '#db0833',
       sections: (h.sections?.length ? h.sections : DEFAULT_SECTIONS).map((s) => ({ ...s })),
     });
     setError(''); setScheduleAt('');
-  }
-
-  async function onPickMedia(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = ''; // allow re-picking the same file
-    if (!file || !form) return;
-    if (file.size > MAX_MB * 1024 * 1024) { setError(`File must be under ${MAX_MB} MB (use a hosted URL for larger video).`); return; }
-    try {
-      // GIFs must keep their frames; still images get resized down for a small upload.
-      const url = form.heroType === 'gif' ? await readAsDataUrl(file) : await resizeToDataUrl(file, 1600);
-      setForm((f) => (f ? { ...f, heroMediaUrl: url } : f));
-      setError('');
-    } catch { setError('Could not read that file.'); }
   }
 
   function moveSection(i: number, dir: -1 | 1) {
@@ -198,16 +168,16 @@ export default function HomeDesigner() {
         <div className="modal-back" onClick={(e) => e.target === e.currentTarget && setForm(null)}>
           <div className="modal" style={{ width: 900, maxWidth: '96vw' }}>
             <h2>{form.id ? 'Edit layout' : 'New layout'}</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 22 }}>
+            <div className="split-300">
               {/* Editor */}
               <div>
                 <div className="form-grid">
                   <div className="form-row full"><label>Layout name</label><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
                 </div>
 
-                <div style={{ borderTop: '1px solid var(--line)', marginTop: 14, paddingTop: 12 }}>
-                  <label style={{ fontWeight: 600, fontSize: 13 }}>Hero media</label>
-                  <div className="form-grid" style={{ marginTop: 8 }}>
+                <div className="fsec">
+                  <span className="fsec-title">Hero media</span>
+                  <div className="form-grid">
                     <div className="form-row"><label>Type</label>
                       <select value={form.heroType} onChange={(e) => setForm({ ...form, heroType: e.target.value })}>
                         <option value="none">Built-in illustration</option>
@@ -216,44 +186,48 @@ export default function HomeDesigner() {
                         <option value="video">Video</option>
                       </select>
                     </div>
-                    {form.heroType === 'video' ? (
+                    {form.heroType === 'video' && (
                       <div className="form-row"><label>Video URL</label><input value={form.heroMediaUrl} onChange={(e) => setForm({ ...form, heroMediaUrl: e.target.value })} placeholder="https://…/hero.mp4" /></div>
-                    ) : form.heroType !== 'none' ? (
-                      <div className="form-row"><label>{form.heroType === 'gif' ? 'GIF' : 'Image'} file</label>
-                        <input ref={fileRef} type="file" accept={form.heroType === 'gif' ? 'image/gif' : 'image/*'} onChange={onPickMedia} style={{ display: 'none' }} />
-                        <button type="button" className="tbtn" onClick={() => fileRef.current?.click()}>Upload {form.heroType} (max {MAX_MB} MB)</button>
-                      </div>
-                    ) : <div className="form-row" />}
+                    )}
                   </div>
+                  {(form.heroType === 'image' || form.heroType === 'gif') && (
+                    <div style={{ marginTop: 12 }}>
+                      <ImageField value={form.heroMediaUrl} onChange={(u) => setForm({ ...form, heroMediaUrl: u })} onError={setError}
+                        accept={form.heroType === 'gif' ? 'image/gif' : 'image/*'} maxMb={MAX_MB} width={160} height={96}
+                        read={form.heroType === 'gif' ? readAsDataUrl : (f) => resizeToJpeg(f, 1600)}
+                        hint={`Up to ${MAX_MB} MB. ${form.heroType === 'gif' ? 'Kept animated.' : 'Large photos are resized.'}`} />
+                    </div>
+                  )}
                 </div>
 
-                <div style={{ borderTop: '1px solid var(--line)', marginTop: 14, paddingTop: 12 }}>
-                  <label style={{ fontWeight: 600, fontSize: 13 }}>Text</label>
-                  <div className="form-grid" style={{ marginTop: 8 }}>
+                <div className="fsec">
+                  <span className="fsec-title">Text</span>
+                  <div className="form-grid">
                     <div className="form-row full"><label>Hero tagline</label><textarea value={form.tagline} onChange={(e) => setForm({ ...form, tagline: e.target.value })} rows={2} /></div>
                     <div className="form-row"><label>Greeting</label><input value={form.greeting} onChange={(e) => setForm({ ...form, greeting: e.target.value })} placeholder="Welcome" /></div>
                     <div className="form-row"><label>Greeting subtitle</label><input value={form.greetingSub} onChange={(e) => setForm({ ...form, greetingSub: e.target.value })} placeholder="(blank = show opening hours)" /></div>
                   </div>
                 </div>
 
-                <div style={{ borderTop: '1px solid var(--line)', marginTop: 14, paddingTop: 12 }}>
-                  <label style={{ fontWeight: 600, fontSize: 13 }}>Colours</label>
-                  <div style={{ display: 'flex', gap: 20, marginTop: 8 }}>
+                <div className="fsec">
+                  <span className="fsec-title">Colours</span>
+                  <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap', alignItems: 'center' }}>
                     <label className="checkline">Primary <input type="color" value={form.primaryColor} onChange={(e) => setForm({ ...form, primaryColor: e.target.value })} /></label>
                     <label className="checkline">Accent <input type="color" value={form.accentColor} onChange={(e) => setForm({ ...form, accentColor: e.target.value })} /></label>
+                    <button type="button" className="tbtn" onClick={() => setForm({ ...form, primaryColor: BRAND_NAVY, accentColor: BRAND_RED })}>Use the park’s navy &amp; red</button>
                   </div>
                 </div>
 
-                <div style={{ borderTop: '1px solid var(--line)', marginTop: 14, paddingTop: 12 }}>
-                  <label style={{ fontWeight: 600, fontSize: 13 }}>Sections — reorder & toggle</label>
-                  <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div className="fsec">
+                  <span className="fsec-title">Sections: reorder and switch on or off</span>
+                  <div className="seclist">
                     {form.sections.map((s, i) => (
-                      <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8, padding: '8px 10px' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <button className="tbtn" style={{ padding: '0 6px', lineHeight: 1.2 }} disabled={i === 0} onClick={() => moveSection(i, -1)}>▲</button>
-                          <button className="tbtn" style={{ padding: '0 6px', lineHeight: 1.2 }} disabled={i === form.sections.length - 1} onClick={() => moveSection(i, 1)}>▼</button>
+                      <div key={s.key} className={`secitem ${s.visible ? '' : 'off'}`}>
+                        <div className="secmove">
+                          <button type="button" disabled={i === 0} onClick={() => moveSection(i, -1)} aria-label="Move up">▲</button>
+                          <button type="button" disabled={i === form.sections.length - 1} onClick={() => moveSection(i, 1)} aria-label="Move down">▼</button>
                         </div>
-                        <span style={{ flex: 1, fontSize: 13, fontWeight: 600, opacity: s.visible ? 1 : 0.5 }}>{SECTION_LABELS[s.key] ?? s.key}</span>
+                        <span className="secname">{SECTION_LABELS[s.key] ?? s.key}</span>
                         <label className="checkline" style={{ fontSize: 12 }}><input type="checkbox" checked={s.visible} onChange={() => toggleSection(i)} /> Visible</label>
                       </div>
                     ))}
@@ -262,9 +236,10 @@ export default function HomeDesigner() {
               </div>
 
               {/* Live preview */}
-              <div>
+              <div className="previewcol">
                 <label style={{ fontWeight: 600, fontSize: 13 }}>Preview</label>
                 <Preview form={form} />
+                <p className="hint">A rough guide. Guests see their real shows, weather and tickets in each section.</p>
               </div>
             </div>
 
@@ -288,16 +263,18 @@ export default function HomeDesigner() {
 
 function Preview({ form }: { form: Form }) {
   const sec = (label: string) => (
-    <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 8, padding: '8px 10px', fontSize: 11, color: '#333' }}>{label}</div>
+    <div style={{ background: '#fff', border: '1px solid #eceae6', borderLeft: `3px solid ${form.accentColor}`, borderRadius: 8, padding: '8px 10px', fontSize: 11, color: '#333' }}>{label}</div>
   );
+  const hasPicture = !!form.heroMediaUrl && (form.heroType === 'image' || form.heroType === 'gif');
   return (
-    <div style={{ marginTop: 8, width: 260, border: '10px solid #111', borderRadius: 26, overflow: 'hidden', background: '#f4f2ee' }}>
-      <div style={{ height: 150, background: form.heroMediaUrl && form.heroType !== 'none' && form.heroType !== 'video' ? `center/cover no-repeat url(${form.heroMediaUrl})` : 'linear-gradient(#243a63,#341a20)', position: 'relative', display: 'flex', alignItems: 'flex-end', padding: 12 }}>
-        {form.heroType === 'video' && <span style={{ position: 'absolute', top: 8, left: 10, color: '#fff', fontSize: 10, opacity: 0.8 }}>▶ video</span>}
-        <b style={{ color: '#fff', fontSize: 15, lineHeight: 1.1, whiteSpace: 'pre-line', textShadow: '0 1px 4px rgba(0,0,0,.5)' }}>{form.tagline}</b>
+    <div className="phoneframe" style={{ marginTop: 8, width: 260 }}>
+      <div style={{ height: 160, background: hasPicture ? `center/cover no-repeat url(${form.heroMediaUrl})` : `linear-gradient(160deg, ${form.primaryColor}, #0e1830)`, position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', padding: 12 }}>
+        {form.heroType === 'video' && <span style={{ position: 'absolute', top: 8, left: 10, color: '#fff', fontSize: 10, opacity: 0.85 }}>▶ video{form.heroMediaUrl ? '' : ' (add a URL)'}</span>}
+        {form.greeting && <span style={{ color: '#fff', fontSize: 10, letterSpacing: 1.4, textTransform: 'uppercase', opacity: 0.85, textShadow: '0 1px 3px rgba(0,0,0,.5)' }}>{form.greeting}{form.greetingSub ? ` · ${form.greetingSub}` : ''}</span>}
+        <b style={{ color: '#fff', fontSize: 16, lineHeight: 1.12, whiteSpace: 'pre-line', textShadow: '0 1px 4px rgba(0,0,0,.55)' }}>{form.tagline}</b>
       </div>
       <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <div style={{ background: form.primaryColor, color: '#fff', borderRadius: 999, textAlign: 'center', padding: '7px 0', fontSize: 12, fontWeight: 700 }}>Buy tickets</div>
+        <div style={{ background: form.accentColor, color: '#fff', borderRadius: 999, textAlign: 'center', padding: '7px 0', fontSize: 12, fontWeight: 700 }}>Buy tickets</div>
         {form.sections.filter((s) => s.visible).map((s) => (
           <div key={s.key}>{sec(SECTION_LABELS[s.key] ?? s.key)}</div>
         ))}

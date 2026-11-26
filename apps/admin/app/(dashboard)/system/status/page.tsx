@@ -17,11 +17,11 @@ const INTERVALS = [
   { v: 15, label: '15 minutes' }, { v: 30, label: '30 minutes' }, { v: 60, label: '1 hour' },
   { v: 360, label: '6 hours' }, { v: 720, label: '12 hours' }, { v: 1440, label: '24 hours' },
 ];
-const COLOR: Record<string, string> = { up: '#22a35a', degraded: '#e2a53b', down: '#e5544b', none: '#e6e3dd' };
+const COLOR: Record<string, string> = { up: 'var(--ok)', degraded: 'var(--warn)', down: 'var(--danger)', none: 'var(--line)' };
 const BADGE: Record<Health, { label: string; bg: string; fg: string }> = {
-  up: { label: 'OPERATIONAL', bg: '#e7f8ee', fg: '#1c8a4e' },
-  degraded: { label: 'DEGRADED', bg: '#fbf1dd', fg: '#a9761a' },
-  down: { label: 'DOWN', bg: '#fdeceb', fg: '#c23b32' },
+  up: { label: 'OPERATIONAL', bg: 'var(--ok-soft)', fg: 'var(--ok)' },
+  degraded: { label: 'DEGRADED', bg: 'var(--warn-soft)', fg: 'var(--warn)' },
+  down: { label: 'DOWN', bg: 'var(--danger-soft)', fg: 'var(--danger)' },
 };
 const BANNER: Record<Health, { text: string; bg: string }> = {
   up: { text: 'All Systems Operational', bg: '#1f9d57' },

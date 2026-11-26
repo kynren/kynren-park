@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../../lib/api';
+import { todayUk } from '../../../lib/dates';
 
 interface Kpis {
   sessionsToday: number; delayed: number; cancelled: number; ticketsScanned: number;
@@ -18,14 +19,14 @@ interface Session {
   attraction: { id: string; name: string; category: string };
 }
 
-const OPENING_DAY = '2026-07-18';
 const fmt = (iso: string) => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
 const pounds = (c: number) => `£${(c / 100).toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
 const CATEGORY_COLOR: Record<string, string> = {
-  BIRDS: '#3a86c8', HORSE: '#8f5a2b', LAKE: '#22b365', VIKINGS: '#e5544b', MAZE: '#8b6ff0', EVENING_SHOW: '#f5601e', OTHER: '#8a94a6',
+  BIRDS: '#2f6fbf', HORSE: '#8a5a2e', LAKE: '#14935a', VIKINGS: '#d6372e', MAZE: '#6f55d8', EVENING_SHOW: '#1b2b4b', OTHER: '#6b7690',
 };
-const DONUT_COLORS = ['#f5601e', '#22b365', '#3a86c8', '#8b6ff0', '#e2a53b', '#e5544b'];
+const FALLBACK_COLOR = '#6b7690';
+const DONUT_COLORS = ['#1b2b4b', '#db0833', '#2f6fbf', '#6f55d8', '#d99a2b', '#14935a'];
 
 const TABS = ['All', 'On time', 'Delayed', 'Full', 'Finished'] as const;
 type Tab = (typeof TABS)[number];
@@ -38,8 +39,9 @@ export default function DashboardPage() {
   const [tab, setTab] = useState<Tab>('All');
 
   useEffect(() => {
-    api<Analytics>(`/admin/analytics?date=${OPENING_DAY}`).then(setAnalytics).catch(() => undefined);
-    api<Session[]>(`/schedule?date=${OPENING_DAY}`).then(setSessions).catch(() => undefined);
+    const day = todayUk();
+    api<Analytics>(`/admin/analytics?date=${day}`).then(setAnalytics).catch(() => undefined);
+    api<Session[]>(`/schedule?date=${day}`).then(setSessions).catch(() => undefined);
     api<unknown[]>('/restaurants').then((r) => setRestaurantCount(r.length)).catch(() => undefined);
   }, []);
 
@@ -100,10 +102,10 @@ export default function DashboardPage() {
               <button key={t} className={`tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>{t}</button>
             ))}
           </div>
-          {filtered.length === 0 && <div className="empty-chart" style={{ padding: '18px 0' }}>No shows in this view.</div>}
+          {filtered.length === 0 && <div className="empty-chart" style={{ padding: '18px 0' }}>{sessions.length === 0 ? 'No shows are scheduled today.' : 'No shows in this view.'}</div>}
           {filtered.slice(0, 7).map((s) => (
             <div className="rowitem" key={s.id}>
-              <div className="thumb" style={{ background: CATEGORY_COLOR[s.attraction.category] ?? '#8a94a6' }}>
+              <div className="thumb" style={{ background: CATEGORY_COLOR[s.attraction.category] ?? FALLBACK_COLOR }}>
                 {s.attraction.name.charAt(0)}
               </div>
               <div>
@@ -120,7 +122,7 @@ export default function DashboardPage() {
         <div className="panel">
           <div className="panel-head">
             <div className="panel-title">Guest Participation</div>
-            <div className="panel-pick">Show: <b>Today</b></div>
+            <div className="panel-pick"><b>Today</b></div>
           </div>
           <AreaChart series={series} />
         </div>
@@ -135,13 +137,13 @@ export default function DashboardPage() {
           {(analytics?.popularAttractions ?? []).length === 0 && <div className="empty-chart" style={{ padding: '18px 0' }}>No engagement yet.</div>}
           {(analytics?.popularAttractions ?? []).slice(0, 4).map((a) => (
             <div className="recent-row" key={a.name}>
-              <div className="thumb" style={{ background: CATEGORY_COLOR[a.category] ?? '#8a94a6' }}>{a.name.charAt(0)}</div>
+              <div className="thumb" style={{ background: CATEGORY_COLOR[a.category] ?? FALLBACK_COLOR }}>{a.name.charAt(0)}</div>
               <div>
                 <div className="rname">{a.name}</div>
                 <div className="rmeta">{a.category.toLowerCase().replace('_', ' ')}</div>
               </div>
               <div className="rmeta">♥ {a.favorites}</div>
-              <div className="rmeta">👁 {a.seen}</div>
+              <div className="rmeta">{a.seen} seen</div>
             </div>
           ))}
         </div>
@@ -149,7 +151,7 @@ export default function DashboardPage() {
         <div className="panel">
           <div className="panel-head">
             <div className="panel-title">Engagement Split</div>
-            <div className="panel-pick">Show: <b>This day</b></div>
+            <div className="panel-pick"><b>Today</b></div>
           </div>
           <div className="donut-wrap" style={{ marginTop: 10 }}>
             <Donut data={donut} />
@@ -201,18 +203,18 @@ function AreaChart({ series }: { series: { h: number; n: number }[] }) {
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto' }}>
       <defs>
         <linearGradient id="ac" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#22b365" stopOpacity="0.35" />
-          <stop offset="1" stopColor="#22b365" stopOpacity="0.02" />
+          <stop offset="0" stopColor="var(--primary-solid)" stopOpacity="0.28" />
+          <stop offset="1" stopColor="var(--primary-solid)" stopOpacity="0.02" />
         </linearGradient>
       </defs>
       {[0, 0.5, 1].map((g) => (
-        <line key={g} x1={PL} x2={W - 8} y1={PT + g * (H - PT - PB)} y2={PT + g * (H - PT - PB)} stroke="#eef0f4" strokeDasharray="4 4" />
+        <line key={g} x1={PL} x2={W - 8} y1={PT + g * (H - PT - PB)} y2={PT + g * (H - PT - PB)} className="chart-grid" strokeDasharray="4 4" />
       ))}
       <path d={area} fill="url(#ac)" />
-      <path d={line} fill="none" stroke="#22b365" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
-      <circle cx={x(peak)} cy={y(series[peak].n)} r={5} fill="#22b365" stroke="#fff" strokeWidth={2} />
+      <path d={line} fill="none" className="chart-line" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx={x(peak)} cy={y(series[peak].n)} r={5} className="chart-dot" strokeWidth={2} />
       {series.filter((_, i) => i % 3 === 0).map((s, i) => (
-        <text key={s.h} x={x(i * 3)} y={H - 6} fontSize="11" fill="#8a94a6" textAnchor="middle">{s.h}:00</text>
+        <text key={s.h} x={x(i * 3)} y={H - 6} fontSize="11" className="chart-axis" textAnchor="middle">{s.h}:00</text>
       ))}
     </svg>
   );
@@ -224,7 +226,7 @@ function Donut({ data }: { data: { label: string; value: number; color: string }
   let offset = 0;
   return (
     <svg width="150" height="150" viewBox="0 0 150 150">
-      <circle cx="75" cy="75" r={R} fill="none" stroke="#eef0f4" strokeWidth="20" />
+      <circle cx="75" cy="75" r={R} fill="none" className="chart-track" strokeWidth="20" />
       {data.map((d) => {
         const len = (d.value / total) * C;
         const seg = (

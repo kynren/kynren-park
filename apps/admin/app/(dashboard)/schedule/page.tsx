@@ -5,6 +5,7 @@ import { io, type Socket } from 'socket.io-client';
 import { api, API_URL } from '../../../lib/api';
 import { confirmDelete, promptText } from '../../../lib/confirm';
 import { REALTIME_EVENTS, type SessionUpdatedEvent } from '@kynren/shared';
+import { todayUk } from '../../../lib/dates';
 
 interface Session {
   id: string;
@@ -16,12 +17,11 @@ interface Session {
   attraction: { id: string; name: string; category: string };
 }
 
-const OPENING_DAY = '2026-07-18';
 const fmt = (iso: string) =>
   new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
 
 export default function SchedulePage() {
-  const [date, setDate] = useState(OPENING_DAY);
+  const [date, setDate] = useState(todayUk);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [connected, setConnected] = useState(false);
   const socketRef = useRef<Socket | null>(null);

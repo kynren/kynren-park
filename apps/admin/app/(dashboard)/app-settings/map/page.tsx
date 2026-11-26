@@ -29,7 +29,7 @@ const FACILITY_PALETTE: [string, string][] = [
   ['RESTROOM', 'Restroom'], ['FIRST_AID', 'First aid'], ['SHOP', 'Shop'], ['PARKING', 'Parking'],
   ['ACCESSIBILITY', 'Accessibility'], ['BABY_CHANGING', 'Baby changing'], ['PICNIC', 'Picnic'], ['ENTRANCE', 'Entrance'], ['INFO', 'Info'],
 ];
-const dragChipStyle: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 999, background: 'var(--card)', border: '1px solid var(--line)', fontSize: 12, fontWeight: 600, cursor: 'grab' };
+const dragChipStyle: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 999, background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--ink)', fontSize: 12, fontWeight: 600, cursor: 'grab' };
 // Fixed projection bounds for the park, so pins never reproject when one is added/moved.
 const PARK_BOUNDS = { minLat: 54.668, maxLat: 54.675, minLng: -1.684, maxLng: -1.674 };
 const CANVAS_ASPECT = 7 / 5; // the .mapcanvas aspect-ratio; the base map is contain-fitted inside it
@@ -59,6 +59,7 @@ export default function MapEditor() {
   const [placing, setPlacing] = useState(false); // the next click on the picture marks a landmark instead of adding a hotspot
   const [geoBusy, setGeoBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [panel, setPanel] = useState<'maps' | 'geo' | 'guest'>('maps'); // which settings card is showing under the map
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragId = useRef<string | null>(null);
   const moved = useRef(false);
@@ -534,8 +535,15 @@ export default function MapEditor() {
         </div>{/* /map + palette row */}
 
         {/* Settings cards — a responsive row above the full-width map. */}
+        <div className="segtabs" role="tablist" aria-label="Map settings">
+          <button role="tab" aria-selected={panel === 'maps'} className={`segtab ${panel === 'maps' ? 'active' : ''}`} onClick={() => setPanel('maps')}>Base maps &amp; walkways</button>
+          <button role="tab" aria-selected={panel === 'geo'} className={`segtab ${panel === 'geo' ? 'active' : ''}`} onClick={() => setPanel('geo')}>
+            Real-world position <span className={`segdot ${geoSaved ? 'ok' : ''}`} title={geoSaved ? 'Set' : 'Not set'} />
+          </button>
+          <button role="tab" aria-selected={panel === 'guest'} className={`segtab ${panel === 'guest' ? 'active' : ''}`} onClick={() => setPanel('guest')}>Guest app view</button>
+        </div>
         <div className="mapcards">
-          <div className="editcard">
+          <div className="editcard" hidden={panel !== 'maps'}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
               <h3 style={{ margin: 0 }}>Base maps</h3>
               <button className="primary" onClick={uploadBaseMap}>⬆ Upload map image</button>
@@ -559,7 +567,7 @@ export default function MapEditor() {
                       {m.isDefault ? <span className="pillbadge on">Default</span> : <button className="tbtn" onClick={() => setDefaultMap(m.id)}>Make default</button>}
                     </div>
                     <div className="maprow-url" title={m.imageUrl && !m.imageUrl.startsWith('data:') ? m.imageUrl : undefined}>{m.imageUrl ? (m.imageUrl.startsWith('data:') ? 'Uploaded picture' : m.imageUrl) : 'No picture yet (an illustrated map is shown)'}</div>
-                    {m.imageUrl && <div style={{ fontSize: 12, color: m.walkGrid ? '#22b365' : 'var(--muted)', marginTop: 2 }}>{m.walkGrid ? 'Walkways found: directions follow them' : 'No walkways found yet: directions cut between places'}</div>}
+                    {m.imageUrl && <div style={{ fontSize: 12, color: m.walkGrid ? 'var(--ok)' : 'var(--muted)', marginTop: 2 }}>{m.walkGrid ? 'Walkways found: directions follow them' : 'No walkways found yet: directions cut between places'}</div>}
                     <div className="maprow-actions">
                       {m.imageUrl && <button className="tbtn" onClick={() => findPaths(m.id, m.imageUrl!)} title="Look at the picture for footpaths and roads">Find walkways</button>}
                       {m.walkGrid && <button className="tbtn" onClick={() => clearPaths(m.id)}>Clear walkways</button>}
@@ -588,13 +596,13 @@ export default function MapEditor() {
             </div>
           </div>
 
-          <div className="editcard">
+          <div className="editcard" hidden={panel !== 'geo'}>
             <h3 style={{ margin: 0 }}>Real-world position</h3>
             {!defaultMap?.imageUrl ? (
               <p className="hint" style={{ margin: '6px 0 0' }}>Upload a map picture first.</p>
             ) : (
               <>
-                <p style={{ margin: '8px 0 4px', fontSize: 13, fontWeight: 700, color: geoSaved ? '#22b365' : 'var(--muted)' }}>
+                <p style={{ margin: '8px 0 4px', fontSize: 13, fontWeight: 700, color: geoSaved ? 'var(--ok)' : 'var(--muted)' }}>
                   {geoSaved
                     ? `Set from ${geoSaved.points.length} landmarks: the picture covers ${geoSaved.metresAcross} m × ${geoSaved.metresDown} m, typically ${geoSaved.rmsMetres} m out (worst ${geoSaved.maxMetres} m)`
                     : 'Not set: the app assumes the picture covers a fixed patch of ground, so a guest’s dot can land in the wrong place'}
@@ -613,10 +621,10 @@ export default function MapEditor() {
                       <div key={l.key} style={{ display: 'grid', gridTemplateColumns: '26px 1fr 1.4fr auto', gap: 6, alignItems: 'center' }}>
                         <span style={{ width: 22, height: 22, borderRadius: 4, background: '#d6336c', color: '#fff', fontSize: 12, fontWeight: 800, display: 'grid', placeItems: 'center' }}>{i + 1}</span>
                         <input value={l.label} placeholder="Name (optional)" onChange={(e) => setLandmarks((all) => all.map((x) => (x.key === l.key ? { ...x, label: e.target.value } : x)))} />
-                        <input value={l.coords} placeholder="54.67349, -1.68041" aria-invalid={bad} style={bad ? { borderColor: '#e5544b' } : undefined} onChange={(e) => setLandmarks((all) => all.map((x) => (x.key === l.key ? { ...x, coords: e.target.value } : x)))} />
+                        <input value={l.coords} placeholder="54.67349, -1.68041" aria-invalid={bad} style={bad ? { borderColor: 'var(--danger)' } : undefined} onChange={(e) => setLandmarks((all) => all.map((x) => (x.key === l.key ? { ...x, coords: e.target.value } : x)))} />
                         <button className="tbtn danger" onClick={() => setLandmarks((all) => all.filter((x) => x.key !== l.key))} title="Remove this landmark">✕</button>
                         {(bad || err !== undefined) && (
-                          <span style={{ gridColumn: '2 / 5', fontSize: 11.5, color: bad ? '#e5544b' : err! > 25 ? '#e2a53b' : 'var(--muted)' }}>
+                          <span style={{ gridColumn: '2 / 5', fontSize: 11.5, color: bad ? 'var(--danger)' : err! > 25 ? 'var(--warn)' : 'var(--muted)' }}>
                             {bad ? 'Paste the latitude and longitude, like 54.67349, -1.68041' : err! > 25 ? `${err} m out: check this one is the same spot on both` : `${err} m out`}
                           </span>
                         )}
@@ -624,8 +632,8 @@ export default function MapEditor() {
                     );
                   })}
                 </div>
-                {geoFit && !geoFit.ok && <p style={{ color: '#e5544b', fontSize: 12.5, margin: '10px 0 0' }}>{geoFit.error}</p>}
-                {geoFit?.ok && geoFit.calibration.maxMetres > 25 && <p style={{ color: '#e2a53b', fontSize: 12.5, margin: '10px 0 0' }}>One landmark is a long way from where the others say it should be. A mistyped number or a mis-click is the usual cause.</p>}
+                {geoFit && !geoFit.ok && <p style={{ color: 'var(--danger)', fontSize: 12.5, margin: '10px 0 0' }}>{geoFit.error}</p>}
+                {geoFit?.ok && geoFit.calibration.maxMetres > 25 && <p style={{ color: 'var(--warn)', fontSize: 12.5, margin: '10px 0 0' }}>One landmark is a long way from where the others say it should be. A mistyped number or a mis-click is the usual cause.</p>}
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
                   <button className={placing ? 'primary' : 'tbtn'} onClick={() => setPlacing((p) => !p)} disabled={landmarks.length >= 12}>{placing ? 'Click the landmark on the picture…' : '＋ Mark on picture'}</button>
                   <button className="primary" disabled={!geoFit?.ok || !geoUnsaved || geoBusy} onClick={() => defaultMap && saveGeo(defaultMap.id)}>{geoBusy ? 'Saving…' : 'Save position'}</button>
@@ -637,7 +645,7 @@ export default function MapEditor() {
           </div>
 
 
-          <div className="editcard">
+          <div className="editcard" hidden={panel !== 'guest'}>
             <h3>Guest marker &amp; map</h3>
             <div className="form-row" style={{ marginBottom: 12 }}><label>Marker colour</label>
               <div className="swatches">
@@ -649,10 +657,10 @@ export default function MapEditor() {
                 <option value="pulse">Pulsing dot</option><option value="dot">Solid dot</option><option value="pin">Pin</option>
               </select>
             </div>
-            <p style={{ color: 'var(--muted)', fontSize: 12, margin: 0 }}>Manage the base map image under <b>Base maps</b> above.</p>
+            <p style={{ color: 'var(--muted)', fontSize: 12, margin: 0 }}>Manage the base map image under the <b>Base maps &amp; walkways</b> tab.</p>
           </div>
 
-          <div className="editcard">
+          <div className="editcard" hidden={panel !== 'guest'}>
             <h3 style={{ margin: 0 }}>Initial mobile view</h3>
             <p className="hint" style={{ margin: '6px 0 12px' }}>How the map first appears in the app. Guests can still pinch-zoom and pan.</p>
             <div style={{ display: 'grid', gap: 12 }}>

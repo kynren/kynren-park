@@ -2,13 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../../../../lib/api';
-import { DEFAULT_BRANDING, resizeToDataUrl, rawDataUrl, type Branding } from '../../../../lib/branding';
+import { DEFAULT_BRANDING, resizeToDataUrl, rawDataUrl, withOfficialColours, type Branding } from '../../../../lib/branding';
 
 export default function BrandingPage() {
   const [b, setB] = useState<Branding>(DEFAULT_BRANDING);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [oldColours, setOldColours] = useState(false);
   const logoInput = useRef<HTMLInputElement>(null);
   const iconInput = useRef<HTMLInputElement>(null);
   const faviconInput = useRef<HTMLInputElement>(null);
@@ -26,7 +27,11 @@ export default function BrandingPage() {
   }
 
   useEffect(() => {
-    api<Branding>('/branding').then((v) => setB({ ...DEFAULT_BRANDING, ...v })).catch(() => setError('Could not load branding.'));
+    api<Branding>('/branding').then((v) => {
+      // Colours saved before the official ones were chosen are shown as navy and red; saving stores them.
+      const { value, changed } = withOfficialColours({ ...DEFAULT_BRANDING, ...v });
+      setB(value); setOldColours(changed);
+    }).catch(() => setError('Could not load branding.'));
   }, []);
 
   const set = <K extends keyof Branding>(k: K, v: Branding[K]) => { setB((p) => ({ ...p, [k]: v })); setSaved(false); };
@@ -47,6 +52,7 @@ export default function BrandingPage() {
         body: JSON.stringify({ appName: b.appName, tagline: b.tagline, primary: b.primary, accent: b.accent, font: b.font ?? 'system', logoUrl: b.logoUrl ?? null, iconUrl: b.iconUrl ?? null, faviconUrl: b.faviconUrl ?? null, splashType: b.splashType ?? 'none', splashMediaUrl: b.splashMediaUrl ?? null, seasonOpens: b.seasonOpens ?? null }),
       });
       setB({ ...DEFAULT_BRANDING, ...next });
+      setOldColours(false);
       localStorage.setItem('kynren_branding', JSON.stringify(next));
       setSaved(true); setTimeout(() => setSaved(false), 1800);
     } catch { setError('Save failed — you need the “System administration” permission.'); }
@@ -56,10 +62,11 @@ export default function BrandingPage() {
   return (
     <div>
       <div className="page-actions" style={{ marginTop: 0 }}>
-        <p className="subtitle" style={{ margin: 0 }}>Logo, icon and colours — applied across the admin and the mobile app.</p>
+        <p className="subtitle" style={{ margin: 0 }}>Logo, icon and colours. The logo, name and favicon also show in this console; the colours are used by the mobile app.</p>
         <button className="primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : saved ? '✓ Saved' : 'Save branding'}</button>
       </div>
       {error && <div className="error">{error}</div>}
+      {oldColours && <div className="alert warn">The saved colours were the old defaults, so the park’s navy and red are shown here. Press <b>Save branding</b> to store them.</div>}
       <div className="grid-2">
         <div className="panel">
           <div className="form-grid">

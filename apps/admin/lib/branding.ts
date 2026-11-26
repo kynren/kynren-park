@@ -9,7 +9,21 @@ export interface Branding {
   splashType?: 'none' | 'photo' | 'gif' | 'video'; splashMediaUrl?: string | null;
   seasonOpens?: string | null;
 }
-export const DEFAULT_BRANDING: Branding = { appName: 'Kynren', tagline: 'The Storied Lands', primary: '#8f1d21', accent: '#22b365', font: 'system' };
+export const DEFAULT_BRANDING: Branding = { appName: 'Kynren', tagline: 'The Storied Lands', primary: '#1b2b4b', accent: '#db0833', font: 'system' };
+
+/** The park's own colours. */
+export const BRAND_NAVY = '#1b2b4b';
+export const BRAND_RED = '#db0833';
+/** Older default colours that were saved before the official ones were chosen. The apps treat these as "not set". */
+const LEGACY_COLOURS = new Set(['#8f1d21', '#8a1f31', '#e2862b', '#1f6b49', '#22b365', '#2f5b43']);
+const isLegacy = (c?: string | null) => !!c && LEGACY_COLOURS.has(c.toLowerCase());
+
+/** Swap any old default colours for the official navy and red. Reports whether anything was swapped. */
+export function withOfficialColours<T extends { primary: string; accent: string }>(b: T): { value: T; changed: boolean } {
+  const primary = isLegacy(b.primary) ? BRAND_NAVY : b.primary;
+  const accent = isLegacy(b.accent) ? BRAND_RED : b.accent;
+  return { value: { ...b, primary, accent }, changed: primary !== b.primary || accent !== b.accent };
+}
 
 const CACHE = 'kynren_branding';
 

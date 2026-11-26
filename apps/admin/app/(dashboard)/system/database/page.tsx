@@ -11,21 +11,23 @@ export default function Database() {
 
   useEffect(() => { api<DbStats>('/admin/db-stats').then(setData).catch(() => setError('Could not load database stats.')); }, []);
 
-  const total = data?.tables.reduce((s, t) => s + t.rows, 0) ?? 0;
+  const tables = Array.isArray(data?.tables) ? data!.tables : [];
+  const total = tables.reduce((s, t) => s + t.rows, 0);
 
   return (
     <div>
       <div className="page-actions" style={{ marginTop: 0 }}>
-        <div className="dot-status up"><span className="d" /> PostgreSQL connected</div>
+        <div className={`dot-status ${error ? 'down' : 'up'}`}><span className="d" /> {error ? 'Database not reachable' : 'PostgreSQL connected'}</div>
         <div className="panel-pick">Total rows: <b>{total.toLocaleString()}</b></div>
       </div>
       {error && <div className="error">{error}</div>}
       <div className="kv">
-        {(data?.tables ?? []).map((t) => (
+        {tables.map((t) => (
           <div className="cell" key={t.name}><div className="n">{t.rows.toLocaleString()}</div><div className="l">{t.name}</div></div>
         ))}
       </div>
-      {data && <p className="hint">Snapshot generated {new Date(data.generatedAt).toLocaleString('en-GB')}.</p>}
+      {data?.generatedAt && <p className="hint">Snapshot generated {new Date(data.generatedAt).toLocaleString('en-GB')}.</p>}
+      {data && tables.length === 0 && !error && <p className="hint">The server returned no table counts.</p>}
     </div>
   );
 }

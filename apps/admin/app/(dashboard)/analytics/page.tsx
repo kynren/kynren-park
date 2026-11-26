@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
+import { todayUk } from '../../../lib/dates';
 
 interface Analytics {
   date: string;
@@ -24,7 +25,6 @@ interface Analytics {
   ticketTypeBreakdown: { name: string; count: number }[];
 }
 
-const OPENING_DAY = '2026-07-18';
 const pounds = (c: number) => `£${(c / 100).toLocaleString('en-GB', { minimumFractionDigits: 2 })}`;
 
 // Validated categorical pair (dataviz validator: all checks pass, CVD ΔE 17.3).
@@ -48,7 +48,7 @@ const ORDER_STATUS: [string, string, string][] = [
 ];
 
 export default function AnalyticsPage() {
-  const [date, setDate] = useState(OPENING_DAY);
+  const [date, setDate] = useState(todayUk);
   const [data, setData] = useState<Analytics | null>(null);
   const [error, setError] = useState('');
 

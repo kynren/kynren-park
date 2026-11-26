@@ -50,7 +50,7 @@ export default function SettingsPage() {
       <h1>Settings</h1>
       <p className="subtitle">Your staff account and workspace configuration.</p>
 
-      <div className="set-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+      <div className="cols-2">
         <div className="panel">
           <div className="panel-title" style={{ marginBottom: 12 }}>Account</div>
           <div className="form-row" style={{ marginBottom: 10 }}><label>Name</label><input value={name} onChange={(e) => setName(e.target.value)} /></div>
@@ -58,7 +58,7 @@ export default function SettingsPage() {
           <div className="form-row" style={{ marginBottom: 12 }}><label>Role</label><input readOnly value={staff?.role ?? ''} /></div>
           {accErr && <div className="error">{accErr}</div>}
           <button className="primary" onClick={saveAccount}>Save account</button>
-          {accMsg && <span style={{ marginLeft: 10, color: 'var(--green)', fontSize: 13 }}>{accMsg}</span>}
+          {accMsg && <span style={{ marginLeft: 10, color: 'var(--ok)', fontSize: 13 }}>{accMsg}</span>}
         </div>
 
         <div className="panel">
@@ -68,7 +68,7 @@ export default function SettingsPage() {
           <label className="checkline" style={{ marginBottom: 12 }}><input type="checkbox" checked={showPw} onChange={(e) => setShowPw(e.target.checked)} /> Show passwords</label>
           {pwErr && <div className="error">{pwErr}</div>}
           <button className="primary" onClick={changePassword}>Update password</button>
-          {pwMsg && <span style={{ marginLeft: 10, color: 'var(--green)', fontSize: 13 }}>{pwMsg}</span>}
+          {pwMsg && <span style={{ marginLeft: 10, color: 'var(--ok)', fontSize: 13 }}>{pwMsg}</span>}
         </div>
       </div>
 

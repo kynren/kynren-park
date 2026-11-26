@@ -1,11 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, apiUpload, friendlyError } from '../../../../lib/api';
 import { confirmDelete } from '../../../../lib/confirm';
 import { uploadToast } from '../../../../lib/toast';
 import { GalleryEditor } from '../../../../components/GalleryEditor';
+import { ImageField } from '../../../../components/ImageField';
 import { ImportCsvModal } from '../../../../components/ImportCsvModal';
 import { QrButton } from '../../../../components/QrButton';
 
@@ -42,23 +43,7 @@ const IMPORT_COLUMNS = [
   { key: 'color', label: 'Colour' },
 ];
 
-function resizeToDataUrl(file: File, maxDim: number): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new window.Image();
-      img.onload = () => {
-        const s = Math.min(1, maxDim / Math.max(img.width, img.height));
-        const w = Math.round(img.width * s), h = Math.round(img.height * s);
-        const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
-        canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL('image/jpeg', 0.85));
-      };
-      img.onerror = reject; img.src = reader.result as string;
-    };
-    reader.onerror = reject; reader.readAsDataURL(file);
-  });
-}
+
 
 export default function Facilities() {
   const [pois, setPois] = useState<Poi[]>([]);
@@ -66,8 +51,6 @@ export default function Facilities() {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const imageRef = useRef<HTMLInputElement>(null);
-  const heroRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(() => { api<Poi[]>('/admin/pois').then(setPois).catch(() => setError('Could not load facilities.')); }, []);
   useEffect(load, [load]);
@@ -82,15 +65,6 @@ export default function Facilities() {
       heroImage: p.heroImage ?? '', images: p.images ?? [], openingHours: p.openingHours ?? '',
     });
     setError('');
-  }
-
-  async function onImage(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]; if (!file || !form) return;
-    try { setForm({ ...form, image: await resizeToDataUrl(file, 400) }); } catch { /* ignore */ }
-  }
-  async function onHero(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]; if (!file || !form) return;
-    try { setForm({ ...form, heroImage: await resizeToDataUrl(file, 1400) }); } catch { /* ignore */ }
   }
 
   async function save() {
@@ -136,7 +110,7 @@ export default function Facilities() {
     <div>
       <div className="page-actions">
         <div><h1>Facilities</h1><p className="subtitle" style={{ margin: 0 }}>Toilets, first aid, shops and any service shown on the app map under “Facilities”.</p></div>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <Link href="/app-settings/map" className="tbtn" style={{ padding: '10px 14px' }}>Open map editor</Link>
           <button className="tbtn" onClick={() => setImportOpen(true)}>Import facilities (CSV)</button>
           <button className="primary" onClick={openNew}>+ Add facility</button>
@@ -171,15 +145,7 @@ export default function Facilities() {
             <h2>{form.id ? 'Edit facility' : 'Add facility'}</h2>
             <div className="form-grid">
               <div className="form-row full">
-                <label>Marker image (optional)</label>
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                  <div style={{ width: 64, height: 64, borderRadius: 8, overflow: 'hidden', background: 'var(--panel,#f0ece6)' }}>
-                    {form.image && <img src={form.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-                  </div>
-                  <input ref={imageRef} type="file" accept="image/*" hidden onChange={onImage} />
-                  <button className="tbtn" onClick={() => imageRef.current?.click()}>Upload</button>
-                  {form.image && <button className="tbtn danger" onClick={() => setForm({ ...form, image: '' })}>Remove</button>}
-                </div>
+                <ImageField label="Marker image (optional)" value={form.image} onChange={(u) => setForm({ ...form, image: u })} width={64} height={64} maxDim={400} />
               </div>
               <div className="form-row"><label>Name *</label><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
               <div className="form-row"><label>Category</label>
@@ -199,19 +165,7 @@ export default function Facilities() {
               <div className="form-row"><label>Longitude</label><input value={form.lng} onChange={(e) => setForm({ ...form, lng: e.target.value })} /></div>
               <div className="form-row full"><label>Description</label><textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
               <div className="form-row full">
-                <label>Detail page image (optional)</label>
-                <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-                  <div style={{ width: 160, height: 100, borderRadius: 10, overflow: 'hidden', background: 'var(--panel,#f0ece6)', flex: '0 0 auto' }}>
-                    {form.heroImage
-                      ? <img src={form.heroImage} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : <div style={{ display: 'grid', placeItems: 'center', height: '100%', color: 'var(--muted)', fontSize: 13 }}>No image</div>}
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <input ref={heroRef} type="file" accept="image/*" hidden onChange={onHero} />
-                    <button className="tbtn" onClick={() => heroRef.current?.click()}>Upload image</button>
-                    {form.heroImage && <button className="tbtn danger" onClick={() => setForm({ ...form, heroImage: '' })}>Remove</button>}
-                  </div>
-                </div>
+                <ImageField label="Detail page image (optional)" value={form.heroImage} onChange={(u) => setForm({ ...form, heroImage: u })} width={160} height={100} maxDim={1400} />
               </div>
               <div className="form-row full">
                 <GalleryEditor images={form.images} onChange={(next) => setForm({ ...form, images: next })} />

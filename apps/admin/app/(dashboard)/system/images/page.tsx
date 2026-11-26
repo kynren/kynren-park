@@ -110,7 +110,7 @@ export default function AppImages() {
           <div className="modal" style={{ width: 860, maxWidth: '96vw' }}>
             <h2 style={{ marginBottom: 2 }}>{edit.label}</h2>
             <p className="subtitle">{edit.location}</p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 22, marginTop: 8 }}>
+            <div className="split-300" style={{ marginTop: 8 }}>
               <div>
                 <div className="form-grid">
                   <div className="form-row"><label>Light image</label>

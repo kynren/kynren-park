@@ -1,12 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api, apiUpload, friendlyError } from '../../../lib/api';
 import { uploadToast } from '../../../lib/toast';
 import { usePaged, Pager } from '../../../components/Pager';
 import { confirmDelete } from '../../../lib/confirm';
 import { QrButton } from '../../../components/QrButton';
 import { GalleryEditor } from '../../../components/GalleryEditor';
+import { ImageField } from '../../../components/ImageField';
 
 interface Poi { id: string; name: string; type: string }
 interface Attraction {
@@ -28,27 +29,6 @@ const EMPTY = {
   sensoryNotes: '', sortOrder: 0, active: true, poiId: '',
 };
 type Form = typeof EMPTY & { id?: string };
-const MAX_IMAGE_MB = 15; // source cap; the image is resized down before upload
-
-// Resize an image file to a capped dimension and return a compact JPEG data URL,
-// so the featured image uploads reliably (a full-res photo is too big to POST).
-function resizeToDataUrl(file: File, maxDim: number): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new window.Image();
-      img.onload = () => {
-        const s = Math.min(1, maxDim / Math.max(img.width, img.height));
-        const w = Math.round(img.width * s), h = Math.round(img.height * s);
-        const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
-        canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL('image/jpeg', 0.85));
-      };
-      img.onerror = reject; img.src = reader.result as string;
-    };
-    reader.onerror = reject; reader.readAsDataURL(file);
-  });
-}
 
 export default function AttractionsAdmin() {
   const [rows, setRows] = useState<Attraction[]>([]);
@@ -56,7 +36,6 @@ export default function AttractionsAdmin() {
   const [form, setForm] = useState<Form | null>(null);
   const [error, setError] = useState('');
   const { page, setPage, totalPages, pageRows, total, start, end } = usePaged(rows, 10);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(() => {
     api<Attraction[]>('/admin/attractions').then(setRows).catch((e) => setError(friendlyError(e, 'Could not load attractions.')));
@@ -73,18 +52,6 @@ export default function AttractionsAdmin() {
       sensoryNotes: a.sensoryNotes ?? '', sortOrder: a.sortOrder, active: a.active, poiId: a.poiId ?? '',
     });
     setError('');
-  }
-
-  async function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = ''; // allow re-picking the same file
-    if (!file || !form) return;
-    if (file.size > MAX_IMAGE_MB * 1024 * 1024) { setError(`Image must be under ${MAX_IMAGE_MB} MB.`); return; }
-    try {
-      const url = await resizeToDataUrl(file, 1400); // downscale so the upload stays small
-      setForm((f) => (f ? { ...f, heroImage: url } : f));
-      setError('');
-    } catch { setError('Could not read that image.'); }
   }
 
   async function save() {
@@ -124,10 +91,8 @@ export default function AttractionsAdmin() {
           {pageRows.map((a) => (
             <tr key={a.id} className={a.active ? '' : 'rowdim'}>
               <td>
-                <div style={{ width: 52, height: 40, borderRadius: 8, overflow: 'hidden', background: 'var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {a.heroImage
-                    ? <img src={a.heroImage} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    : <span style={{ fontSize: 16 }}>🎭</span>}
+                <div className="mediabox" style={{ width: 52, height: 40, borderRadius: 8 }}>
+                  {a.heroImage ? <img src={a.heroImage} alt="" /> : <span style={{ fontSize: 16 }}>🎭</span>}
                 </div>
               </td>
               <td><b>{a.name}</b>{a.tagline ? <div style={{ color: 'var(--muted)', fontSize: 12 }}>{a.tagline}</div> : null}</td>
@@ -153,20 +118,8 @@ export default function AttractionsAdmin() {
 
             {/* Featured image */}
             <div className="form-row full">
-              <label>Featured image</label>
-              <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-                <div style={{ width: 132, height: 90, borderRadius: 10, overflow: 'hidden', background: 'var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  {form.heroImage
-                    ? <img src={form.heroImage} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    : <span style={{ fontSize: 22 }}>🎭</span>}
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <input ref={fileRef} type="file" accept="image/*" onChange={onPickImage} style={{ display: 'none' }} />
-                  <button type="button" className="tbtn" onClick={() => fileRef.current?.click()}>Upload image</button>
-                  {form.heroImage ? <button type="button" className="tbtn danger" onClick={() => setForm({ ...form, heroImage: '' })}>Remove</button> : null}
-                  <span className="hint">Populates lists, the map pin and the attraction page. Large photos are resized automatically.</span>
-                </div>
-              </div>
+              <ImageField label="Featured image" value={form.heroImage} onChange={(u) => setForm({ ...form, heroImage: u })} onError={setError}
+                width={132} height={90} hint="Populates lists, the map pin and the attraction page. Large photos are resized automatically." empty="🎭" />
             </div>
 
             <div className="form-row full" style={{ marginTop: 12 }}>

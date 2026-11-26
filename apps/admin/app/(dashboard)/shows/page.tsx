@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, friendlyError } from '../../../lib/api';
 import { confirmDelete } from '../../../lib/confirm';
+import { todayUk } from '../../../lib/dates';
 
 interface Attraction { id: string; name: string; category: string }
 interface Session {
@@ -10,7 +11,6 @@ interface Session {
   attraction: { id: string; name: string; category: string };
 }
 
-const OPENING_DAY = '2026-07-18';
 const fmt = (iso: string) => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
 const minsUTC = (iso: string) => new Date(iso).getUTCHours() * 60 + new Date(iso).getUTCMinutes();
 
@@ -20,7 +20,7 @@ const WEEKDAYS: [number, string][] = [[1, 'Mon'], [2, 'Tue'], [3, 'Wed'], [4, 'T
 const addDays = (ymd: string, n: number) => { const d = new Date(`${ymd}T00:00:00.000Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 
 export default function ShowsAdmin() {
-  const [date, setDate] = useState(OPENING_DAY);
+  const [date, setDate] = useState(todayUk);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [attractions, setAttractions] = useState<Attraction[]>([]);
   const [form, setForm] = useState<Form | null>(null);
@@ -97,7 +97,7 @@ export default function ShowsAdmin() {
           <h1>Shows</h1>
           <p className="subtitle" style={{ margin: 0 }}>The programme of show times guests see in the mobile timetable.</p>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           <button className="primary" onClick={openNew}>+ Add show time</button>
         </div>

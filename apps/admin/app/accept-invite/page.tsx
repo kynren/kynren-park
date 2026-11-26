@@ -39,9 +39,9 @@ export default function AcceptInvitePage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--bg, #f6f7f9)', padding: 20 }}>
-      <div className="modal" style={{ width: 420, boxShadow: '0 12px 40px rgba(20,25,40,0.18)' }}>
-        <div style={{ fontSize: 22, fontWeight: 800, color: '#8f1d21', marginBottom: 4 }}>Kynren</div>
+    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--app-bg)', padding: 20 }}>
+      <div className="modal" style={{ width: 420, boxShadow: 'var(--shadow-md)' }}>
+        <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--accent)', marginBottom: 4 }}>Kynren</div>
         <h2 style={{ marginTop: 0 }}>Accept your invitation</h2>
 
         {loadErr ? (

@@ -33,7 +33,7 @@ export default function LoginPage() {
       router.replace('/dashboard');
     } catch (err) {
       if (err instanceof ApiError && err.status === 0) {
-        setError(`Can’t reach the API (${API_URL}). Is \`npm run dev:api\` running?`);
+        setError(`Can’t reach the server (${API_URL}). Check your connection and try again.`);
       } else if (err instanceof ApiError && err.status === 401) {
         setError('Invalid email or password.');
       } else {
@@ -47,11 +47,11 @@ export default function LoginPage() {
   return (
     <div className="login-wrap">
       <form className="login-card" onSubmit={submit}>
-        <div className="logo" style={{ fontSize: 30 }}>Kyn<b>ren</b></div>
+        <div className="logo" style={{ fontSize: 30 }}>Kynren<b>.</b></div>
         <p className="subtitle" style={{ textAlign: 'center' }}>The Storied Lands — Operations</p>
-        {notice && <div className="error" style={{ background: '#fbf1dd', color: 'var(--warn)' }}>{notice}</div>}
+        {notice && <div className="error" style={{ background: 'var(--warn-soft)', color: 'var(--warn)', padding: '9px 12px', borderRadius: 10 }}>{notice}</div>}
         <label>Email</label>
-        <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="username" />
+        <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="username" autoFocus />
         <label>Password</label>
         <div style={{ position: 'relative' }}>
           <input value={password} onChange={(e) => setPassword(e.target.value)} type={showPw ? 'text' : 'password'} style={{ width: '100%', paddingRight: 58 }} />
